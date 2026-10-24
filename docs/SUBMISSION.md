@@ -59,9 +59,13 @@
 构建产物已推到 `gh-pages` 分支（相对路径，子目录部署也能跑）：
 
 ```powershell
-npm run build
-# 把 dist/ 内容推到 gh-pages（临时目录，不动 main 的工作区）
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/deploy-pages.ps1
+node tools/live-probe.mjs   # 验证线上能进局、能召唤、无 4xx
 ```
+
+> **不要用 `git subtree push --prefix dist origin gh-pages`**：`dist/` 在 `.gitignore` 里，
+> subtree 切出来是空的，这条命令会退化成删除远端分支（2026-10-25 踩过，站点直接 404）。
+> 脚本里用的是 orphan 分支 + 临时目录，失败也不会破坏远端。
 
 开启 Pages：仓库 **Settings → Pages → Source: Deploy from a branch → Branch: `gh-pages` / `(root)` → Save**，
 约 1 分钟后 https://gove2004.github.io/20261024/ 可访问。
