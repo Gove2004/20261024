@@ -273,9 +273,13 @@ export class Hero {
       this.xp -= need;
       this.level += 1;
       this.maxHp = heroMaxHp(this.level) * this.hpMul;
-      // 升级只回 3%：原来回 8%，12 级就等于白送一整条血，
-      // 玩家打掉的伤害被"升级回血"全额抹平（模拟里他结束还剩 72% 血）。
-      this.hp = Math.min(this.maxHp, this.hp + this.maxHp * 0.03);
+      // 升级只回 3%，而且**只在真正掉血时才回**：
+      // 之前无条件回血，让"打满 300 只怪 → 升 13 级"变成 39% 最大生命的白送治疗，
+      // 模拟里他连着好几局都是 100% 血收场 —— 场上没压力，玩家就不会紧张。
+      // 门槛 0.7 和被动治疗技能的阈值一致，读起来是同一套"重伤才自救"的直觉。
+      if (this.hp < this.maxHp * 0.7) {
+        this.hp = Math.min(this.maxHp, this.hp + this.maxHp * 0.03);
+      }
       this.atk = heroAtk(this.level) * this.atkMul;
       this.speed = heroSpeed(this.level);
       this.armor += HERO.armorPerLevel;

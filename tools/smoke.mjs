@@ -420,6 +420,30 @@ await page.waitForTimeout(1400);
 
 await page.screenshot({ path: join(SHOTS, '02-arena.png') });
 
+// ---- 地图事件（M6）：推到第一个事件点，确认播报与常驻标签都真的出现 ----
+// 直接把 elapsed 推到 56 秒，而不是真等 56 秒 —— 事件触发只看时间戳，
+// 所以这样测的是同一段代码路径，但省掉一分钟。
+await page.evaluate(() => {
+  window.__game.elapsed = 56;
+});
+await page.waitForTimeout(400);
+const eventDiag = await page.evaluate(() => {
+  const chip = document.querySelector('[data-event]');
+  return {
+    id: window.__game.eventId,
+    left: Math.round(window.__game.eventLeft),
+    text: chip?.textContent ?? '',
+    hidden: chip?.hidden ?? true,
+    starCap: window.__game.starCap,
+  };
+});
+check(
+  '地图事件触发并常驻显示',
+  eventDiag.id !== null && !eventDiag.hidden && eventDiag.text.includes('事件'),
+  `id=${eventDiag.id} 剩余=${eventDiag.left}s 标签="${eventDiag.text}" 星数上限=${eventDiag.starCap}`,
+);
+await page.screenshot({ path: join(SHOTS, '06-event.png') });
+
 // ---- 帧率（在满场对局里测，空场数字没有意义） ----
 // 先确保没有任何覆盖层开着：.overlay 带 backdrop-filter，
 // 只要它还在合成树里，软件渲染的帧率就不是"游戏"的帧率（实测 10fps vs 41fps）。

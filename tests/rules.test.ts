@@ -7,7 +7,13 @@ import {
   findCard,
   summonCount,
 } from '../src/content/cards';
-import { STAR_CAP, heroAtk, heroMaxHp, starCapAt, xpNeed } from '../src/content/config';
+import { STAR_CAP, RUN, heroAtk, heroMaxHp, starCapAt, xpNeed } from '../src/content/config';
+import {
+  MAP_EVENTS,
+  MAP_EVENT_AT,
+  MAP_EVENT_TUNING,
+  type MapEventId,
+} from '../src/content/events';
 import { AI } from '../src/content/heroAi';
 import { PASSIVE_POOL, SKILLS, SKILL_TUNING } from '../src/content/heroSkills';
 import { PASSIVE_COUNT, PASSIVE_POOL_COUNT } from '../src/gameplay/hero';
@@ -147,5 +153,46 @@ describe('AI 参数', () => {
 
   it('撤退阈值低于狂化阈值之上，形成"先撤后狂"的层次', () => {
     expect(AI.retreatThreshold).toBeGreaterThan(AI.enrageThreshold);
+  });
+});
+
+describe('地图事件', () => {
+  it('三个事件定义完整，播报里必须带具体数字', () => {
+    const ids = Object.keys(MAP_EVENTS);
+    expect(ids.length).toBe(3);
+    for (const id of ids) {
+      const def = MAP_EVENTS[id as MapEventId];
+      expect(def.name.length).toBeGreaterThan(0);
+      // 只说"发生了一件事"的播报没用，玩家需要知道该怎么打
+      expect(def.toast).toMatch(/\+\d+|-\d+/);
+      expect(def.duration).toBeGreaterThan(10);
+    }
+    expect(MAP_EVENT_AT.length).toBe(3);
+  });
+
+  it('触发时刻递增，且都在单局时长之内', () => {
+    for (let i = 1; i < MAP_EVENT_AT.length; i += 1) {
+      expect(MAP_EVENT_AT[i]!).toBeGreaterThan(MAP_EVENT_AT[i - 1]!);
+    }
+    expect(MAP_EVENT_AT[0]!).toBeGreaterThan(30);
+    expect(MAP_EVENT_AT[MAP_EVENT_AT.length - 1]!).toBeLessThan(RUN.duration - 20);
+  });
+
+  it('事件窗口不重叠（否则播报会互相顶掉）', () => {
+    const order: readonly MapEventId[] = ['bloodmoon', 'surge', 'sacrifice'];
+    let prevEnd = 0;
+    for (let i = 0; i < MAP_EVENT_AT.length; i += 1) {
+      const start = MAP_EVENT_AT[i]!;
+      expect(start).toBeGreaterThanOrEqual(prevEnd);
+      prevEnd = start + MAP_EVENTS[order[i]!].duration;
+    }
+  });
+
+  it('数值在"能感觉到但不失衡"的区间', () => {
+    expect(MAP_EVENT_TUNING.bloodmoonAtkMul).toBeGreaterThan(1.2);
+    expect(MAP_EVENT_TUNING.bloodmoonAtkMul).toBeLessThan(1.6);
+    expect(MAP_EVENT_TUNING.surgeCdMul).toBeGreaterThan(1.4);
+    expect(MAP_EVENT_TUNING.surgeCdMul).toBeLessThan(2);
+    expect(MAP_EVENT_TUNING.sacrificeStarBonus).toBeGreaterThanOrEqual(8);
   });
 });

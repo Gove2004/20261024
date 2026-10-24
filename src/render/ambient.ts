@@ -1,4 +1,4 @@
-import { Container, Graphics, Sprite, Texture } from 'pixi.js';
+﻿import { Container, Graphics, Sprite, Texture } from 'pixi.js';
 import { HALL, HALL_WALL } from '../content/config';
 import type { Rng } from '../core/rng';
 
@@ -12,8 +12,8 @@ import type { Rng } from '../core/rng';
  * 贴图用 renderer.generateTexture 现烤一个小圆点：几十个粒子共用一张 16×16，
  * 软件渲染下比每帧画 arc 便宜得多。
  */
-const DUST_COUNT = 34;
-const EMBER_COUNT = 26;
+const DUST_COUNT = 26;
+const EMBER_COUNT = 20;
 
 interface Mote {
   sprite: Sprite;

@@ -84,6 +84,8 @@ export class Scene {
   private heroArt: Sprite | null = null;
   private floorSprite: Sprite | null = null;
   private readonly ambient: Ambient;
+  /** 镜头抖动幅度（px），每帧衰减 */
+  private shakeMag = 0;
   /** 环境贴图只在第一次拿到时铺一次 */
   private envBuilt = false;
 
@@ -250,8 +252,10 @@ export class Scene {
     for (const [cx, cy] of corners) {
       const pool = new Sprite(warm);
       pool.anchor.set(0.5);
-      pool.width = 460;
-      pool.height = 460;
+      // 460px 的加色大光斑在软件光栅化下很贵（4 个 × 全屏级填充）。
+      // 收到 380px 观感几乎不变，填充量降 32%。
+      pool.width = 380;
+      pool.height = 380;
       pool.position.set(cx, cy);
       pool.alpha = 0.5;
       pool.blendMode = 'add';
@@ -328,6 +332,11 @@ export class Scene {
       }
       g.stroke({ color: 0x05040a, width: 1 + rng.next() * 1.6, alpha: 0.18 });
     }
+  }
+
+  /** 屏幕震动：取最大值而不是累加，否则连爆时镜头会飞出画面。 */
+  public shake(power: number): void {
+    if (power > this.shakeMag) this.shakeMag = Math.min(power, 14);
   }
 
   /** 召唤落点预览：绿=可放，红=不可放。 */
@@ -467,7 +476,13 @@ export class Scene {
     const hero = game.hero;
 
     // 相机：世界反向平移（不动 stage.scale，否则 UI 会一起缩）
-    this.stage.world.position.set(VIEW.w / 2 - game.camX, VIEW.h / 2 - game.camY);
+    // 抖动叠在这上面，衰减很快（每帧 ×0.86）：90ms 内只剩 1px，
+    // 所以我们是在做"打击感的标点"，不是"地震"。
+    const shake = this.shakeMag;
+    const sx = shake > 0.2 ? Math.sin(time * 96) * shake : 0;
+    const sy = shake > 0.2 ? Math.cos(time * 71) * shake : 0;
+    this.shakeMag = shake * 0.86;
+    this.stage.world.position.set(VIEW.w / 2 - game.camX + sx, VIEW.h / 2 - game.camY + sy);
 
     this.syncMonsters(game, time);
 

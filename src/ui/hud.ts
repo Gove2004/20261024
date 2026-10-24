@@ -1,5 +1,6 @@
 import { CARDS, cardCdSeconds } from '../content/cards';
 import { RUN, VIEW } from '../content/config';
+import { MAP_EVENTS } from '../content/events';
 import type { Game, PowerupOption } from '../gameplay/game';
 
 export interface HudHandlers {
@@ -49,6 +50,7 @@ export class Hud {
   private readonly levelupPassiveEl: HTMLElement;
   private levelupTimer = 0;
   private muteEl!: HTMLButtonElement;
+  private eventEl!: HTMLDivElement;
   private lastToast: { text: string; at: number; el: HTMLElement } | null = null;
   /** 上一帧写进 DOM 的值：一样就不写，避免软件渲染下整块 HUD 每帧重新合成 */
   private lastTimer = '';
@@ -58,6 +60,7 @@ export class Hud {
   private lastLv = '';
   private lastIntent = '';
   private lastStarText = '';
+  private lastEventText = '';
   private lastStarRatio = '';
   private lastUrgent = false;
   private lastWarn = false;
@@ -84,6 +87,7 @@ export class Hud {
           <div class="hero-hp"><div class="hero-hp-fill" data-hp></div><span class="hero-hp-text" data-hp-text>12000 / 12000</span></div>
         </div>
         <div class="timer-sub">打不死他，5 分钟就到</div>
+        <div class="event-chip" data-event hidden></div>
       </div>
       <div class="hud-bottom">
         <div class="star-budget">
@@ -123,6 +127,7 @@ export class Hud {
     this.must('[data-pause]').addEventListener('click', () => this.handlers.onPause());
     this.muteEl = this.must('[data-mute]');
     this.muteEl.addEventListener('click', () => this.handlers.onToggleMute());
+    this.eventEl = this.must('[data-event]');
   }
 
   /** 静音按钮的图标由这里翻，避免"点了没反应"的观感。 */
@@ -153,6 +158,14 @@ export class Hud {
     }
     const urgent = timeLeft <= RUN.finalWarnAt;
     const warn = timeLeft <= RUN.warnAt && !urgent;
+
+    // 地图事件：toast 一闪而过，这里给一个"还在生效"的常驻标签
+    const eventText = game.eventId ? `事件 · ${MAP_EVENTS[game.eventId].name} ${Math.ceil(game.eventLeft)}s` : '';
+    if (eventText !== this.lastEventText) {
+      this.lastEventText = eventText;
+      this.eventEl.hidden = eventText.length === 0;
+      this.eventEl.textContent = eventText;
+    }
     if (urgent !== this.lastUrgent) {
       this.lastUrgent = urgent;
       this.timerEl.classList.toggle('urgent', urgent);
@@ -355,16 +368,17 @@ export class Hud {
     this.overlayEl.className = 'overlay is-open';
     this.overlayEl.innerHTML = `
       <div class="panel title-panel">
+        <img class="title-hero" src="${import.meta.env.BASE_URL}art/guoba.png" alt="勇者锅巴" />
         <h1 class="game-title">锅巴必须死</h1>
-        <p class="subtitle">反向肉鸽 · 你就是魔王</p>
+        <p class="subtitle">反向肉鸽 · 你是魔王，他是勇者锅巴</p>
         <ul class="rules">
           <li>你没有身体，也打不了 —— 只能<b>把魔物放到画面里</b></li>
-          <li>锅巴会一路杀穿，每杀一只就变强一级</li>
+          <li>勇者<span class="rule-name">锅巴</span>会一路杀穿，每杀一只就变强一级</li>
           <li>每张卡有 <b>1–10 星</b>，星级既是强度，也是占地</li>
           <li><b>5 分钟内把他打死</b>，否则时间到就算你输</li>
         </ul>
         <button class="btn-primary" data-start>开始讨伐</button>
-        <p class="hint">点卡 → 点地面召唤 · 空格暂停</p>
+        <p class="hint">点卡 → 点地面召唤 · 空格暂停 · M 静音</p>
       </div>
     `;
     this.overlayEl.querySelector('[data-start]')?.addEventListener('click', () => this.handlers.onStart());

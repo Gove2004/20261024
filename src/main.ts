@@ -34,6 +34,8 @@ async function bootstrap(): Promise<void> {
 
   // 进游戏后立刻渲染第一帧，避免标题页是一片纯色
   let game!: Game;
+  /** 顿帧剩余帧数（见主循环） */
+  let hitStop = 0;
 
   const events: GameEvents = {
     onSpawn: (slot) => {
@@ -45,9 +47,16 @@ async function bootstrap(): Promise<void> {
       const store = game.store;
       scene.fx.burst(store.x[slot] ?? 0, store.y[slot] ?? 0, 0xd8d0e8, 12, 26);
       scene.fx.ring(store.x[slot] ?? 0, store.y[slot] ?? 0, 22, 0xff3b5c, 2);
+      // 大怪死才有分量：5★ 以上给一次抖动 + 两帧顿帧，杂兵死了不该顿
+      const star = store.star[slot] ?? 1;
+      if (star >= 5) {
+        scene.shake(2 + star * 0.35);
+        hitStop = Math.max(hitStop, 2);
+      }
       audio.onDeath();
     },
     onHeroHurt: () => {
+      scene.shake(2.2);
       audio.onHeroHurt();
     },
     onHeroLevel: (level, passive) => {
@@ -81,6 +90,8 @@ async function bootstrap(): Promise<void> {
     onBlast: (x, y, radius) => {
       scene.fx.ring(x, y, radius, 0xff7a3c, 6);
       scene.fx.burst(x, y, 0xff7a3c, 22, radius);
+      scene.shake(4.5);
+      hitStop = Math.max(hitStop, 3);
       // 语义一致：都是"范围爆炸"，直接沿用引爆音
       audio.onDetonate();
     },
@@ -211,6 +222,12 @@ async function bootstrap(): Promise<void> {
 
   const loop = new FixedStepLoop(
     (dt) => {
+      // 顿帧：命中瞬间把逻辑停 2–3 帧（约 33–50ms），渲染照跑。
+      // 这是打击感里性价比最高的一件事 —— 不做它，再漂亮的粒子也像"贴图在动"。
+      if (hitStop > 0) {
+        hitStop -= 1;
+        return;
+      }
       game.update(dt);
     },
     () => {

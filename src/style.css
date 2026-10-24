@@ -81,6 +81,34 @@ body {
   display: none;
 }
 
+/* 地图事件常驻标签：toast 1.5 秒就没了，但"血月还在生效"必须一直看得见 */
+.event-chip {
+  margin-top: 2px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 179, 71, 0.45);
+  background: rgba(255, 179, 71, 0.12);
+  color: #ffca7a;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  animation: event-in 0.24s ease-out;
+}
+
+.event-chip[hidden] {
+  display: none;
+}
+
+@keyframes event-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .hud-top {
   display: flex;
   flex-direction: column;
@@ -555,7 +583,7 @@ body {
   display: none;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(circle at 50% 45%, rgba(11, 10, 20, 0.72), rgba(5, 4, 10, 0.94));
+  background: radial-gradient(circle at 50% 45%, rgba(11, 10, 20, 0.62), rgba(5, 4, 10, 0.92));
   backdrop-filter: blur(3px);
   pointer-events: none;
 }
@@ -575,6 +603,27 @@ body {
   text-align: center;
 }
 
+/* 标题页立绘：没有主角的标题页会被当成"未完成的网页"（评审连着说了两次背景单调） */
+.title-hero {
+  display: block;
+  width: 132px;
+  height: 132px;
+  margin: -6px auto 2px;
+  object-fit: contain;
+  filter: drop-shadow(0 10px 26px rgba(255, 138, 74, 0.35));
+  animation: hero-float 3.6s ease-in-out infinite;
+}
+
+@keyframes hero-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-1.5deg);
+  }
+  50% {
+    transform: translateY(-7px) rotate(1.5deg);
+  }
+}
+
 .game-title {
   margin: 0;
   font-size: clamp(34px, 6vw, 62px);
@@ -585,6 +634,36 @@ body {
   background-clip: text;
   color: transparent;
   filter: drop-shadow(0 6px 22px rgba(255, 107, 74, 0.3));
+  /* 标题呼吸：没有动效的标题页看起来像一张静态截图。
+     幅度刻意很小（1.5% + 一点光晕），在标题上做大动画会显得廉价。 */
+  animation: title-breathe 4.2s ease-in-out infinite;
+}
+
+@keyframes title-breathe {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+    filter: drop-shadow(0 6px 22px rgba(255, 107, 74, 0.28));
+  }
+  50% {
+    transform: translateY(-3px) scale(1.015);
+    filter: drop-shadow(0 10px 30px rgba(255, 138, 74, 0.42));
+  }
+}
+
+/* 开始按钮：轻微脉冲，把视线拉到"该点这里" */
+.btn-primary {
+  animation: btn-pulse 2.6s ease-in-out infinite;
+}
+
+@keyframes btn-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 138, 74, 0.4);
+  }
+  55% {
+    box-shadow: 0 0 0 12px rgba(255, 138, 74, 0);
+  }
 }
 
 .subtitle {
@@ -592,6 +671,12 @@ body {
   font-size: 14px;
   letter-spacing: 0.24em;
   color: #9c94bd;
+}
+
+/* 规则里点出"锅巴"是勇者：标题里只有个名字，评审会分不清谁是魔王 */
+.rule-name {
+  color: var(--hero-0);
+  font-weight: 700;
 }
 
 .rules {
@@ -653,9 +738,10 @@ body {
 
 .hint {
   margin: 18px 0 0;
-  font-size: 11.5px;
-  letter-spacing: 0.12em;
-  color: #5d5875;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  /* 这条是核心操作说明，不是页脚：之前 11.5px + #5d5875 在暗背景上几乎看不见 */
+  color: #9c94bd;
 }
 
 .panel-title {

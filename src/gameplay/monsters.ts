@@ -4,6 +4,8 @@ import { normalize } from '../core/math';
 import type { Hero } from './hero';
 
 export interface MonsterHooks {
+  /** 当帧的攻速倍率（血月事件 >1）；缺省 1 */
+  atkMul?: number;
   /** 魔物打中勇者 */
   hitHero(amount: number, slot: number): void;
   /** 远程攻击的开火表现 */
@@ -177,8 +179,9 @@ export function updateMonsters(store: MonsterStore, hero: Hero, dt: number, hook
     store.vx[slot] = vx;
     store.vy[slot] = vy;
 
-    // 攻击
-    store.atkTimer[slot] = (store.atkTimer[slot] ?? 0) - dt;
+    // 攻击：atkMul 来自地图事件（血月），缺省 1 —— 只缩放计时器，不改间隔本身，
+    // 所以事件结束时冷却不会被"截断"到奇怪的值。
+    store.atkTimer[slot] = (store.atkTimer[slot] ?? 0) - dt * (hooks.atkMul ?? 1);
     const inRange = dist <= range + heroRadius;
 
     // 自爆虫：贴到身边就点引信（引信期间不再移动，给对手反应时间）

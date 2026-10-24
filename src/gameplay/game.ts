@@ -1,4 +1,5 @@
 import {
+  HALL,
   HALL_CENTER,
   HERO,
   MONSTER_DMG_MUL,
@@ -15,6 +16,12 @@ import {
   starCapAt,
 } from '../content/config';
 import { CARDS, STARTER_HAND, cardCdSeconds, findCard, summonCount } from '../content/cards';
+import {
+  MAP_EVENTS,
+  MAP_EVENT_AT,
+  MAP_EVENT_TUNING,
+  type MapEventId,
+} from '../content/events';
 import { SKILL_TUNING } from '../content/heroSkills';
 import { MonsterStore } from '../ecs/store';
 import { Hero, type HeroHooks } from './hero';
@@ -163,6 +170,13 @@ export class Game {
   /** 火球等延迟结算的 AoE */
   private readonly pendingAoe: PendingAoe[] = [];
 
+  /** 当前进行中的地图事件（渲染/UI 只读） */
+  public eventId: MapEventId | null = null;
+  public eventLeft = 0;
+  /** 已触发的事件序号（MAP_EVENT_AT 的下标） */
+  private eventIndex = 0;
+  private eventQueue: MapEventId[] = [];
+
   constructor(
     private readonly events: GameEvents,
     seed = 20261024,
@@ -181,6 +195,23 @@ export class Game {
     this.store.reset();
     this.hero.reset();
     this.pendingAoe.length = 0;
+    // 事件顺序由种子决定：同一局重放一致，不同种子顺序不同
+    this.eventIndex = 0;
+    this.eventId = null;
+    this.eventLeft = 0;
+    // 事件顺序由种子决定：同一局重放一致，不同种子顺序不同。
+    // 用 Fisher-Yates 而不是 sort(随机)，避免"排序不稳定 + 随机数质量"双重不确定性。
+    const queue: MapEventId[] = ['bloodmoon', 'surge', 'sacrifice'];
+    for (let i = queue.length - 1; i > 0; i -= 1) {
+      const j = this.rng.int(i + 1);
+      const a = queue[i];
+      const b = queue[j];
+      if (a !== undefined && b !== undefined) {
+        queue[i] = b;
+        queue[j] = a;
+      }
+    }
+    this.eventQueue = queue;
     this.statBoom = 0;
     this.statHeal = 0;
     this.statTaunt = 0;
@@ -276,11 +307,15 @@ export class Game {
         }
       },
       onExpire: (slot) => this.killMonster(slot, false),
+      atkMul: this.monsterAtkMul,
     });
 
     this.updateAoe(dt);
+    this.updateMapEvent(dt);
 
-    for (const card of this.hand) card.cd = Math.max(0, card.cd - dt);
+    // 狂潮期间卡牌冷却走得更快（-40% ≈ 衰减 ×1.67）
+    const cdMul = this.eventId === 'surge' ? MAP_EVENT_TUNING.surgeCdMul : 1;
+    for (const card of this.hand) card.cd = Math.max(0, card.cd - dt * cdMul);
 
     const occupied = this.store.occupiedStars();
     if (occupied > this.peakStars) this.peakStars = occupied;
@@ -354,6 +389,39 @@ export class Game {
     this.events.onSpawn(newSlot);
   }
 
+  /**
+   * 地图事件：三段时间点各触发一个，顺序由种子决定。
+   *
+   * 事件只改"节奏"（攻速 / CD / 地面危险区），不改任何判定规则 ——
+   * 这样加内容不会把已经调好的平衡掀翻，只是让每局的开局记忆不同。
+   */
+  private updateMapEvent(dt: number): void {
+    // 触发
+    if (
+      this.eventIndex < MAP_EVENT_AT.length &&
+      this.elapsed >= (MAP_EVENT_AT[this.eventIndex] ?? Infinity)
+    ) {
+      const id = this.eventQueue[this.eventIndex];
+      this.eventIndex += 1;
+      if (id) {
+        const def = MAP_EVENTS[id];
+        this.eventId = id;
+        this.eventLeft = def.duration;
+        this.events.toast(def.toast, 'good');
+        this.events.onEffect('heal', this.hero.x, this.hero.y, 140);
+      }
+    }
+
+    if (!this.eventId) return;
+    this.eventLeft -= dt;
+    if (this.eventLeft <= 0) this.eventId = null;
+  }
+
+  /** 血月期间魔物的攻速倍率；其它时候是 1。 */
+  private get monsterAtkMul(): number {
+    return this.eventId === 'bloodmoon' ? MAP_EVENT_TUNING.bloodmoonAtkMul : 1;
+  }
+
   /** 火球结算：预警时间到了才判定，绝不瞬间伤害。 */
   private updateAoe(dt: number): void {
     for (let i = this.pendingAoe.length - 1; i >= 0; i -= 1) {
@@ -380,7 +448,9 @@ export class Game {
   // ---------------------------------------------------------------- 召唤
 
   public get starCap(): number {
-    return starCapAt(this.elapsed, this.starBonus);
+    const bonus =
+      this.eventId === 'sacrifice' ? MAP_EVENT_TUNING.sacrificeStarBonus : 0;
+    return starCapAt(this.elapsed, this.starBonus + bonus);
   }
 
   public get occupiedStars(): number {
