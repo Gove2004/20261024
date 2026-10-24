@@ -49,12 +49,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/git-sync.ps1 -Push
 | 提交 `.env.local` | Key 会进公网；万一提交了，立刻 `git rm --cached` 并在平台重置 Key |
 | 提交 `art/raw/`、`dist/`、`node_modules/` | 已在 `.gitignore` 里，出现即说明 ignore 被改坏 |
 | 冲突整文件覆盖 | 会丢队友工作 |
+| 用 `Get-Content`/`Set-Content` 批量改源码 | **PS 5.1 按 GBK 读无 BOM 的 UTF-8，中文会变成 `閿呭反` 并写回文件**，一次就报废整个文件。改代码请用编辑器或 `edit` 工具；只在 `.ps1` 脚本上才用 PowerShell 写文件 |
 
 ## 无害的噪音
 
 - `git push` 报 `git-credential-manager.exe: No such file or directory` —— 只要最后有 `xxxx..yyyy  main -> main` 就是成功的。
 - `LF will be replaced by CRLF` —— Windows 行尾提示，可忽略。
-- 文件内容变成 `閿呭反` 或开头多 `EF BB BF` —— 编码被 PowerShell 改坏，用 `git checkout <SHA> -- <file>` 按字节还原。
+- 文件内容变成 `閿呭反` 或开头多 `EF BB BF` —— 编码被 PowerShell 改坏。**未提交的文件救不回来，只能重写**；已提交的用 `git checkout <SHA> -- <file>` 按字节还原。
 
 ## 提交信息
 

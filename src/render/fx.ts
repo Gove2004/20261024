@@ -1,0 +1,181 @@
+import { Container, Graphics, Text, TextStyle } from 'pixi.js';
+import type { Rng } from '../core/rng';
+
+interface NumberFx {
+  text: Text;
+  life: number;
+  maxLife: number;
+  vx: number;
+  vy: number;
+}
+
+interface BurstFx {
+  gfx: Graphics;
+  life: number;
+  maxLife: number;
+  startScale: number;
+}
+
+const NUMBER_POOL = 28;
+const BURST_POOL = 20;
+
+/**
+ * 特效层：伤害飘字 + 粒子爆发。
+ *
+ * 全部走对象池 —— 战斗里每秒会产生几十次特效，
+ * 每次 new 一个 Text/Graphics 会在移动端直接拉出 GC 卡顿。
+ */
+export class FxLayer {
+  private readonly numbers: NumberFx[] = [];
+  private readonly bursts: BurstFx[] = [];
+  private numberCursor = 0;
+  private burstCursor = 0;
+
+  constructor(
+    private readonly layer: Container,
+    private readonly rng: Rng,
+  ) {
+    const style = new TextStyle({
+      fontFamily: 'ui-monospace, Consolas, monospace',
+      fontSize: 20,
+      fontWeight: '700',
+      fill: 0xffffff,
+      stroke: { color: 0x0b0a14, width: 4 },
+    });
+
+    for (let i = 0; i < NUMBER_POOL; i += 1) {
+      const text = new Text({ text: '', style });
+      text.anchor.set(0.5);
+      text.visible = false;
+      layer.addChild(text);
+      this.numbers.push({ text, life: 0, maxLife: 1, vx: 0, vy: 0 });
+    }
+
+    for (let i = 0; i < BURST_POOL; i += 1) {
+      const gfx = new Graphics();
+      gfx.visible = false;
+      layer.addChild(gfx);
+      this.bursts.push({ gfx, life: 0, maxLife: 1, startScale: 1 });
+    }
+  }
+
+  public damage(x: number, y: number, amount: number, crit: boolean): void {
+    const fx = this.numbers[this.numberCursor];
+    this.numberCursor = (this.numberCursor + 1) % NUMBER_POOL;
+    if (!fx) return;
+    fx.text.text = String(Math.round(amount));
+    fx.text.style.fontSize = crit ? 26 : 18;
+    fx.text.style.fill = crit ? 0xffb347 : 0xffd9d9;
+    fx.text.position.set(x + this.rng.range(-6, 6), y - 16);
+    fx.text.alpha = 1;
+    fx.text.scale.set(crit ? 1.2 : 1);
+    fx.text.visible = true;
+    fx.vx = this.rng.range(-18, 18);
+    fx.vy = -52;
+    fx.life = crit ? 0.7 : 0.55;
+    fx.maxLife = fx.life;
+  }
+
+  /** 粒子爆发：一次画完所有碎屑，之后只做缩放与淡出。 */
+  public burst(x: number, y: number, color: number, count: number, radius = 26): void {
+    const fx = this.bursts[this.burstCursor];
+    this.burstCursor = (this.burstCursor + 1) % BURST_POOL;
+    if (!fx) return;
+
+    const g = fx.gfx;
+    g.clear();
+    for (let i = 0; i < count; i += 1) {
+      const angle = this.rng.next() * Math.PI * 2;
+      const dist = this.rng.range(radius * 0.2, radius);
+      const size = this.rng.range(1.6, 4.2);
+      g.circle(Math.cos(angle) * dist, Math.sin(angle) * dist, size).fill({
+        color,
+        alpha: this.rng.range(0.5, 1),
+      });
+    }
+    g.position.set(x, y);
+    g.scale.set(0.7);
+    g.alpha = 1;
+    g.visible = true;
+    fx.life = 0.45;
+    fx.maxLife = 0.45;
+    fx.startScale = 1;
+  }
+
+  /** 冲击环：用于暴击、引爆、升级。 */
+  public ring(x: number, y: number, radius: number, color: number, width = 4): void {
+    const fx = this.bursts[this.burstCursor];
+    this.burstCursor = (this.burstCursor + 1) % BURST_POOL;
+    if (!fx) return;
+
+    const g = fx.gfx;
+    g.clear();
+    g.circle(0, 0, radius).stroke({ color, width, alpha: 0.9 });
+    g.position.set(x, y);
+    g.scale.set(0.3);
+    g.alpha = 1;
+    g.visible = true;
+    fx.life = 0.4;
+    fx.maxLife = 0.4;
+    fx.startScale = 1;
+  }
+
+  /** 剑气刀光：一条快速淡出的长条。 */
+  public slash(x: number, y: number, dirX: number, dirY: number, length: number, width: number): void {
+    const fx = this.bursts[this.burstCursor];
+    this.burstCursor = (this.burstCursor + 1) % BURST_POOL;
+    if (!fx) return;
+
+    const g = fx.gfx;
+    g.clear();
+    g.rect(width / 2, -width / 2, length, width).fill({ color: 0xd8f0ff, alpha: 0.55 });
+    g.rect(width / 2, -2, length, 4).fill({ color: 0xffffff, alpha: 0.9 });
+    g.position.set(x, y);
+    g.rotation = Math.atan2(dirY, dirX);
+    g.alpha = 1;
+    g.scale.set(1);
+    g.visible = true;
+    fx.life = 0.28;
+    fx.maxLife = 0.28;
+    fx.startScale = 1;
+  }
+
+  public update(dt: number): void {
+    for (const fx of this.numbers) {
+      if (fx.life <= 0) continue;
+      fx.life -= dt;
+      if (fx.life <= 0) {
+        fx.text.visible = false;
+        continue;
+      }
+      fx.text.x += fx.vx * dt;
+      fx.text.y += fx.vy * dt;
+      fx.vy += 120 * dt;
+      const t = fx.life / fx.maxLife;
+      fx.text.alpha = Math.min(1, t * 2);
+    }
+
+    for (const fx of this.bursts) {
+      if (fx.life <= 0) continue;
+      fx.life -= dt;
+      if (fx.life <= 0) {
+        fx.gfx.visible = false;
+        continue;
+      }
+      const t = 1 - fx.life / fx.maxLife;
+      fx.gfx.scale.set(0.7 + t * 1.1);
+      fx.gfx.alpha = 1 - t;
+    }
+  }
+
+  public clear(): void {
+    for (const fx of this.numbers) {
+      fx.life = 0;
+      fx.text.visible = false;
+    }
+    for (const fx of this.bursts) {
+      fx.life = 0;
+      fx.gfx.visible = false;
+    }
+  }
+}

@@ -1,9 +1,12 @@
 /**
- * 冒烟测试：用本地 Edge 打开构建产物，验证
+ * 冒烟测试：用本地 Edge 打开构建产物，验证 M1 手感闭环。
+ *
  *   1. 页面无 console error / 未捕获异常
- *   2. Pixi WebGL 上下文建立成功（canvas 有绘制内容）
- *   3. 点击「开始」后标题层消失、主循环在跑、帧率达标
- *   4. 输出截图供人工过目
+ *   2. WebGL 上下文建立成功
+ *   3. 点「开始讨伐」后进入 playing，标题层消失
+ *   4. 选卡 + 点地面 → 魔物真的被放出来了
+ *   5. 魔物会移动、勇者会攻击（数据层面真的有变化）
+ *   6. 帧率达标，截图供人工过目
  *
  * 用法：node tools/smoke.mjs [--headful]
  */
@@ -75,6 +78,12 @@ page.on('response', (res) => {
   if (res.status() >= 400) errors.push(`http ${res.status()}: ${res.url()}`);
 });
 
+const results = [];
+const check = (name, ok, detail = '') => {
+  results.push({ name, ok, detail });
+  console.log(`${ok ? '  ok  ' : ' FAIL '} ${name}${detail ? ` — ${detail}` : ''}`);
+};
+
 await page.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: 'networkidle' });
 
 const canvasInfo = await page.evaluate(() => {
@@ -83,47 +92,126 @@ const canvasInfo = await page.evaluate(() => {
   const gl = canvas.getContext('webgl2') ?? canvas.getContext('webgl');
   return {
     ok: true,
-    width: canvas.width,
-    height: canvas.height,
-    cssWidth: canvas.style.width,
     context: gl ? (gl instanceof WebGL2RenderingContext ? 'webgl2' : 'webgl1') : 'none',
   };
 });
 
-await page.screenshot({ path: join(SHOTS, 'title.png') });
+check('WebGL 上下文', canvasInfo.ok && canvasInfo.context !== 'none', canvasInfo.context);
+await page.screenshot({ path: join(SHOTS, '01-title.png') });
 
-await page.click('.btn-start');
-await page.waitForTimeout(1400);
+// ---- 开始游戏 ----
+await page.click('[data-start]');
+await page.waitForTimeout(300);
 
+const started = await page.evaluate(() => {
+  const g = window.__game;
+  return { state: g?.state, overlayOpen: !!document.querySelector('.overlay.is-open') };
+});
+check('点击开始进入对局', started.state === 'playing' && !started.overlayOpen, `state=${started.state}`);
+
+// ---- 选第一张卡，在勇者左上方放一只 ----
+const placed = await page.evaluate(() => {
+  const g = window.__game;
+  if (!g) return { ok: false, reason: 'no game' };
+  const before = g.store.activeCount;
+  g.selectCard(0);
+  const hero = g.hero;
+  const ok = g.place(hero.x - 150, hero.y - 40);
+  g.store.refreshActive();
+  return { ok, before, after: g.store.activeCount, selected: g.selected };
+});
+check('选卡 + 召唤成功', placed.ok === true && placed.after > placed.before, `active=${placed.after}`);
+
+// 再放两只，制造"被围攻"的场面
+await page.evaluate(() => {
+  const g = window.__game;
+  if (!g) return;
+  g.selectCard(2);
+  g.place(g.hero.x + 130, g.hero.y + 60);
+  g.store.refreshActive();
+});
+await page.waitForTimeout(1800);
+
+const combat = await page.evaluate(() => {
+  const g = window.__game;
+  return {
+    active: g.store.activeCount,
+    heroHp: g.hero.hp,
+    heroMaxHp: g.hero.maxHp,
+    heroLevel: g.hero.level,
+    heroState: g.hero.state,
+    timeLeft: g.timeLeft,
+    monsterMoved: g.store.activeCount > 0,
+  };
+});
+check('魔物存活并被追击', combat.active > 0, `active=${combat.active} 状态=${combat.heroState}`);
+check('勇者在受伤或升级', combat.heroHp < combat.heroMaxHp || combat.heroLevel > 1, `hp=${Math.round(combat.heroHp)} Lv${combat.heroLevel}`);
+check('倒计时在走', combat.timeLeft < 300, `剩余 ${combat.timeLeft.toFixed(1)}s`);
+
+// ---- 引爆 ----
+const detonated = await page.evaluate(() => {
+  const g = window.__game;
+  const store = g.store;
+  store.refreshActive();
+  if (store.activeCount === 0) return { ok: false, reason: 'no monster' };
+  const slot = store.active[0];
+  return { ok: g.tryDetonate(store.x[slot], store.y[slot]), detonations: g.detonations };
+});
+check('双击引爆可用', detonated.ok === true, `引爆次数=${detonated.detonations}`);
+
+// ---- 帧率 ----
 const fps = await page.evaluate(
   () =>
-    new Promise((resolve) => {
+    new Promise((resolveFps) => {
       let frames = 0;
       const start = performance.now();
       const tick = () => {
         frames += 1;
         if (performance.now() - start < 1200) requestAnimationFrame(tick);
-        else resolve(Math.round((frames * 1000) / (performance.now() - start)));
+        else resolveFps(Math.round((frames * 1000) / (performance.now() - start)));
       };
       requestAnimationFrame(tick);
     }),
 );
+check('帧率（软件渲染）', fps >= 30, `${fps} fps`);
 
-const titleHidden = await page.evaluate(() => {
-  const el = document.querySelector('.title-screen');
-  return el instanceof HTMLElement ? el.hidden : null;
+await page.screenshot({ path: join(SHOTS, '02-arena.png') });
+
+// ---- 权能面板 ----
+await page.evaluate(() => {
+  const g = window.__game;
+  g.deferPowerup(0.05);
 });
+await page.waitForTimeout(700);
+const powerupOpen = await page.evaluate(() => ({
+  state: window.__game.state,
+  cards: document.querySelectorAll('[data-opt]').length,
+}));
+check('30 秒权能 3 选 1', powerupOpen.state === 'powerup' && powerupOpen.cards === 3, `选项=${powerupOpen.cards}`);
+await page.screenshot({ path: join(SHOTS, '03-powerup.png') });
 
-await page.screenshot({ path: join(SHOTS, 'arena.png') });
+await page.click('[data-opt]');
+await page.waitForTimeout(300);
+check('选择权能后继续对局', (await page.evaluate(() => window.__game.state)) === 'playing');
+
+// ---- 倒计时归零判负 ----
+await page.evaluate(() => {
+  window.__game.elapsed = 299.4;
+});
+await page.waitForTimeout(900);
+const ended = await page.evaluate(() => ({
+  state: window.__game.state,
+  title: document.querySelector('.panel-title')?.textContent ?? '',
+}));
+check('时间到自动判负', ended.state === 'lost', `state=${ended.state} / ${ended.title}`);
+await page.screenshot({ path: join(SHOTS, '04-lost.png') });
 
 await browser.close();
 server.close();
 
-console.log('canvas      :', canvasInfo);
-console.log('title hidden:', titleHidden);
-console.log('fps (软件渲染):', fps);
-console.log('errors      :', errors.length === 0 ? '无' : errors);
+check('无 console / 网络错误', errors.length === 0, errors.join(' | '));
 
-const failed = !canvasInfo.ok || canvasInfo.context === 'none' || errors.length > 0 || titleHidden !== true;
-console.log(failed ? 'SMOKE FAIL' : 'SMOKE PASS');
-process.exit(failed ? 1 : 0);
+const failed = results.filter((r) => !r.ok).length;
+console.log(`\n${results.length - failed}/${results.length} 通过`);
+console.log(failed === 0 ? 'SMOKE PASS' : 'SMOKE FAIL');
+process.exit(failed === 0 ? 0 : 1);
