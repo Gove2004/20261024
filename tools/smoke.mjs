@@ -85,6 +85,8 @@ const check = (name, ok, detail = '') => {
 };
 
 await page.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: 'networkidle' });
+// 贴图异步加载完成后才置 __dshReady；不等它就直接读 __game 会偶发 undefined
+await page.waitForFunction(() => window.__dshReady === true, { timeout: 20_000 });
 
 const canvasInfo = await page.evaluate(() => {
   const canvas = document.querySelector('#game-canvas');

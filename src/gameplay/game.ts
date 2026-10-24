@@ -466,7 +466,8 @@ export class Game {
     this.hero.hunger = Math.min(DETONATE.hungerMax, this.hero.hunger + 1);
     this.events.onDetonate(mx, my, DETONATE.radius);
     this.events.onDeath(slot);
-    this.events.toast('经验已阻断', 'good');
+    // 代价必须说清楚：炸掉的那只不再给经验，而痛觉换来的是勇者的攻速
+    this.events.toast(`引爆 ★${star}：经验阻断 · 他的攻速 +${Math.round(this.hero.hunger * DETONATE.hungerPerUse * 100)}%`, 'good');
     return true;
   }
 

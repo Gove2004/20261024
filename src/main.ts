@@ -146,15 +146,30 @@ async function bootstrap(): Promise<void> {
   });
 
   canvas.addEventListener('pointermove', (event) => {
-    if (game.state !== 'playing' || game.selected < 0) {
+    if (game.state !== 'playing') {
       scene.setPreview(null);
+      scene.setDetonateHint(null);
       return;
     }
+
     const point = toWorld(event.clientX, event.clientY);
+
+    // 没选卡时，指针悬在魔物上就给"可引爆"反馈 —— 不说玩家不会知道双击能炸
+    if (game.selected < 0) {
+      scene.setPreview(null);
+      const slot = game.store.pickAt(point.x, point.y, 34);
+      scene.setDetonateHint(slot >= 0 ? { x: game.store.x[slot] ?? 0, y: game.store.y[slot] ?? 0 } : null);
+      return;
+    }
+
+    scene.setDetonateHint(null);
     scene.setPreview({ x: point.x, y: point.y, ok: game.placementError(point.x, point.y) === null });
   });
 
-  canvas.addEventListener('pointerleave', () => scene.setPreview(null));
+  canvas.addEventListener('pointerleave', () => {
+    scene.setPreview(null);
+    scene.setDetonateHint(null);
+  });
 
   window.addEventListener('keydown', (event) => {
     if (event.code === 'Space') {

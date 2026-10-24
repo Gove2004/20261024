@@ -45,6 +45,8 @@ const browser = await chromium.launch({
 });
 const page = await browser.newPage({ viewport: { width: 800, height: 450 } });
 await page.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: 'networkidle' });
+// 贴图是异步加载的，__game 在 loadArt 之后才挂上去 —— 必须等，不能假设立刻可用
+await page.waitForFunction(() => Boolean(window.__game), { timeout: 20000 });
 
 const runs = [];
 for (let run = 0; run < RUNS; run += 1) {

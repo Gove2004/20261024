@@ -31,6 +31,7 @@ export class Hud {
   private readonly hpText: HTMLSpanElement;
   private readonly lvEl: HTMLSpanElement;
   private readonly intentEl: HTMLSpanElement;
+  private readonly hungerEl: HTMLSpanElement;
   private readonly starText: HTMLSpanElement;
   private readonly starDots: HTMLDivElement;
   private readonly handEl: HTMLDivElement;
@@ -53,6 +54,7 @@ export class Hud {
             <span class="hero-name">锅巴</span>
             <span class="hero-lv" data-lv>Lv.1</span>
             <span class="hero-intent" data-intent>追击</span>
+            <span class="hero-hunger" data-hunger hidden>饥渴 ×0</span>
           </div>
           <div class="hero-hp"><div class="hero-hp-fill" data-hp></div><span class="hero-hp-text" data-hp-text>12000 / 12000</span></div>
         </div>
@@ -64,6 +66,7 @@ export class Hud {
           <span class="star-text" data-star>0 / 10</span>
           <div class="star-dots" data-dots></div>
         </div>
+        <div class="hint-bar" data-hint>点卡 → 点地面召唤 · 双击魔物引爆</div>
         <div class="hand" data-hand></div>
       </div>
       <button class="btn-pause" data-pause title="暂停 (Space)">❚❚</button>
@@ -78,6 +81,7 @@ export class Hud {
     this.hpText = this.must('[data-hp-text]');
     this.lvEl = this.must('[data-lv]');
     this.intentEl = this.must('[data-intent]');
+    this.hungerEl = this.must('[data-hunger]');
     this.starText = this.must('[data-star]');
     this.starDots = this.must('[data-dots]');
     this.handEl = this.must('[data-hand]');
@@ -116,6 +120,15 @@ export class Hud {
     this.intentEl.textContent =
       hero.intent === 'retreat' ? '撤退' : hero.intent === 'charge' ? '蓄力' : '追击';
     this.intentEl.dataset['intent'] = hero.intent;
+
+    // 饥渴是引爆的"代价换来的东西"，玩家必须看得见自己在变强
+    const hunger = Math.floor(hero.hunger);
+    if (hunger > 0) {
+      this.hungerEl.hidden = false;
+      this.hungerEl.textContent = `饥渴 ×${hunger}`;
+    } else {
+      this.hungerEl.hidden = true;
+    }
 
     this.starText.textContent = `${game.occupiedStars} / ${game.starCap}`;
     this.starDots.style.setProperty('--ratio', String(game.starCap > 0 ? game.occupiedStars / game.starCap : 0));

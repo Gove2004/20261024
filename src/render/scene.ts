@@ -71,6 +71,7 @@ export class Scene {
   private readonly entityLayer = new Container();
   private readonly warn = new Graphics();
   private readonly preview = new Graphics();
+  private readonly detonateHint = new Graphics();
   private readonly heroNode = new Container();
   private readonly heroBody = new Graphics();
   private readonly heroSword = new Graphics();
@@ -110,6 +111,7 @@ export class Scene {
     this.fx = new FxLayer(fxLayer, rng);
 
     this.previewLayer.addChild(this.preview);
+    this.previewLayer.addChild(this.detonateHint);
     world.addChild(this.previewLayer);
   }
 
@@ -142,6 +144,19 @@ export class Scene {
     g.circle(target.x, target.y, PLACE.minDistHero * 0.5).fill({ color, alpha: 0.16 });
     g.circle(target.x, target.y, PLACE.minDistHero * 0.5).stroke({ color, width: 2, alpha: 0.85 });
     g.circle(target.x, target.y, 4).fill({ color, alpha: 0.9 });
+  }
+
+  /**
+   * 引爆提示：指针悬停在一只魔物上时，给它套一圈紫环。
+   * 双击引爆是隐藏操作，没有这个反馈玩家永远发现不了。
+   */
+  public setDetonateHint(target: { x: number; y: number } | null): void {
+    const g = this.detonateHint;
+    g.clear();
+    if (!target) return;
+    g.circle(target.x, target.y, 30).stroke({ color: 0xc06bd8, width: 2.5, alpha: 0.9 });
+    g.circle(target.x, target.y, 38).stroke({ color: 0xc06bd8, width: 1, alpha: 0.35 });
+    g.circle(target.x, target.y, 6).fill({ color: 0xc06bd8, alpha: 0.55 });
   }
 
   // ------------------------------------------------------------------ 静态
@@ -320,10 +335,25 @@ export class Scene {
           // anchor 压在脚底，这样 y 排序（zIndex = y）和分离力才对得上。
           const sprite = new Sprite(texture);
           sprite.anchor.set(0.5, 0.8);
-          const size = def.radius * 4.6;
+          const size = def.radius * 4.2;
           sprite.width = size;
           sprite.height = size;
-          gfx = sprite;
+
+          // 高星魔物脚下有光环：7 星以上是"这只值一半预算"，必须一眼认出来。
+          // 星级在放下时就固定，所以光环只在创建时判断一次，不进每帧热路径。
+          const star = store.star[slot] ?? 1;
+          if (star >= 7) {
+            const holder = new Container();
+            const glow = new Graphics();
+            const color = star >= 9 ? 0xffd27a : 0xb07cff;
+            glow.ellipse(0, 0, size * 0.46, size * 0.2).fill({ color, alpha: 0.16 });
+            glow.ellipse(0, 0, size * 0.46, size * 0.2).stroke({ color, width: 2, alpha: 0.55 });
+            holder.addChild(glow);
+            holder.addChild(sprite);
+            gfx = holder;
+          } else {
+            gfx = sprite;
+          }
           this.monsterBase.set(slot, size / texture.width);
         } else {
           const placeholder = new Graphics();

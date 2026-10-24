@@ -212,7 +212,9 @@ function separate(store: MonsterStore): void {
       if (b === undefined || store.ghostly[b] === 1) continue;
       const dx = (store.x[b] ?? 0) - (store.x[a] ?? 0);
       const dy = (store.y[b] ?? 0) - (store.y[a] ?? 0);
-      const min = ((store.radius[a] ?? 0) + (store.radius[b] ?? 0)) * 0.85;
+      // 视觉占位比碰撞半径大（贴图带装饰外沿），分离距离也跟着放大一点，
+      // 否则一群怪会糊成一个色块，玩家分不清哪只是哪只。
+      const min = ((store.radius[a] ?? 0) + (store.radius[b] ?? 0)) * 1.12;
       const d2 = dx * dx + dy * dy;
       if (d2 >= min * min || d2 < 1e-4) continue;
       const d = Math.sqrt(d2);

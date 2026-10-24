@@ -129,6 +129,7 @@ body {
   font-size: 11px;
   letter-spacing: 0.16em;
   color: #5d5875;
+  margin-top: 6px;
 }
 
 /* ── 勇者面板 ───────────────────────────────────────────── */
@@ -257,6 +258,26 @@ body {
   pointer-events: auto;
 }
 
+/* 常驻操作提示：一局 5 分钟里，"能双击引爆"必须随时可见，不能只写在标题页 */
+.hint-bar {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: rgba(222, 215, 242, 0.62);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+  white-space: nowrap;
+}
+
+.hero-hunger {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #ff9b6b;
+  background: rgba(255, 90, 50, 0.14);
+  border: 1px solid rgba(255, 120, 80, 0.4);
+  border-radius: 999px;
+  padding: 1px 7px;
+}
+
 /* 卡面贴图：占上半张卡，名字压在下沿 —— 玩家靠图认怪，不靠字认怪 */
 .card-art {
   position: absolute;
@@ -333,9 +354,9 @@ body {
   );
   pointer-events: none;
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   justify-content: flex-end;
-  padding: 0 5px 3px 0;
+  padding: 3px 5px 0 0;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95);
 }
 
