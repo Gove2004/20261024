@@ -47,15 +47,15 @@ export class Hud {
       <div class="hud-top">
         <div class="phase" data-phase>第一幕 · 试探</div>
         <div class="timer" data-timer>5:00</div>
-        <div class="timer-sub">打不死他，5 分钟就到</div>
-      </div>
-      <div class="hero-panel">
-        <div class="hero-row">
-          <span class="hero-name">锅巴</span>
-          <span class="hero-lv" data-lv>Lv.1</span>
-          <span class="hero-intent" data-intent>追击</span>
+        <div class="hero-panel">
+          <div class="hero-row">
+            <span class="hero-name">锅巴</span>
+            <span class="hero-lv" data-lv>Lv.1</span>
+            <span class="hero-intent" data-intent>追击</span>
+          </div>
+          <div class="hero-hp"><div class="hero-hp-fill" data-hp></div><span class="hero-hp-text" data-hp-text>12000 / 12000</span></div>
         </div>
-        <div class="hero-hp"><div class="hero-hp-fill" data-hp></div><span class="hero-hp-text" data-hp-text>2600 / 2600</span></div>
+        <div class="timer-sub">打不死他，5 分钟就到</div>
       </div>
       <div class="hud-bottom">
         <div class="star-budget">

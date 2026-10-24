@@ -1,6 +1,7 @@
 import {
-  ARENA,
   DETONATE,
+  HALL_CENTER,
+  HERO,
   PILLARS,
   PLACE,
   POWERUP,
@@ -10,6 +11,7 @@ import {
   VIEW,
   WORLD,
   XP,
+  inHall,
   starCapAt,
 } from '../content/config';
 import { CARDS, STARTER_HAND, cardCdSeconds, findCard, summonCount } from '../content/cards';
@@ -66,9 +68,22 @@ export interface GameEvents {
   onQi(x: number, y: number, dirX: number, dirY: number): void;
   onRangedShot(slot: number, fromX: number, fromY: number, toX: number, toY: number): void;
   onDetonate(x: number, y: number, radius: number): void;
+  /** 地面预警圈（火球/自爆），duration 秒后结算 */
+  onTelegraph(x: number, y: number, radius: number, duration: number): void;
+  /** 治疗/冰冻等即时表现 */
+  onEffect(kind: 'heal' | 'freeze' | 'taunt' | 'boom', x: number, y: number, radius: number): void;
   toast(text: string, kind?: 'info' | 'good' | 'bad'): void;
   onPowerup(options: readonly PowerupOption[]): void;
   onFinish(won: boolean): void;
+}
+
+/** 待结算的范围伤害（火球）。预警是义务，不是特效。 */
+interface PendingAoe {
+  x: number;
+  y: number;
+  radius: number;
+  delay: number;
+  damage: number;
 }
 
 export class Game {
@@ -81,8 +96,8 @@ export class Game {
   public readonly rng: Rng;
 
   /** 镜头中心（世界坐标）。始终朝勇者靠拢。 */
-  public camX: number = ARENA.cx;
-  public camY: number = ARENA.cy + 300;
+  public camX: number = HALL_CENTER.x;
+  public camY: number = HALL_CENTER.y + 300;
 
   public hand: HandCard[] = [];
   public selected = -1;
@@ -91,6 +106,11 @@ export class Game {
   public kills = 0;
   public detonations = 0;
   public score = 0;
+  /** 特性触发计数：给冒烟测试断言用，也方便调平衡时看"这些卡到底有没有参与" */
+  public statBoom = 0;
+  public statHeal = 0;
+  public statTaunt = 0;
+  public statFreeze = 0;
 
   /** 权能叠层 */
   public starBonus = 0;
@@ -103,6 +123,8 @@ export class Game {
   private detonateCd = 0;
   private powerupTimer: number = POWERUP.interval;
   private pendingPowerup: PowerupOption[] | null = null;
+  /** 火球等延迟结算的 AoE */
+  private readonly pendingAoe: PendingAoe[] = [];
 
   constructor(
     private readonly events: GameEvents,
@@ -121,6 +143,11 @@ export class Game {
     this.timeLeft = RUN.duration;
     this.store.reset();
     this.hero.reset();
+    this.pendingAoe.length = 0;
+    this.statBoom = 0;
+    this.statHeal = 0;
+    this.statTaunt = 0;
+    this.statFreeze = 0;
     this.hand = STARTER_HAND.map((id) => ({
       id,
       defIdx: CARDS.findIndex((card) => card.id === id),
@@ -150,6 +177,18 @@ export class Game {
     this.state = 'playing';
   }
 
+  /** 调试/冒烟测试用：把手牌换成全卡池，并放开星数预算。 */
+  public debugFillHand(): void {
+    this.hand = CARDS.map((card, defIdx) => ({
+      id: card.id,
+      defIdx,
+      star: card.startStar,
+      cd: 0,
+    }));
+    this.handBonus = 6;
+    this.starBonus = 60;
+  }
+
   public togglePause(): void {
     if (this.state === 'playing') this.state = 'paused';
     else if (this.state === 'paused') this.state = 'playing';
@@ -174,7 +213,30 @@ export class Game {
     updateMonsters(this.store, this.hero, dt, {
       hitHero: (amount, slot) => this.damageHero(amount, slot),
       onRangedShot: (slot, fx, fy, tx, ty) => this.events.onRangedShot(slot, fx, fy, tx, ty),
+      onExplode: (slot, x, y, radius, damage) => this.explodeAt(slot, x, y, radius, damage),
+      onTelegraph: (x, y, radius, delay, damage) => {
+        this.pendingAoe.push({ x, y, radius, delay, damage });
+        this.events.onTelegraph(x, y, radius, delay);
+      },
+      onWarn: (x, y, radius, duration) => this.events.onTelegraph(x, y, radius, duration),
+      onHeal: (slot, x, y) => this.healAround(slot, x, y),
+      onSummon: (slot, x, y) => this.summonSkeleton(slot, x, y),
+      onTaunt: (slot, seconds) => {
+        this.statTaunt += 1;
+        this.hero.taunt(slot, seconds);
+        this.events.onEffect('taunt', this.hero.x, this.hero.y, 46);
+      },
+      onFrostHit: () => {
+        if (this.hero.addFrostStack(2)) {
+          this.statFreeze += 1;
+          this.events.onEffect('freeze', this.hero.x, this.hero.y, 52);
+          this.events.toast('他被冻住了', 'good');
+        }
+      },
+      onExpire: (slot) => this.killMonster(slot, false),
     });
+
+    this.updateAoe(dt);
 
     this.detonateCd = Math.max(0, this.detonateCd - dt);
 
@@ -198,6 +260,71 @@ export class Game {
     if (this.powerupTimer <= 0) {
       this.powerupTimer += POWERUP.interval;
       this.openPowerup();
+    }
+  }
+
+  // ---------------------------------------------------------------- 魔物特性
+
+  /** 自爆虫：对范围内的勇者造成伤害，自己已由调用方标记死亡。 */
+  private explodeAt(slot: number, x: number, y: number, radius: number, damage: number): void {
+    this.statBoom += 1;    this.events.onEffect('boom', x, y, radius);
+    this.events.onDetonate(x, y, radius);
+    const d = distance(x, y, this.hero.x, this.hero.y);
+    if (d <= radius + HERO.radius) this.damageHero(damage, slot);
+    else this.events.toast('自爆虫炸空了', 'info');
+  }
+
+  /** 巫医：治疗周围最多 3 只，按最大生命的 18%。 */
+  private healAround(slot: number, x: number, y: number): void {
+    const store = this.store;
+    let healed = 0;    for (let i = 0; i < store.activeCount && healed < 3; i += 1) {
+      const other = store.active[i];
+      if (other === undefined || other === slot) continue;
+      const d = distance(x, y, store.x[other] ?? 0, store.y[other] ?? 0);
+      if (d > 180) continue;
+      const maxHp = store.maxHp[other] ?? 0;
+      const hp = store.hp[other] ?? 0;
+      if (hp >= maxHp) continue;
+      store.hp[other] = Math.min(maxHp, hp + maxHp * 0.18);
+      healed += 1;
+    }
+    if (healed > 0) this.events.onEffect('heal', x, y, 96);
+    this.statHeal += healed;
+  }
+
+  /** 骷髅将军：召一只 1★ 骷髅兵，不占星、10 秒崩解、不给经验。 */
+  private summonSkeleton(slot: number, x: number, y: number): void {
+    if (this.store.occupiedStars() >= this.starCap + 10) return;
+    const defIndex = CARDS.findIndex((card) => card.id === 'skeleton');
+    const def = CARDS[defIndex];
+    if (!def) return;
+    const phase = this.rng.next();
+    const angle = this.rng.range(0, Math.PI * 2);
+    const newSlot = this.store.spawn(
+      def,
+      defIndex,
+      1,
+      x + Math.cos(angle) * 34,
+      y + Math.sin(angle) * 34,
+      phase,
+    );
+    if (newSlot < 0) return;
+    this.store.life[newSlot] = 10;
+    this.store.refreshActive();
+    this.events.onSpawn(newSlot);
+  }
+
+  /** 火球结算：预警时间到了才判定，绝不瞬间伤害。 */
+  private updateAoe(dt: number): void {
+    for (let i = this.pendingAoe.length - 1; i >= 0; i -= 1) {
+      const aoe = this.pendingAoe[i];
+      if (!aoe) continue;
+      aoe.delay -= dt;
+      if (aoe.delay > 0) continue;
+      this.pendingAoe.splice(i, 1);
+      this.events.onDetonate(aoe.x, aoe.y, aoe.radius);
+      const d = distance(aoe.x, aoe.y, this.hero.x, this.hero.y);
+      if (d <= aoe.radius + HERO.radius) this.damageHero(aoe.damage, -1);
     }
   }
 
@@ -252,7 +379,7 @@ export class Game {
     const bottom = this.camY + VIEW.h / 2 - PLACE.screenEdge;
     if (worldX < left || worldX > right || worldY < top || worldY > bottom) return '超出视野';
 
-    if (distance(worldX, worldY, ARENA.cx, ARENA.cy) > ARENA.r - 30) return '超出大厅';
+    if (!inHall(worldX, worldY, 30)) return '超出大厅';
     if (distance(worldX, worldY, THRONE.x, THRONE.y) < THRONE.r + 20) return '王座台不可放置';
     for (const pillar of PILLARS) {
       if (distance(worldX, worldY, pillar.x, pillar.y) < pillar.r + 16) return '石柱上不可放置';

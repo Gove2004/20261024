@@ -1,4 +1,4 @@
-import { ARENA, HERO, PILLARS, THRONE } from '../content/config';
+import { HERO, PILLARS, THRONE, hallX, hallY } from '../content/config';
 import type { MonsterStore } from '../ecs/store';
 import { normalize } from '../core/math';
 import type { Hero } from './hero';
@@ -8,7 +8,39 @@ export interface MonsterHooks {
   hitHero(amount: number, slot: number): void;
   /** 远程攻击的开火表现 */
   onRangedShot(slot: number, fromX: number, fromY: number, toX: number, toY: number): void;
+  /** 自爆虫引爆：范围内对勇者造成伤害 */
+  onExplode(slot: number, x: number, y: number, radius: number, damage: number): void;
+  /** 火球落点预警（0.35s 后由 game 结算伤害） */
+  onTelegraph(x: number, y: number, radius: number, delay: number, damage: number): void;
+  /** 只有视觉预警、伤害由魔物自己结算（自爆虫引信） */
+  onWarn(x: number, y: number, radius: number, duration: number): void;  /** 巫医治疗周围友军 */
+  onHeal(slot: number, x: number, y: number): void;
+  /** 骷髅将军召唤（由 game 决定生成什么） */
+  onSummon(slot: number, x: number, y: number): void;
+  /** 石像鬼嘲讽 */
+  onTaunt(slot: number, seconds: number): void;
+  /** 冰霜：叠层满了冻住 */
+  onFrostHit(slot: number): void;
+  /** 召唤物寿命到期 */
+  onExpire(slot: number): void;
 }
+
+/** 特性编号，与 cards.ts 的 ABILITY_CODE 对应。 */
+const ABI_SUICIDE = 1;
+const ABI_FROST = 2;
+const ABI_HEAL = 3;
+const ABI_TAUNT = 4;
+const ABI_AOE = 5;
+const ABI_SUMMON = 6;
+
+const FUSE_TIME = 0.6;
+const HEAL_INTERVAL = 2;
+const TAUNT_DELAY = 1;
+const TAUNT_SECONDS = 3;
+const AOE_INTERVAL = 3;
+const AOE_RADIUS = 90;
+const AOE_WARN = 0.35;
+const SUMMON_INTERVAL = 7;
 
 /**
  * 魔物行为：朝勇者靠拢 → 进入射程 → 按攻速攻击。
@@ -35,13 +67,76 @@ export function updateMonsters(store: MonsterStore, hero: Hero, dt: number, hook
     let vx = store.vx[slot] ?? 0;
     let vy = store.vy[slot] ?? 0;
 
+    // 召唤物寿命
+    if ((store.life[slot] ?? 0) > 0) {
+      store.life[slot] = (store.life[slot] ?? 0) - dt;
+      if ((store.life[slot] ?? 0) <= 0) {
+        store.life[slot] = 0;
+        hooks.onExpire(slot);
+        continue;
+      }
+    }
+
     const dx = hero.x - x;
     const dy = hero.y - y;
     const dist = Math.sqrt(dx * dx + dy * dy) || 1;
     const range = store.range[slot] ?? 40;
     const radius = store.radius[slot] ?? 12;
+    const abi = store.abi[slot] ?? 0;
+    const star = store.star[slot] ?? 1;
+    const frozen = (store.frozenT[slot] ?? 0) > 0;
 
-    if (dist > range) {
+    if (frozen) {
+      store.frozenT[slot] = Math.max(0, (store.frozenT[slot] ?? 0) - dt);
+      store.vx[slot] = 0;
+      store.vy[slot] = 0;
+      continue;
+    }
+
+    // 引信点燃后原地不动，给勇者 0.6 秒跑开或换手
+    const fusing = (store.fuse[slot] ?? 0) > 0;
+    if (fusing) {
+      store.fuse[slot] = (store.fuse[slot] ?? 0) - dt;
+      if ((store.fuse[slot] ?? 0) <= 0) {
+        store.fuse[slot] = 0;
+        hooks.onExplode(slot, x, y, 80 + star * 6, 55 * star);
+        store.kill(slot);
+        continue;
+      }
+    }
+
+    // 特性计时
+    if (abi === ABI_TAUNT) {
+      const t = store.abT[slot] ?? 0;
+      if (t > 0) {
+        store.abT[slot] = t - dt;
+        if ((store.abT[slot] ?? 0) <= 0) {
+          store.abT[slot] = -1;
+          hooks.onTaunt(slot, TAUNT_SECONDS);
+        }
+      }
+    } else if (abi === ABI_HEAL || abi === ABI_AOE || abi === ABI_SUMMON) {
+      store.abT[slot] = (store.abT[slot] ?? 0) - dt;
+      if ((store.abT[slot] ?? 0) <= 0) {
+        if (abi === ABI_HEAL) {
+          store.abT[slot] = HEAL_INTERVAL;
+          hooks.onHeal(slot, x, y);
+        } else if (abi === ABI_AOE) {
+          store.abT[slot] = AOE_INTERVAL;
+          if (dist < range + 60) hooks.onTelegraph(hero.x, hero.y, AOE_RADIUS, AOE_WARN, 40 * star);
+        } else {
+          store.abT[slot] = SUMMON_INTERVAL;
+          hooks.onSummon(slot, x, y);
+        }
+      }
+    }
+
+    const canMove = !fusing;
+
+    if (!canMove) {
+      vx = 0;
+      vy = 0;
+    } else if (dist > range) {
       const dir = normalize(dx, dy);
       const speed = (store.speed[slot] ?? 60) * (store.slowFactor[slot] ?? 1);
       vx = dir.x * speed;
@@ -55,14 +150,9 @@ export function updateMonsters(store: MonsterStore, hero: Hero, dt: number, hook
     y += vy * dt;
 
     // 场地与障碍
-    const limit = ARENA.r - radius - 6;
-    const adx = x - ARENA.cx;
-    const ady = y - ARENA.cy;
-    const ad = Math.sqrt(adx * adx + ady * ady);
-    if (ad > limit) {
-      x = ARENA.cx + (adx / ad) * limit;
-      y = ARENA.cy + (ady / ad) * limit;
-    }
+    const limit = radius + 6;
+    x = hallX(x, limit);
+    y = hallY(y, limit);
     const tdx = x - THRONE.x;
     const tdy = y - THRONE.y;
     const td = Math.sqrt(tdx * tdx + tdy * tdy);
@@ -89,10 +179,23 @@ export function updateMonsters(store: MonsterStore, hero: Hero, dt: number, hook
 
     // 攻击
     store.atkTimer[slot] = (store.atkTimer[slot] ?? 0) - dt;
-    if (dist <= range + heroRadius && (store.atkTimer[slot] ?? 0) <= 0) {
+    const inRange = dist <= range + heroRadius;
+
+    // 自爆虫：贴到身边就点引信（引信期间不再移动，给对手反应时间）
+    if (abi === ABI_SUICIDE) {
+      if (inRange && !fusing && (store.fuse[slot] ?? 0) === 0) {
+        store.fuse[slot] = FUSE_TIME;
+        // 引信必须给地面预警，否则就是"突然炸了"
+        hooks.onWarn(store.x[slot] ?? x, store.y[slot] ?? y, 80 + star * 6, FUSE_TIME);
+      }
+      continue;
+    }
+
+    if (inRange && (store.atkTimer[slot] ?? 0) <= 0) {
       store.atkTimer[slot] = store.atkInterval[slot] ?? 1;
       if (range > 120) hooks.onRangedShot(slot, x, y, hero.x, hero.y);
       hooks.hitHero(store.atk[slot] ?? 1, slot);
+      if (abi === ABI_FROST) hooks.onFrostHit(slot);
     }
   }
 

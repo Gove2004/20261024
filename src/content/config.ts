@@ -1,13 +1,36 @@
 /** 全局可调常量。所有数值调整都应该只改这里，不要散落在逻辑里。 */
 
+import { clamp } from '../core/math';
+
 /** 设计分辨率（逻辑坐标系），实际屏幕等比缩放。 */
 export const VIEW = { w: 1280, h: 720 } as const;
 
 /** 世界尺寸：大于视口，靠相机跟随。 */
 export const WORLD = { w: 2400, h: 1600 } as const;
 
-/** 战斗区域（圆形大厅）。 */
-export const ARENA = { cx: 1200, cy: 800, r: 720 } as const;
+/** 战斗区域：方形大厅的内墙（可走区域）。世界比它大一圈，外面是深渊。 */
+export const HALL = { left: 380, top: 180, right: 2020, bottom: 1420 } as const;
+
+/** 墙厚（只是视觉与"贴墙不能出界"的余量）。 */
+export const HALL_WALL = 46;
+
+export const HALL_CENTER = {
+  x: (HALL.left + HALL.right) / 2,
+  y: (HALL.top + HALL.bottom) / 2,
+} as const;
+
+/** 夹到大厅内。返回数值而不是对象：这个函数每帧每实体都要跑，不能分配。 */
+export function hallX(x: number, margin: number): number {
+  return clamp(x, HALL.left + margin, HALL.right - margin);
+}
+
+export function hallY(y: number, margin: number): number {
+  return clamp(y, HALL.top + margin, HALL.bottom - margin);
+}
+
+export function inHall(x: number, y: number, margin: number): boolean {
+  return x >= HALL.left + margin && x <= HALL.right - margin && y >= HALL.top + margin && y <= HALL.bottom - margin;
+}
 
 /** 中央王座台：不可通行。 */
 export const THRONE = { x: 1200, y: 800, r: 190 } as const;

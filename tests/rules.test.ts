@@ -64,14 +64,22 @@ describe('卡池', () => {
     }
   });
 
-  it('初始星级不超过上限，且属性为正', () => {
+  it('初始星级不超过上限，且生命为正；普攻型必须有攻击力', () => {
     for (const card of CARDS) {
       expect(card.startStar).toBeGreaterThanOrEqual(1);
       expect(card.startStar).toBeLessThanOrEqual(card.maxStar);
       expect(card.maxStar).toBeLessThanOrEqual(10);
       expect(card.hp).toBeGreaterThan(0);
-      expect(card.atk).toBeGreaterThan(0);
+      // 自爆虫靠引信打伤害，atk 就是 0；其余卡必须有攻击力
+      if (card.ability === 'suicide') expect(card.atk).toBe(0);
+      else expect(card.atk).toBeGreaterThan(0);
     }
+  });
+
+  it('卡池 12 张，功能卡都挂了特性', () => {
+    expect(CARDS.length).toBe(12);
+    const withAbility = CARDS.filter((card) => card.ability !== undefined).map((card) => card.id);
+    expect(withAbility.sort()).toEqual(['boom', 'frost', 'gargoyle', 'general', 'lich', 'shaman']);
   });
 
   it('蝙蝠群一次召 3 只并按 3 倍占星结算', () => {

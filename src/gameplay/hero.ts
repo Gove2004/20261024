@@ -1,5 +1,17 @@
 import { AI } from '../content/heroAi';
-import { ARENA, DETONATE, HERO, PILLARS, THRONE, heroAtk, heroMaxHp, heroSpeed, xpNeed } from '../content/config';
+import {
+  DETONATE,
+  HALL_CENTER,
+  HERO,
+  PILLARS,
+  THRONE,
+  hallX,
+  hallY,
+  heroAtk,
+  heroMaxHp,
+  heroSpeed,
+  xpNeed,
+} from '../content/config';
 import type { MonsterStore } from '../ecs/store';
 import { clamp, damp, distance, inCone, normalize } from '../core/math';
 import type { Rng } from '../core/rng';
@@ -37,8 +49,8 @@ const PASSIVES: readonly Passive[] = [
  * 带加速度的转向、卡住自愈、普攻三段（前摇/判定/后摇）、剑气蓄力与地面预警。
  */
 export class Hero {
-  public x: number = ARENA.cx;
-  public y: number = ARENA.cy + 420;
+  public x: number = HALL_CENTER.x;
+  public y: number = HALL_CENTER.y + 420;
   public vx = 0;
   public vy = 0;
 
@@ -82,6 +94,17 @@ export class Hero {
 
   public intent: HeroIntent = 'chase';
 
+  /** 减速：蜘蛛的毒与冰霜法师的冰弹都走这里 */
+  public slowTimer = 0;
+  public slowFactor = 1;
+  /** 冰冻（完全不动不攻） */
+  public frozenTimer = 0;
+  /** 冰霜累积层数：叠到 3 层冻住 */
+  public frostStacks = 0;
+  /** 嘲讽：石头鬼逼他打自己 */
+  public tauntSlot = -1;
+  public tauntTimer = 0;
+
   private perceiveTimer = 0;
   private stuckTimer = 0;
   private lastX = this.x;
@@ -100,8 +123,8 @@ export class Hero {
   }
 
   public reset(): void {
-    this.x = ARENA.cx;
-    this.y = ARENA.cy + 420;
+    this.x = HALL_CENTER.x;
+    this.y = HALL_CENTER.y + 420;
     this.vx = 0;
     this.vy = 0;
     this.hp = HERO.baseHp;
@@ -128,6 +151,12 @@ export class Hero {
     this.retreatLock = 0;
     this.stateTimer = 0;
     this.hunger = 0;
+    this.slowTimer = 0;
+    this.slowFactor = 1;
+    this.frozenTimer = 0;
+    this.frostStacks = 0;
+    this.tauntSlot = -1;
+    this.tauntTimer = 0;
     this.intent = 'chase';
     this.perceiveTimer = 0;
     this.stuckTimer = 0;
@@ -193,6 +222,17 @@ export class Hero {
     this.recover = Math.max(0, this.recover - dt);
     this.qiCd = Math.max(0, this.qiCd - dt);
 
+    if (this.slowTimer > 0) {
+      this.slowTimer = Math.max(0, this.slowTimer - dt);
+      if (this.slowTimer === 0) {
+        this.slowFactor = 1;
+        this.frostStacks = 0;
+      }
+    }
+    this.frozenTimer = Math.max(0, this.frozenTimer - dt);
+    this.tauntTimer = Math.max(0, this.tauntTimer - dt);
+    if (this.tauntTimer === 0) this.tauntSlot = -1;
+
     this.updatePerception(dt, store);
     this.updateState(dt);
     this.updateAttack(dt, store, hooks);
@@ -205,6 +245,7 @@ export class Hero {
 
   private atkSpeedNow(): number {
     const hunger = 1 + this.hunger * DETONATE.hungerPerUse;
+    if (this.frozenTimer > 0) return 0.3;
     return Math.max(0.3, this.atkSpeedMul * (this.enraged ? AI.enrageAtkSpeed : 1) * hunger);
   }
 
@@ -212,9 +253,51 @@ export class Hero {
     return this.enraged ? 1.2 : 1;
   }
 
+  /** 移动速度倍率（减速/冰冻）。 */
+  private moveFactor(): number {
+    if (this.frozenTimer > 0) return 0;
+    return this.slowTimer > 0 ? this.slowFactor : 1;
+  }
+
+  /** 被减速（取最强的一次，不叠加）。 */
+  public applySlow(factor: number, seconds: number): void {
+    if (this.frozenTimer > 0) return;
+    if (this.slowTimer <= 0 || factor < this.slowFactor) this.slowFactor = factor;
+    this.slowTimer = Math.max(this.slowTimer, seconds);
+  }
+
+  /** 冰霜叠层：满 3 层冻住。返回是否触发冰冻。 */
+  public addFrostStack(seconds: number): boolean {
+    this.applySlow(0.65, seconds);
+    this.frostStacks += 1;
+    if (this.frostStacks < 3) return false;
+    this.frostStacks = 0;
+    this.freeze(0.8);
+    return true;
+  }
+
+  public freeze(seconds: number): void {
+    this.frozenTimer = Math.max(this.frozenTimer, seconds);
+    this.windup = 0;
+  }
+
+  /** 嘲讽：强制目标 N 秒，打断撤退。 */
+  public taunt(slot: number, seconds: number): void {
+    this.tauntSlot = slot;
+    this.tauntTimer = seconds;
+    this.retreatLock = Math.max(this.retreatLock, seconds);
+    if (this.state === 'retreat') this.state = 'seek';
+  }
+
   /** ---- 感知：10Hz 刷新候选，带迟滞 ---- */
   private updatePerception(dt: number, store: MonsterStore): void {
     if (this.target >= 0 && store.alive[this.target] === 0) this.target = -1;
+
+    // 嘲讽高于一切：石头鬼就是要把他的注意力买走 3 秒
+    if (this.tauntTimer > 0 && this.tauntSlot >= 0 && store.alive[this.tauntSlot] === 1) {
+      this.target = this.tauntSlot;
+      return;
+    }
 
     this.perceiveTimer -= dt;
     if (this.perceiveTimer > 0) return;
@@ -299,6 +382,11 @@ export class Hero {
 
   /** ---- 攻击与剑气 ---- */
   private updateAttack(dt: number, store: MonsterStore, hooks: HeroHooks): void {
+    if (this.frozenTimer > 0) {
+      this.windup = 0;
+      this.qiWindup = 0;
+      return;
+    }
     if (this.qiWindup > 0) {
       this.qiWindup -= dt;
       if (this.qiWindup <= 0) this.resolveQi(store, hooks);
@@ -426,8 +514,8 @@ export class Hero {
         this.facingY = dir.y;
       }
     } else {
-      const homeX = ARENA.cx;
-      const homeY = ARENA.cy + 300;
+      const homeX = HALL_CENTER.x;
+      const homeY = HALL_CENTER.y + 300;
       const dir = normalize(homeX - this.x, homeY - this.y);
       dirX = dir.x;
       dirY = dir.y;
@@ -454,8 +542,8 @@ export class Hero {
     }
 
     const speedMul = (this.enraged ? AI.enrageSpeed : 1) * (this.state === 'retreat' ? 1.1 : 1);
-    const targetVx = wantMove ? dirX * this.speed * speedMul : 0;
-    const targetVy = wantMove ? dirY * this.speed * speedMul : 0;
+    const targetVx = wantMove ? dirX * this.speed * speedMul * this.moveFactor() : 0;
+    const targetVy = wantMove ? dirY * this.speed * speedMul * this.moveFactor() : 0;
 
     this.vx = damp(this.vx, targetVx, AI.accelK, dt);
     this.vy = damp(this.vy, targetVy, AI.accelK, dt);
@@ -467,20 +555,16 @@ export class Hero {
   }
 
   private confineToArena(): void {
-    const limit = ARENA.r - 40;
-    const dx = this.x - ARENA.cx;
-    const dy = this.y - ARENA.cy;
-    const d = Math.sqrt(dx * dx + dy * dy);
-    if (d > limit) {
-      const nx = dx / d;
-      const ny = dy / d;
-      this.x = ARENA.cx + nx * limit;
-      this.y = ARENA.cy + ny * limit;
-      const dot = this.vx * nx + this.vy * ny;
-      if (dot > 0) {
-        this.vx -= nx * dot;
-        this.vy -= ny * dot;
-      }
+    const margin = 40;
+    const cx = hallX(this.x, margin);
+    const cy = hallY(this.y, margin);
+    if (cx !== this.x) {
+      this.x = cx;
+      this.vx = 0;
+    }
+    if (cy !== this.y) {
+      this.y = cy;
+      this.vy = 0;
     }
     this.pushOut(THRONE.x, THRONE.y, THRONE.r);
     for (const pillar of PILLARS) this.pushOut(pillar.x, pillar.y, pillar.r);

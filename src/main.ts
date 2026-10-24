@@ -48,6 +48,22 @@ async function bootstrap(): Promise<void> {
       scene.fx.ring(x, y, radius, 0xc06bd8, 6);
       scene.fx.burst(x, y, 0xc06bd8, 22, radius);
     },
+    onTelegraph: (x, y, radius, duration) => {
+      scene.fx.telegraph(x, y, radius, duration);
+    },
+    onEffect: (kind, x, y, radius) => {
+      if (kind === 'heal') {
+        scene.fx.ring(x, y, radius, 0x7be05f, 3);
+        scene.fx.burst(x, y, 0x9be07a, 12, radius * 0.7);
+      } else if (kind === 'freeze') {
+        scene.fx.ring(x, y, radius, 0x8fd7ff, 5);
+        scene.fx.burst(x, y, 0x8fd7ff, 20, radius);
+      } else if (kind === 'taunt') {
+        scene.fx.ring(x, y, radius, 0xffb347, 4);
+      } else {
+        scene.fx.burst(x, y, 0xff7a3c, 26, radius);
+      }
+    },
     toast: (text, kind) => hud.toast(text, kind ?? 'info'),
     onPowerup: (options) => hud.showPowerup(options),
     onFinish: (won) => hud.showResult(won, game),

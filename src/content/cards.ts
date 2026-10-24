@@ -7,10 +7,30 @@
  * - 初始手牌只有 4 张，其余靠权能解锁。
  */
 
-export type CardKind = 'melee' | 'ranged' | 'tank';
+export type CardKind = 'melee' | 'ranged' | 'tank' | 'support' | 'summoner';
 
 /** 占位美术的形状：正式贴图接入后换成 sprite key。 */
 export type CardShape = 'blob' | 'wisp' | 'skull' | 'spider';
+
+/**
+ * 主动特性。没有特性的怪就是"走上去砍"，
+ * 有特性的怪负责制造「这一波你必须换个应对」的时刻（策划案 §4 差异化检查表）。
+ */
+export type MonsterAbility = 'suicide' | 'frost' | 'heal' | 'taunt' | 'aoe' | 'summon';
+
+/** 特性编号，存进 SoA 的 Uint8Array（热路径里不能存字符串）。 */
+export const ABILITY_CODE: Record<MonsterAbility, number> = {
+  suicide: 1,
+  frost: 2,
+  heal: 3,
+  taunt: 4,
+  aoe: 5,
+  summon: 6,
+};
+
+export function abilityCode(def: CardDef): number {
+  return def.ability === undefined ? 0 : ABILITY_CODE[def.ability];
+}
 
 export interface CardDef {
   readonly id: string;
@@ -33,6 +53,8 @@ export interface CardDef {
   readonly ghostly?: boolean;
   /** 远程攻击会附带减速（蜘蛛） */
   readonly slow?: number;
+  /** 主动特性 */
+  readonly ability?: MonsterAbility;
   readonly note: string;
 }
 
@@ -155,6 +177,117 @@ export const CARDS: readonly CardDef[] = [
     radius: 14,
     color: 0xff5a6e,
     note: '背击伤害更高，高风险高回报',
+  },
+  {
+    id: 'boom',
+    name: '自爆虫',
+    kind: 'melee',
+    shape: 'blob',
+    startStar: 2,
+    maxStar: 10,
+    hp: 40,
+    atk: 0,
+    armor: 0,
+    atkInterval: 1,
+    speed: 120,
+    range: 34,
+    radius: 12,
+    color: 0xff7a3c,
+    // 穿行很关键：自爆虫挤不过前排的骷髅兵，不穿行就永远贴不到脸，
+    // "引信 0.6 秒"这套读条也就不存在了。
+    ghostly: true,
+    ability: 'suicide',
+    note: '贴身后 0.6s 引信，炸 55×星 范围伤害',
+  },
+  {
+    id: 'frost',
+    name: '冰霜法师',
+    kind: 'ranged',
+    shape: 'wisp',
+    startStar: 3,
+    maxStar: 10,
+    hp: 70,
+    atk: 6,
+    armor: 0,
+    atkInterval: 1 / 0.8,
+    speed: 55,
+    range: 240,
+    radius: 15,
+    color: 0x8fd7ff,
+    ability: 'frost',
+    note: '冰弹减速 35%；叠 3 层冻住 0.8s',
+  },
+  {
+    id: 'shaman',
+    name: '巫医',
+    kind: 'support',
+    shape: 'skull',
+    startStar: 3,
+    maxStar: 10,
+    hp: 90,
+    atk: 4,
+    armor: 0,
+    atkInterval: 1 / 0.9,
+    speed: 60,
+    range: 200,
+    radius: 15,
+    color: 0x9be07a,
+    ability: 'heal',
+    note: '每 2s 治疗周围 3 只，抬全队血线',
+  },
+  {
+    id: 'gargoyle',
+    name: '石像鬼',
+    kind: 'tank',
+    shape: 'skull',
+    startStar: 4,
+    maxStar: 10,
+    hp: 260,
+    atk: 10,
+    armor: 8,
+    atkInterval: 1 / 0.7,
+    speed: 70,
+    range: 48,
+    radius: 20,
+    color: 0x8a8fa8,
+    ability: 'taunt',
+    note: '落地嘲讽 3s，逼他放弃逃跑',
+  },
+  {
+    id: 'lich',
+    name: '巫妖',
+    kind: 'ranged',
+    shape: 'wisp',
+    startStar: 5,
+    maxStar: 10,
+    hp: 110,
+    atk: 12,
+    armor: 0,
+    atkInterval: 1 / 0.6,
+    speed: 45,
+    range: 300,
+    radius: 16,
+    color: 0xb07cff,
+    ability: 'aoe',
+    note: '每 3s 火球：0.35s 地面预警后炸 90 半径',
+  },
+  {
+    id: 'general',
+    name: '骷髅将军',
+    kind: 'summoner',
+    shape: 'skull',
+    startStar: 6,
+    maxStar: 10,
+    hp: 220,
+    atk: 9,
+    armor: 4,
+    atkInterval: 1 / 0.8,
+    speed: 65,
+    range: 50,
+    radius: 19,
+    color: 0xd8cfae,
+    ability: 'summon',
+    note: '每 7s 召 1 只骷髅兵（不占星，10s 崩解）',
   },
 ];
 

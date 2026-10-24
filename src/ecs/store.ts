@@ -1,3 +1,4 @@
+import { abilityCode } from '../content/cards';
 import type { CardDef } from '../content/cards';
 
 /**
@@ -33,6 +34,16 @@ export class MonsterStore {
   public readonly alive = new Uint8Array(MAX_MONSTERS);
   /** 是否穿行（无视同伴碰撞） */
   public readonly ghostly = new Uint8Array(MAX_MONSTERS);
+  /** 特性编号（见 cards.ts ABILITY_CODE）：自爆 / 冰霜 / 治疗 / 嘲讽 / 火球 / 召唤 */
+  public readonly abi = new Uint8Array(MAX_MONSTERS);
+  /** 特性冷却或持续时间（按特性各自解释） */
+  public readonly abT = new Float32Array(MAX_MONSTERS);
+  /** 自爆引信：>0 表示已点燃，倒数到 0 就炸 */
+  public readonly fuse = new Float32Array(MAX_MONSTERS);
+  /** 召唤物寿命：>0 时持续递减，归零自动消散（不占星、不给经验） */
+  public readonly life = new Float32Array(MAX_MONSTERS);
+  /** 冰冻剩余时间 */
+  public readonly frozenT = new Float32Array(MAX_MONSTERS);
 
   /** 活着的槽位下标（每帧重建，复用同一个数组避免分配）。 */
   public readonly active = new Int32Array(MAX_MONSTERS);
@@ -94,6 +105,12 @@ export class MonsterStore {
     this.phase[slot] = phase;
     this.defIdx[slot] = defIndex;
     this.ghostly[slot] = def.ghostly === true ? 1 : 0;
+    this.abi[slot] = abilityCode(def);
+    // 特性错开初动，否则一排巫医会在同一帧一起加血，像一段跳帧动画
+    this.abT[slot] = 0.8 + phase * 0.4;
+    this.fuse[slot] = 0;
+    this.life[slot] = 0;
+    this.frozenT[slot] = 0;
     this.alive[slot] = 1;
     this.dead[slot] = 0;
     return slot;

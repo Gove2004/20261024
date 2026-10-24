@@ -159,7 +159,70 @@ const detonated = await page.evaluate(() => {
 });
 check('双击引爆可用', detonated.ok === true, `引爆次数=${detonated.detonations}`);
 
-// ---- 帧率 ----
+// ---- 魔物主动特性（M2）：每张功能性卡都必须真的动起来 ----
+const abilities = await page.evaluate(() => {
+  const g = window.__game;
+  g.start();
+  g.debugFillHand();
+  const put = (id, dist) => {
+    const idx = g.hand.findIndex((card) => card.id === id);
+    if (idx < 0) return false;
+    g.hand[idx].cd = 0;
+    g.selectCard(idx);
+    const ok = g.place(g.hero.x + dist * 0.7, g.hero.y + dist * 0.7);
+    g.selected = -1;
+    return ok;
+  };
+  const placed = {
+    boom: put('boom', 130),
+    frost: put('frost', 210),
+    frost2: put('frost', 170),
+    shaman: put('shaman', 160),
+    gargoyle: put('gargoyle', 140),
+    lich: put('lich', 250),
+    general: put('general', 190),
+    slime: put('slime', 110),
+  };
+  let steps = 0;
+  for (let i = 0; i < 60 * 14; i += 1) {
+    g.update(1 / 60);
+    steps += 1;
+    if (g.state !== 'playing') break;
+  }
+  return {
+    placed,
+    boom: g.statBoom,
+    heal: g.statHeal,
+    taunt: g.statTaunt,
+    freeze: g.statFreeze,
+    alive: g.store.activeCount,
+    steps,
+  };
+});
+check('自爆虫会点引信并引爆', abilities.boom > 0, `引爆 ${abilities.boom} 次`);
+check('巫医会治疗友军', abilities.heal > 0, `治疗 ${abilities.heal} 次`);
+check('石像鬼会嘲讽', abilities.taunt > 0, `嘲讽 ${abilities.taunt} 次`);
+check('冰霜法师能冻住他', abilities.freeze > 0, `冰冻 ${abilities.freeze} 次`);
+
+// 截图前先塞几只怪：空场截图看不出"围杀"这件事，也做不了视觉自检
+await page.evaluate(() => {
+  const g = window.__game;
+  g.start();
+  g.starBonus = 55;
+  for (let i = 0; i < 9; i += 1) {
+    const a = (i / 9) * Math.PI * 2;
+    const r = 110 + (i % 3) * 55;
+    for (const card of g.hand) card.cd = 0;
+    g.selectCard(i % g.hand.length);
+    g.place(g.hero.x + Math.cos(a) * r, g.hero.y + Math.sin(a) * r);
+  }
+  g.selected = -1;
+});
+await page.waitForTimeout(1400);
+
+await page.screenshot({ path: join(SHOTS, '02-arena.png') });
+
+// ---- 帧率（在满场对局里测，空场数字没有意义） ----
 const fps = await page.evaluate(
   () =>
     new Promise((resolveFps) => {
@@ -174,8 +237,6 @@ const fps = await page.evaluate(
     }),
 );
 check('帧率（软件渲染）', fps >= 30, `${fps} fps`);
-
-await page.screenshot({ path: join(SHOTS, '02-arena.png') });
 
 // ---- 权能面板 ----
 await page.evaluate(() => {

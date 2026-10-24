@@ -132,12 +132,14 @@ body {
 }
 
 /* ── 勇者面板 ───────────────────────────────────────────── */
+/* 镜头永远以锅巴为中心 → 屏幕正中就是锅巴，任何贴在他身上的 HUD 都会挡住他。
+   所以血条放顶部（计时器正下方），中间那块永远留给战场。 */
 .hero-panel {
-  margin-top: 6px;
-  width: min(460px, 62vw);
+  margin-top: 4px;
+  width: min(420px, 54vw);
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 4px;
 }
 
 .hero-row {

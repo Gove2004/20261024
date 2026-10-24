@@ -1,5 +1,5 @@
 import { Container, Graphics, Sprite } from 'pixi.js';
-import { ARENA, PILLARS, PLACE, THRONE, VIEW, WORLD } from '../content/config';
+import { HALL, HALL_CENTER, HALL_WALL, PILLARS, PLACE, THRONE, VIEW, WORLD } from '../content/config';
 import { CARDS, type CardShape } from '../content/cards';
 import { COLOR } from '../content/palette';
 import { AI } from '../content/heroAi';
@@ -124,25 +124,56 @@ export class Scene {
   private drawGround(g: Graphics): void {
     g.rect(0, 0, WORLD.w, WORLD.h).fill({ color: COLOR.void });
 
-    // 大厅地面
-    g.circle(ARENA.cx, ARENA.cy, ARENA.r + 26).fill({ color: 0x100d1c });
-    g.circle(ARENA.cx, ARENA.cy, ARENA.r).fill({ color: COLOR.floor0 });
-    g.circle(ARENA.cx, ARENA.cy, ARENA.r).stroke({ color: COLOR.lava, width: 8, alpha: 0.35 });
-    g.circle(ARENA.cx, ARENA.cy, ARENA.r - 14).stroke({ color: COLOR.lavaHot, width: 2, alpha: 0.18 });
+    // 方形大厅：外墙 → 地面 → 内墙描边。方形的边角给了玩家"这是房间"的直觉，
+    // 也让镜头平移时有四条直线参照，比圆弧更好读方向。
+    const w = HALL.right - HALL.left;
+    const h = HALL.bottom - HALL.top;
 
-    // 地面砖纹：几圈同心环，让镜头平移时有参照物
-    for (let i = 1; i <= 5; i += 1) {
-      g.circle(ARENA.cx, ARENA.cy, (ARENA.r / 6) * i).stroke({
-        color: COLOR.stone0,
-        width: 1,
-        alpha: 0.25,
-      });
+    // 墙体外沿（含灼热缝隙）
+    g.roundRect(HALL.left - HALL_WALL, HALL.top - HALL_WALL, w + HALL_WALL * 2, h + HALL_WALL * 2, 26).fill({
+      color: 0x0d0a16,
+    });
+    g.roundRect(HALL.left - HALL_WALL, HALL.top - HALL_WALL, w + HALL_WALL * 2, h + HALL_WALL * 2, 26).stroke({
+      color: COLOR.lava,
+      width: 3,
+      alpha: 0.22,
+    });
+
+    // 地面
+    g.roundRect(HALL.left, HALL.top, w, h, 14).fill({ color: COLOR.floor0 });
+    g.roundRect(HALL.left, HALL.top, w, h, 14).stroke({ color: COLOR.stone1, width: HALL_WALL, alpha: 0.5 });
+    g.roundRect(HALL.left, HALL.top, w, h, 14).stroke({ color: COLOR.stone2, width: 6, alpha: 0.8 });
+
+    // 地砖：等距方格，给镜头平移一个空间参照
+    const tile = 205;
+    for (let x = HALL.left + tile; x < HALL.right - 40; x += tile) {
+      g.moveTo(x, HALL.top + 6);
+      g.lineTo(x, HALL.bottom - 6);
     }
-    for (let i = 0; i < 12; i += 1) {
-      const a = (i / 12) * Math.PI * 2;
-      g.moveTo(ARENA.cx + Math.cos(a) * 120, ARENA.cy + Math.sin(a) * 120);
-      g.lineTo(ARENA.cx + Math.cos(a) * ARENA.r, ARENA.cy + Math.sin(a) * ARENA.r);
-      g.stroke({ color: COLOR.stone0, width: 1, alpha: 0.14 });
+    for (let y = HALL.top + tile; y < HALL.bottom - 40; y += tile) {
+      g.moveTo(HALL.left + 6, y);
+      g.lineTo(HALL.right - 6, y);
+    }
+    g.stroke({ color: COLOR.stone0, width: 2, alpha: 0.35 });
+
+    // 中心到四角的斜线，视觉上把房间收成一个"仪轨场"
+    g.moveTo(HALL.left + 40, HALL.top + 40);
+    g.lineTo(HALL.right - 40, HALL.bottom - 40);
+    g.moveTo(HALL.right - 40, HALL.top + 40);
+    g.lineTo(HALL.left + 40, HALL.bottom - 40);
+    g.stroke({ color: COLOR.lava, width: 2, alpha: 0.07 });
+
+    // 四角火盆
+    const corners: readonly (readonly [number, number])[] = [
+      [HALL.left + 90, HALL.top + 90],
+      [HALL.right - 90, HALL.top + 90],
+      [HALL.left + 90, HALL.bottom - 90],
+      [HALL.right - 90, HALL.bottom - 90],
+    ];
+    for (const [cx, cy] of corners) {
+      g.circle(cx, cy, 46).fill({ color: 0x0b0812, alpha: 0.9 });
+      g.circle(cx, cy, 34).fill({ color: COLOR.lava, alpha: 0.16 });
+      g.circle(cx, cy, 18).fill({ color: COLOR.lavaHot, alpha: 0.5 });
     }
 
     // 王座台
@@ -160,9 +191,10 @@ export class Scene {
       g.circle(pillar.x, pillar.y, pillar.r * 0.55).stroke({ color: COLOR.stone1, width: 2, alpha: 0.5 });
     }
 
-    // 入口
-    const doorY = ARENA.cy + ARENA.r - 6;
-    g.roundRect(ARENA.cx - 70, doorY - 12, 140, 26, 8).fill({ color: COLOR.lava, alpha: 0.25 });
+    // 南面大门：他进来、也出去的方向
+    const gateY = HALL.bottom - 6;
+    g.roundRect(HALL_CENTER.x - 80, gateY - 34, 160, 44, 8).fill({ color: COLOR.lava, alpha: 0.22 });
+    g.roundRect(HALL_CENTER.x - 52, gateY - 18, 104, 30, 6).fill({ color: 0x0a0712, alpha: 0.9 });
   }
 
   private buildHero(): void {
@@ -268,7 +300,9 @@ export class Scene {
       gfx.y += moving ? Math.sin(time * 26 + phase) * 1.6 : 0;
 
       const flash = store.flash[slot] ?? 0;
-      gfx.tint = flash > 0.35 ? 0xffffff : 0xffffff;
+      // 受击闪白：tint 只在状态切换时写，逐帧写会让 Pixi 重算批次
+      const wantTint = flash > 0.35 ? 0xffffff : 0xffffff;
+      if (gfx.tint !== wantTint) gfx.tint = wantTint;
 
       // 残血时轻微变暗，方便一眼看出谁快死了
       const maxHp = store.maxHp[slot] ?? 1;

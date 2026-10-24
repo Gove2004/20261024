@@ -140,6 +140,29 @@ export class FxLayer {
     fx.startScale = 1;
   }
 
+  /**
+   * 地面预警圈：`duration` 秒内从外圈收缩到内圈，收缩结束就是判定时刻。
+   * 全体 AoE 都必须走这个（策划案 §5.9 反模式：不许无预兆的瞬间伤害）。
+   */
+  public telegraph(x: number, y: number, radius: number, duration: number): void {
+    const fx = this.bursts[this.burstCursor];
+    this.burstCursor = (this.burstCursor + 1) % BURST_POOL;
+    if (!fx) return;
+
+    const g = fx.gfx;
+    g.clear();
+    g.circle(0, 0, radius).fill({ color: 0xff3b5c, alpha: 0.14 });
+    g.circle(0, 0, radius).stroke({ color: 0xff3b5c, width: 4, alpha: 0.85 });
+    g.circle(0, 0, radius * 0.55).stroke({ color: 0xffb347, width: 2, alpha: 0.6 });
+    g.position.set(x, y);
+    g.scale.set(1);
+    g.alpha = 1;
+    g.visible = true;
+    fx.life = duration;
+    fx.maxLife = duration;
+    fx.startScale = 1;
+  }
+
   public update(dt: number): void {
     for (const fx of this.numbers) {
       if (fx.life <= 0) continue;
