@@ -115,8 +115,15 @@ git log origin/main --oneline -1   # 与 HEAD 一致
 ## 6. 一键同步脚本
 
 ```powershell
-pwsh -File tools/git-sync.ps1              # fetch + rebase + 冲突提示（不会自动 push）
-pwsh -File tools/git-sync.ps1 -Push        # 干净时直接 push
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/git-sync.ps1          # fetch + rebase + 冲突提示
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/git-sync.ps1 -Push    # 干净时直接 push
 ```
 
 脚本遇到冲突会停下并列出文件，**不会**自动选边站 —— 冲突永远由人来判断。
+
+> 本机只有 Windows PowerShell 5.1（没有 `pwsh`），所以用上面的写法。
+> ⚠️ `tools/git-sync.ps1` 必须保存为 **UTF-8 with BOM**：PS 5.1 会按 ANSI(GBK) 读取无 BOM 的 .ps1，
+> 中文会变成乱码并直接语法报错。修改该脚本后先确认 BOM：
+> ```powershell
+> [System.IO.File]::ReadAllBytes('tools/git-sync.ps1')[0..2]   # 应为 239 187 191
+> ```

@@ -172,7 +172,7 @@ git push origin main
 ```
 
 冲突处理、rebase 里 `--ours` 反坑、编码被改坏的救法，见 **[`docs/GIT_WORKFLOW.md`](docs/GIT_WORKFLOW.md)**。
-一键同步：`pwsh -File tools/git-sync.ps1 -Push`（遇冲突会停下，不自动选边）。
+一键同步：`powershell -NoProfile -ExecutionPolicy Bypass -File tools/git-sync.ps1 -Push`（遇冲突会停下，不自动选边）。
 
 > Agent 侧同一套规则已写成**仓库级技能** `.dsh/skills/git-sync/SKILL.md`，
 > 对 Agent 说一句"拉取并推一下"就会自动按这个流程走。

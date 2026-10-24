@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
     仓库同步助手：fetch → rebase → 冲突提示 →（可选）push。
@@ -26,9 +26,9 @@ function Write-Warn2($text) { Write-Host "   $text" -ForegroundColor Yellow }
 function Write-Err2($text) { Write-Host "   $text" -ForegroundColor Red }
 
 function Invoke-Git {
-    param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Args)
-    & git @Args
-    if ($LASTEXITCODE -ne 0) { throw "git $($Args -join ' ') 失败（exit $LASTEXITCODE）" }
+    param([Parameter(ValueFromRemainingArguments = $true)][string[]]$GitArgs)
+    & git @GitArgs
+    if ($LASTEXITCODE -ne 0) { throw "git $($GitArgs -join ' ') 失败（exit $LASTEXITCODE）" }
 }
 
 # 0. 前置检查 ---------------------------------------------------------------

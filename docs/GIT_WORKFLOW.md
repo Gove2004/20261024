@@ -15,11 +15,14 @@ git push origin main                # 3. 推送
 或者一条命令：
 
 ```powershell
-pwsh -File tools/git-sync.ps1 -Push
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/git-sync.ps1 -Push
 ```
 
 脚本会检查工作区是否干净、`.env.local` 是否泄漏、落后/领先多少，然后 rebase 并推送。
 **遇到冲突会停下并列出文件，不会自动选边。**
+
+> 本机只有 Windows PowerShell 5.1（没有 `pwsh`）。
+> `tools/git-sync.ps1` 必须保存为 **UTF-8 with BOM**，否则 PS 5.1 按 GBK 读中文会直接语法报错。
 
 ## 冲突怎么办
 
