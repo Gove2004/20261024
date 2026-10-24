@@ -277,12 +277,14 @@ node tools/art/pack.py
 
 赛事要求（对照 [游戏赛道](https://1024.waytoagi.com/tracks/game)）：
 
-- [ ] **浏览器/手机可直接玩的链接**
-- [ ] **从开始到重开能完整玩一局**
-- [ ] **操作提示在游戏内**（不是文档里）
-- [ ] **主角卡 1 张**：一句话/草图 + 生成的角色 + 游戏里的样子
-- [ ] 角色与道具为 AI 生成（保留 `tools/media/manifest.json` 作为凭证）
+- [ ] **浏览器/手机可直接玩的链接** — 构建已推到 `gh-pages` 分支，等仓库 Settings → Pages 里选 `gh-pages` 分支即可上线：https://gove2004.github.io/20261024/
+- [x] **从开始到重开能完整玩一局**（`node tools/smoke.mjs` 26 项覆盖：进局 → 召唤 → 围杀 → 升级 → 权能 → 倒计时判负 → 重开）
+- [x] **操作提示在游戏内**（底部常驻提示条 + 标题页三步说明 + 手机可见）
+- [x] **主角卡 1 张** — `shots/guoba-card.png`（`python tools/art/card.py` 重出），配套文案见 [`docs/SUBMISSION.md`](docs/SUBMISSION.md)
+- [x] 角色与道具为 AI 生成（保留 `tools/media/manifest.json` 作为凭证）
 - [ ] 提交截止：**2026-10-25 16:00**
+
+投稿文案、三段式介绍、主角设定全在 [`docs/SUBMISSION.md`](docs/SUBMISSION.md)，可直接粘到报名页。
 
 ---
 
