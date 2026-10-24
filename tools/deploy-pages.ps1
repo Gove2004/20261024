@@ -1,4 +1,4 @@
-# 把 dist/ 发布到 gh-pages（GitHub Pages）。
+﻿# 把 dist/ 发布到 gh-pages（GitHub Pages）。
 #
 # 为什么不用 `git subtree push --prefix dist origin gh-pages`：
 #   dist/ 在 .gitignore 里，subtree split 切出来是**空的**，

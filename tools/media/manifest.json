@@ -1733,5 +1733,42 @@
       }
     },
     "createdAt": "2026-10-24T16:56:37.902Z"
+  },
+  {
+    "kind": "image",
+    "id": "card-frame",
+    "model": "gpt-image-2",
+    "prompt": "可爱 Q 版卡通风格，扁平化（flat）2D 游戏 UI 贴图，圆润简洁的造型，粗深的深棕金色描边，深紫 #2A2140 底色配暗金 #D9A94E 点缀，2–3 阶平涂、无写实材质纹理，物件居中完整、无落地阴影、无场景，背景是纯白色 #FFFFFF 无渐变，无文字无数字无字母无符号。一张竖版手牌卡片的空心外框：只有一个圆角矩形边框环；边框环的外轮廓严格是 3:4 的竖版圆角矩形，高度撑满画布，左右各留出一条约 12% 画布宽的纯白空边；边框环的四条边宽度完全一致（框条粗壮醒目，厚度约为外轮廓短边的 1/8），内外两侧边界都是干净锐利的直线；四角各有一枚小巧的金色卷草角饰；深紫边框环上有内外两道细暗金描边，顶部边沿有一点点柔和的暖金高光；边框环内部约 65% 的中央区域是完全空白、与背景同色的纯白，没有内衬、没有图案、没有栅线。",
+    "size": "1024x1536",
+    "file": "art/raw/ui/card-frame.png",
+    "bytes": 1021054,
+    "sourceUrl": "https://imagefil.scdn.app/public/image/1749ec20c985e11879077d472354bb940.png",
+    "usage": {
+      "prompt_tokens": 184,
+      "completion_tokens": 1584,
+      "total_tokens": 1768,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "reasoning_tokens": 0,
+        "text_tokens": 184
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "image_tokens": 1584
+      },
+      "input_tokens": 184,
+      "output_tokens": 1584,
+      "input_tokens_details": {
+        "text_tokens": 184,
+        "cached_tokens": 0
+      },
+      "output_tokens_details": {
+        "text_tokens": 0,
+        "reasoning_tokens": 0,
+        "image_tokens": 1584
+      }
+    },
+    "createdAt": "2026-10-24T17:00:49.788Z"
   }
 ]
