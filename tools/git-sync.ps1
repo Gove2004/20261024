@@ -107,3 +107,7 @@ Write-Step '最终状态'
 & git status -sb
 & git log --oneline -3 | ForEach-Object { Write-Host "     $_" }
 Write-Ok '同步结束'
+
+# git 的进度/凭据提示都走 stderr，PS 5.1 会把它们记进错误流，
+# 导致 powerShell -File 误返回 1。这里显式归零，避免 CI / 脚本误判失败。
+exit 0
