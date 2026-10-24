@@ -1,4 +1,4 @@
-import './style.css';
+﻿import './style.css';
 // 移动端覆盖层必须在 style.css 之后导入：它整段都是媒体查询，
 // 靠"后出现"压过基础规则（同优先级下后者胜）。
 // 走 JS 导入而不是 index.html 里的 <link>：Vite 构建时会把 html 里指向
@@ -38,6 +38,9 @@ async function bootstrap(): Promise<void> {
   let hitStop = 0;
   /** 星级里程碑去重（见渲染回调） */
   let lastStarTier = 0;
+  /** 跑动尘土的锚点（见渲染回调） */
+  let dustX = 0;
+  let dustY = 0;
 
   const events: GameEvents = {
     onSpawn: (slot) => {
@@ -68,7 +71,8 @@ async function bootstrap(): Promise<void> {
       // 打击感：只有暴击才给火花 + 顿帧。每一下都炸火花会糊屏，也会拖死软件渲染
       // （爆发池只有 20 个），所以把"重"留给稀有的那一下。
       if (crit) {
-        scene.fx.burst(x, y, 0xffd08a, 6, 18);
+        // 溅射方向取"他→目标"，看起来就是被这一发打飞的
+        scene.fx.burst(x, y, 0xffd08a, 6, 18, x - game.hero.x, y - game.hero.y);
         scene.shake(1.4);
         hitStop = Math.max(hitStop, 1);
         audio.onCritHit();
@@ -132,6 +136,10 @@ async function bootstrap(): Promise<void> {
       }
     },
     toast: (text, kind) => hud.toast(text, kind ?? 'info'),
+    onPowerupWarning: (seconds) => {
+      hud.showPowerupWarning(seconds);
+      audio.onPowerupWarning();
+    },
     onPowerup: (options) => {
       audio.onPowerupOpen();
       hud.showPowerup(options);
@@ -267,6 +275,19 @@ async function bootstrap(): Promise<void> {
       const now = performance.now();
       scene.sync(game, 0, (now - startTime) / 1000);
       updateAudio(game);
+
+      // 跑动尘土：他每走 34px 撒一点灰。
+      // 这是让玩家"看见他在拉扯"最便宜的办法 —— 走位本身是抽象的，
+      // 地面上留下的尘土轨迹会让"他在绕圈"变成一眼就能读出来的画面。
+      if (game.state === 'playing') {
+        const dx = game.hero.x - dustX;
+        const dy = game.hero.y - dustY;
+        if (dx * dx + dy * dy > 60 * 60) {
+          dustX = game.hero.x;
+          dustY = game.hero.y;
+          scene.fx.burst(dustX, dustY + 10, 0x6b6478, 2, 8);
+        }
+      }
       // 星级里程碑（20/40/60）：玩家在上帝视角里数不清星，靠声音判断"这波铺大了"
       const tier = game.peakStars >= 60 ? 3 : game.peakStars >= 40 ? 2 : game.peakStars >= 20 ? 1 : 0;
       if (tier !== lastStarTier) {

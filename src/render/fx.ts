@@ -122,22 +122,51 @@ export class FxLayer {
     fx.maxLife = 0.9;
   }
 
-  /** 粒子爆发：一次画完所有碎屑，之后只做缩放与淡出。 */
-  public burst(x: number, y: number, color: number, count: number, radius = 26): void {
+  /**
+   * 粒子爆发：一次画完所有碎屑，之后只做缩放与淡出。
+   *
+   * `dirX/dirY` 可选：给了方向就变成**朝那个方向的溅射**（扇形 ±55°），
+   * 不给就是均匀爆开。这是"打击感"里最便宜的一条 —— 同样的粒子数，
+   * 有方向的看起来像"被他打飞了"，没方向的像"原地放了个烟花"。
+   */
+  public burst(
+    x: number,
+    y: number,
+    color: number,
+    count: number,
+    radius = 26,
+    dirX = 0,
+    dirY = 0,
+  ): void {
     const fx = this.bursts[this.burstCursor];
     this.burstCursor = (this.burstCursor + 1) % BURST_POOL;
     if (!fx) return;
 
+    const directed = Math.abs(dirX) + Math.abs(dirY) > 0.001;
+    const baseAngle = directed ? Math.atan2(dirY, dirX) : 0;
     const g = fx.gfx;
     g.clear();
     for (let i = 0; i < count; i += 1) {
-      const angle = this.rng.next() * Math.PI * 2;
-      const dist = this.rng.range(radius * 0.2, radius);
+      const angle = directed
+        ? baseAngle + this.rng.range(-0.96, 0.96)
+        : this.rng.next() * Math.PI * 2;
+      // 有方向时距离分布更"贴边"：碎屑都堆在扇形外沿，看起来是被推出去的
+      const dist = directed
+        ? this.rng.range(radius * 0.45, radius)
+        : this.rng.range(radius * 0.2, radius);
       const size = this.rng.range(1.6, 4.2);
-      g.circle(Math.cos(angle) * dist, Math.sin(angle) * dist, size).fill({
-        color,
-        alpha: this.rng.range(0.5, 1),
-      });
+      const px = Math.cos(angle) * dist;
+      const py = Math.sin(angle) * dist;
+      if (directed) {
+        // 细长条：沿着飞行方向拉长，读起来就是"速度"
+        g.roundRect(px - size * 1.6, py - size * 0.42, size * 3.2, size * 0.84, size * 0.42).fill({
+          color,
+          alpha: this.rng.range(0.5, 1),
+          rotation: angle,
+        });
+      } else {
+        g.circle(px, py, size).fill({ color, alpha: this.rng.range(0.5, 1) });
+      }
     }
     g.position.set(x, y);
     g.scale.set(0.7);

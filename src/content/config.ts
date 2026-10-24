@@ -96,6 +96,9 @@ export const HERO = {
 } as const;
 
 /** 权能触发间隔（秒）。 */
+/** 权能面板的前摇：预告多久之后才真正暂停世界。见 Game.openPowerup */
+export const POWERUP_WINDUP = 1.1;
+
 export const POWERUP = { interval: 30, slowScale: 0.15 } as const;
 
 /** 经验：XP_need(L) = base + per × (L − 1)；击杀所得 = 星级 × perStar。 */

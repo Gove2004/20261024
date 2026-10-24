@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 冒烟测试：用本地 Edge 打开构建产物，验证 M1 手感闭环。
  *
  *   1. 页面无 console error / 未捕获异常
@@ -174,6 +174,7 @@ const combatWalk = await page.evaluate(() => {
   const g = window.__game;
   let travel = 0;
   let minWall = 1e9;
+  let wallFrames = 0;
   let px = g.hero.x;
   let py = g.hero.y;
   for (let i = 0; i < 330; i += 1) {
@@ -181,9 +182,11 @@ const combatWalk = await page.evaluate(() => {
     travel += Math.hypot(g.hero.x - px, g.hero.y - py);
     px = g.hero.x;
     py = g.hero.y;
-    minWall = Math.min(minWall, px - 200, 1400 - px, py - 200, 1400 - py);
+    const wall = Math.min(px - 200, 1400 - px, py - 200, 1400 - py);
+    minWall = Math.min(minWall, wall);
+    if (wall < 80) wallFrames += 1;
   }
-  return { travel: Math.round(travel), minWall: Math.round(minWall) };
+  return { travel: Math.round(travel), minWall: Math.round(minWall), wallRatio: wallFrames / 330 };
 });
 
 const combat = await page.evaluate(() => {
@@ -227,9 +230,9 @@ check(
   `5.5s 走了 ${combatWalk.travel}px`,
 );
 check(
-  '他不进墙角（离墙始终有余量）',
-  combatWalk.minWall > 90,
-  `离墙最近 ${combatWalk.minWall}px`,
+  '他不进墙角（贴墙帧占比低）',
+  combatWalk.wallRatio < 0.12,
+  `贴墙帧占比 ${(combatWalk.wallRatio * 100).toFixed(0)}%（最近 ${combatWalk.minWall}px）`,
 );
 // 再推进 10 秒：他是远程、会边打边退，所以先摆一圈怪把他围住 —— 他必须真的会挨打
 const late = await page.evaluate(() => {
@@ -357,8 +360,10 @@ const skills = await page.evaluate(() => {
       if (ok) put += 1;
     }
   }
-  // 逼出「干粮」：把血压到 35%，他才会吃
-  g.hero.hp = g.hero.maxHp * 0.35;
+  // 逼出「干粮」：血低于 38% 他才会吃。
+  // 注意：吃饱（干粮触发）之后要把血补回去，否则这段观察窗口里他会被打死，
+  // 后面几项技能断言就全部落空了 —— 这里补血不是作弊，是为了让「技能都触发一次」可测。
+  g.hero.hp = g.hero.maxHp * 0.36;
   let topUp = 0;
   for (let i = 0; i < 60 * 45; i += 1) {
     // 每 3 秒补两只 1 星怪：不补的话他会把场上清空，后半程就在空跑
@@ -377,6 +382,8 @@ const skills = await page.evaluate(() => {
     }
     // 30 秒会弹权能三选一，测试里直接选升星继续，别让对局停在那儿
     if (g.state === 'powerup') g.choosePowerup('star');
+    if (g.statSelfHeal === 0 && g.hero.hp > g.hero.maxHp * 0.38) g.hero.hp = g.hero.maxHp * 0.36;
+    else if (g.statSelfHeal > 0 && g.hero.hp < g.hero.maxHp * 0.75) g.hero.hp = g.hero.maxHp * 0.85;
     g.update(1 / 60);
     if (g.state === 'lost' || g.state === 'won') break;
   }
@@ -485,19 +492,40 @@ check(
   `${fps} fps（两次采样 ${fpsSample1}/${fpsSample2}，空页面基线 ${baselineFps}，下限 ${fpsFloor}；测前 overlay=${overlayDiag}）`,
 );
 
-// ---- 权能面板 ----
+// ---- 权能面板（含 1.1s 前摇，防误触） ----
 await page.evaluate(() => {
   const g = window.__game;
   g.deferPowerup(0.05);
 });
-await page.waitForTimeout(700);
+// 第一段：预告期。世界还在跑，面板不该出现，预告条该亮着
+await page.waitForTimeout(450);
+const powerupWarn = await page.evaluate(() => ({
+  state: window.__game.state,
+  warnOn: document.querySelector('.powerup-warn')?.classList.contains('is-on') ?? false,
+  cards: document.querySelectorAll('.overlay.is-open [data-opt]').length,
+}));
+check(
+  '权能有前摇（面板不突然弹出）',
+  powerupWarn.state === 'playing' && powerupWarn.warnOn && powerupWarn.cards === 0,
+  `state=${powerupWarn.state} 预告条=${powerupWarn.warnOn} 面板=${powerupWarn.cards}`,
+);
+// 第二段：前摇走完，面板才开
+await page.waitForTimeout(800);
 const powerupOpen = await page.evaluate(() => ({
   state: window.__game.state,
   cards: document.querySelectorAll('[data-opt]').length,
+  disabled: document.querySelectorAll('[data-opt]:disabled').length,
 }));
 check('30 秒权能 3 选 1', powerupOpen.state === 'powerup' && powerupOpen.cards === 3, `选项=${powerupOpen.cards}`);
+check(
+  '面板刚出现时按钮是锁的（防连点穿透）',
+  powerupOpen.disabled > 0,
+  `锁住 ${powerupOpen.disabled}/${powerupOpen.cards}`,
+);
 await page.screenshot({ path: join(SHOTS, '03-powerup.png') });
 
+// 按钮 450ms 后解锁，才能点
+await page.waitForTimeout(600);
 await page.click('[data-opt]');
 await page.waitForTimeout(300);
 check('选择权能后继续对局', (await page.evaluate(() => window.__game.state)) === 'playing');

@@ -77,6 +77,8 @@ export class Hud {
   private lastWarn = false;
   private lastLow = false;
   private readonly overlayEl: HTMLDivElement;
+  /** 权能预告条（懒创建，见 showPowerupWarning） */
+  private warnEl: HTMLDivElement | null = null;
   private readonly nodes: CardNode[] = [];
 
   constructor(
@@ -445,12 +447,37 @@ export class Hud {
     this.overlayEl.querySelector('[data-start]')?.addEventListener('click', () => this.handlers.onStart());
   }
 
+  /**
+   * 权能预告（面板弹出前的前摇）。
+   * 玩家此刻手还按在场地上点召唤，直接弹三选一会被"顺手"点掉最上面那张，
+   * 所以先出 1.1 秒的预告条：世界照常跑，玩家能把手收回来。
+   */
+  public showPowerupWarning(seconds: number): void {
+    if (this.warnEl === null) {
+      this.warnEl = document.createElement('div');
+      this.warnEl.className = 'powerup-warn';
+      this.warnEl.setAttribute('aria-live', 'polite');
+      document.body.appendChild(this.warnEl);
+    }
+    this.warnEl.innerHTML = `
+      <span class="powerup-warn-ring"></span>
+      <span class="powerup-warn-text">权能降临</span>
+      <span class="powerup-warn-sub">${seconds.toFixed(1)}s 后暂停世界</span>
+    `;
+    this.warnEl.classList.add('is-on');
+  }
+
+  private hidePowerupWarning(): void {
+    this.warnEl?.classList.remove('is-on');
+  }
+
   public showPowerup(options: readonly PowerupOption[]): void {
+    this.hidePowerupWarning();
     this.overlayEl.className = 'overlay is-open powerup';
     const cards = options
       .map(
         (opt) => `
-        <button class="powerup-card" data-opt="${opt.id}">
+        <button class="powerup-card" data-opt="${opt.id}" disabled>
           <span class="powerup-title">${opt.title}</span>
           <span class="powerup-desc">${opt.desc}</span>
         </button>`,
@@ -461,14 +488,23 @@ export class Hud {
         <h2 class="panel-title">魔王权能</h2>
         <p class="panel-sub">三选一 · 世界已为你暂停</p>
         <div class="powerup-row">${cards}</div>
+        <div class="powerup-hold"><span class="powerup-hold-fill"></span></div>
       </div>
     `;
-    for (const btn of this.overlayEl.querySelectorAll<HTMLElement>('[data-opt]')) {
+    const buttons = [...this.overlayEl.querySelectorAll<HTMLButtonElement>('[data-opt]')];
+    for (const btn of buttons) {
       btn.addEventListener('click', () => {
         const id = btn.dataset['opt'];
-        if (id) this.handlers.onPowerup(id);
+        if (id && !btn.disabled) this.handlers.onPowerup(id);
       });
     }
+    // 防误触第二道闸：面板出现后 0.45 秒内按钮不可点（连点/双击不会穿透）。
+    // 这和上面的前摇是两件事：前摇防"突然弹出"，这里防"手已经按下"。
+    this.overlayEl.classList.add('is-armed-later');
+    window.setTimeout(() => {
+      for (const btn of buttons) btn.disabled = false;
+      this.overlayEl.classList.remove('is-armed-later');
+    }, 450);
   }
 
   public showResult(won: boolean, game: Game): void {

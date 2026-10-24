@@ -1,4 +1,4 @@
-/* ── 全局调色板（与 docs/GAME_DESIGN.md §8.1 保持一致）────────────
+﻿/* ── 全局调色板（与 docs/GAME_DESIGN.md §8.1 保持一致）────────────
    深渊底色 #0B0A14 / #151226   大厅石 #2E2740 / #43395C
    熔岩     #FF6B4A / #FFB347   血色   #FF3B5C
    锅巴皮甲 #8A6A4A / #D8C8B0   钢刃   #9AA3AD                */
@@ -821,6 +821,92 @@ body {
   gap: 14px;
   justify-content: center;
   flex-wrap: wrap;
+}
+
+/* 防误触：面板刚出现时按钮是 disabled 的，450ms 后才亮起来。
+   角标/透明度要跟着变，否则玩家会以为"点了没反应"。 */
+.powerup-card:disabled {
+  opacity: 0.55;
+  cursor: progress;
+  transform: none;
+}
+
+.powerup-hold {
+  margin-top: 14px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(155, 107, 255, 0.18);
+  overflow: hidden;
+}
+
+.powerup-hold-fill {
+  display: block;
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, rgba(255, 179, 71, 0.15), var(--lava-1));
+  transform-origin: left center;
+  animation: powerup-arm 0.45s linear forwards;
+}
+
+@keyframes powerup-arm {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+/* 权能前摇预告条：屏幕上方，短促、不遮挡战场 */
+.powerup-warn {
+  position: fixed;
+  top: 18%;
+  left: 50%;
+  transform: translate(-50%, -8px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 26px;
+  border-radius: 14px;
+  border: 1px solid rgba(155, 107, 255, 0.5);
+  background: radial-gradient(circle at 50% 20%, rgba(155, 107, 255, 0.28), rgba(11, 10, 20, 0.86));
+  color: #efe9ff;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.16s ease, transform 0.16s ease;
+  z-index: 40;
+}
+
+.powerup-warn.is-on {
+  visibility: visible;
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.powerup-warn-ring {
+  position: absolute;
+  inset: -6px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 179, 71, 0.35);
+  opacity: 0;
+}
+
+/* 只在预告期间跑动画：常驻的 infinite 动画会让合成器一直掉帧（实测软件渲染 -8fps） */.powerup-warn.is-on .powerup-warn-ring {
+  animation: warn-pulse 1.1s ease-out infinite;
+}
+
+@keyframes warn-pulse {
+  0% { opacity: 0.7; transform: scale(0.97); }
+  100% { opacity: 0; transform: scale(1.08); }
+}
+
+.powerup-warn-text {
+  font-size: 17px;
+  letter-spacing: 4px;
+  color: var(--lava-1);
+}
+
+.powerup-warn-sub {
+  font-size: 12px;
+  opacity: 0.72;
 }
 
 .powerup-card {

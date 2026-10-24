@@ -6,6 +6,7 @@
   PILLARS,
   PLACE,
   POWERUP,
+  POWERUP_WINDUP,
   RUN,
   SCORE,
   THRONE,
@@ -115,6 +116,8 @@ export interface GameEvents {
   onEffect(kind: 'heal' | 'freeze' | 'taunt' | 'boom', x: number, y: number, radius: number): void;
   toast(text: string, kind?: 'info' | 'good' | 'bad'): void;
   onPowerup(options: readonly PowerupOption[]): void;
+  /** 权能预告（面板弹出前的前摇），HUD 用它出倒计时 */
+  onPowerupWarning(seconds: number): void;
   onFinish(won: boolean): void;
 }
 
@@ -169,6 +172,8 @@ export class Game {
   private armorStack = 0;
 
   private powerupTimer: number = POWERUP.interval;
+  /** 权能前摇剩余秒数（>0 表示预告中，世界还在跑） */
+  private powerupWindup = 0;
   private pendingPowerup: PowerupOption[] | null = null;
   /** 火球等延迟结算的 AoE */
   private readonly pendingAoe: PendingAoe[] = [];
@@ -220,6 +225,7 @@ export class Game {
     this.cdStack = 0;
     this.armorStack = 0;
     this.powerupTimer = POWERUP.interval;
+    this.powerupWindup = 0;
     this.pendingPowerup = null;
     this.camX = this.hero.x;
     this.camY = this.hero.y;
@@ -313,6 +319,12 @@ export class Game {
     if (this.powerupTimer <= 0) {
       this.powerupTimer += POWERUP.interval;
       this.openPowerup();
+    }
+
+    // 权能前摇：世界照常跑，倒计时结束才真正暂停开面板
+    if (this.powerupWindup > 0) {
+      this.powerupWindup -= dt;
+      if (this.powerupWindup <= 0) this.commitPowerup();
     }
   }
 
@@ -506,6 +518,18 @@ export class Game {
       if (picked) options.push(picked);
     }
     this.pendingPowerup = options;
+    // 前摇：面板不是"啪"地弹出来的。
+    // 玩家此时手正在场地上点召唤，突然盖一层三选一 → 手指/鼠标还按着就选中了最上面那张。
+    // 所以先给 1.1 秒预告（世界照常跑，HUD 出倒计时），再停世界开面板。
+    this.powerupWindup = POWERUP_WINDUP;
+    this.events.onPowerupWarning(POWERUP_WINDUP);
+  }
+
+  /** 预告结束 → 真正暂停世界并开面板。 */
+  private commitPowerup(): void {
+    const options = this.pendingPowerup;
+    if (!options) return;
+    this.powerupWindup = 0;
     this.state = 'powerup';
     this.events.onPowerup(options);
   }

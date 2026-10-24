@@ -249,6 +249,15 @@ export class AudioEngine {
     this.sfxSummon(star);
   }
 
+  /** 权能预告：一声低沉的"钟"，比面板本身早 1.1 秒，玩家有时间收手 */
+  public onPowerupWarning(): void {
+    const ctx = this.ctx;
+    const bus = this.sfxBus;
+    if (ctx === null || bus === null) return;
+    const t = ctx.currentTime;
+    this.tone({ freq: 174, time: t, dur: 1.0, type: 'sine', gain: 0.12, dest: bus, glide: 168 });
+    this.tone({ freq: 261, time: t + 0.02, dur: 0.8, type: 'triangle', gain: 0.06, dest: bus, glide: 258 });
+  }
   public onCritHit(): void {
     const ctx = this.ctx;
     const bus = this.sfxBus;
