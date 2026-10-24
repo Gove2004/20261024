@@ -59,31 +59,28 @@ function buildArena(world: Container): void {
 }
 
 /**
- * 勇者「锅巴」占位：瘦长身形 + 背上一口铁锅（这是他唯一的记忆点）。
- * M4 换成正式立绘；这里用几何体把**剪影特征**先立住，避免美术接入时才发现比例不对。
+ * 勇者「锅巴」占位：**中性人形剪影**。
+ * 形象与美术风格尚未定稿（见 `docs/CHARACTER_CARD.md`），这里刻意不绑定任何武器/装饰，
+ * 只保证"是个比魔物更显眼的人"这一条，避免造型定稿后返工。
  */
 function buildHero(world: Container): Container {
   const hero = new Container();
 
-  // 背上的铁锅（当盾用，压在身后）——比人物本身更宽，剪影才有辨识度
-  const wok = new Graphics();
-  wok.circle(0, 10, 30).fill({ color: COLOR.char0, alpha: 0.95 });
-  wok.circle(0, 10, 30).stroke({ width: 3, color: 0x241a14, alpha: 0.9 });
-  wok.circle(0, 10, 20).stroke({ width: 2, color: COLOR.stone1, alpha: 0.7 });
-  wok.arc(0, 10, 30, -Math.PI * 0.85, -Math.PI * 0.15).stroke({ width: 4, color: COLOR.char1 });
-
-  // 身体：窄长，和"方块锅巴"划清界限
+  // 身体：窄长人形，比魔物大一档，保证视线第一落点
   const body = new Graphics();
-  body.roundRect(-13, -26, 26, 34, 7).fill({ color: COLOR.leather, alpha: 0.95 });
-  body.roundRect(-13, -26, 26, 34, 7).stroke({ width: 3, color: 0x241a14, alpha: 0.9 });
+  body.roundRect(-12, -24, 24, 32, 7).fill({ color: COLOR.leather, alpha: 0.95 });
+  body.roundRect(-12, -24, 24, 32, 7).stroke({ width: 3, color: 0x241a14, alpha: 0.9 });
 
-  // 头 + 一只泛橙光的眼（狂化阶段的伏笔）
+  // 头
   const head = new Graphics();
-  head.circle(0, -38, 13).fill({ color: 0xe8c9a0, alpha: 0.95 });
-  head.circle(0, -38, 13).stroke({ width: 3, color: 0x241a14, alpha: 0.9 });
-  head.circle(4, -39, 3).fill({ color: COLOR.lava, alpha: 0.95 });
+  head.circle(0, -36, 12).fill({ color: 0xe8c9a0, alpha: 0.95 });
+  head.circle(0, -36, 12).stroke({ width: 3, color: 0x241a14, alpha: 0.9 });
 
-  hero.addChild(wok, body, head);
+  // 脚下的光环：明示"这是要击杀的目标"，也方便占位阶段看清他在哪
+  const ring = new Graphics();
+  ring.ellipse(0, 12, 20, 8).stroke({ width: 2, color: COLOR.lava, alpha: 0.55 });
+
+  hero.addChild(ring, body, head);
   hero.position.set(DESIGN_WIDTH / 2, DESIGN_HEIGHT / 2 + 8);
   world.addChild(hero);
   return hero;
@@ -132,11 +129,11 @@ function createTitleScreen(uiRoot: HTMLElement, onStart: () => void): () => void
     <h1 class="title-main">锅巴必须死</h1>
     <p class="title-sub">你是魔王，他是来讨伐你的勇者。</p>
     <p class="title-hook">
-      把魔物摆到大殿上送去给他砍 —— 他吸的魔气越多，斩落他时的战功越高。<br />
-      但养得太肥，<em>翻车的就会是你。</em>
+      放置魔物，在 5 分钟内杀掉他。<br />
+      他杀掉你的魔物就会变强 —— <em>双方都在成长，比的是谁长得更快。</em>
     </p>
     <button class="btn-start" type="button">开 始</button>
-    <p class="title-foot">鼠标点卡 → 点地放置　·　双击魔物献祭　·　<kbd>Space</kbd> 暂停　·　<kbd>F3</kbd> 调试</p>
+    <p class="title-foot">鼠标点卡 → 点地放置　·　双击魔物引爆　·　<kbd>Space</kbd> 暂停　·　<kbd>F3</kbd> 调试</p>
   `;
   uiRoot.appendChild(screen);
 
