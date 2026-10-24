@@ -164,6 +164,19 @@ core  →  ecs / gameplay  →  render / ui  →  app
 - 提交前跑 `npm test`；改了战斗数值要跑 `npm run sim` 并把曲线贴到 `docs/GAME_DESIGN.md` §5.2。
 - **永远不要提交 `.env.local`、`node_modules`、`dist`、`art/raw`。**
 
+### 拉取 / 冲突 / 推送
+
+```powershell
+git pull --rebase origin main     # 永远 rebase，不留 merge 节点
+git push origin main
+```
+
+冲突处理、rebase 里 `--ours` 反坑、编码被改坏的救法，见 **[`docs/GIT_WORKFLOW.md`](docs/GIT_WORKFLOW.md)**。
+一键同步：`pwsh -File tools/git-sync.ps1 -Push`（遇冲突会停下，不自动选边）。
+
+> Agent 侧同一套规则已写成**仓库级技能** `.dsh/skills/git-sync/SKILL.md`，
+> 对 Agent 说一句"拉取并推一下"就会自动按这个流程走。
+
 ### 并行开发
 
 多人 / 多 Agent 同时干活时，**按目录切分写入范围**，不要两个人同时改同一个文件：
