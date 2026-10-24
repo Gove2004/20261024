@@ -1,4 +1,5 @@
 import './style.css';
+import { audio, updateAudio } from './audio';
 import { FixedStepLoop } from './core/loop';
 import { createRng } from './core/rng';
 import { VIEW } from './content/config';
@@ -30,20 +31,28 @@ async function bootstrap(): Promise<void> {
     onSpawn: (slot) => {
       const def = game.store;
       scene.fx.burst(def.x[slot] ?? 0, def.y[slot] ?? 0, 0x9b6bff, 10, 34);
+      audio.onSpawn(def.star[slot] ?? 1);
     },
     onDeath: (slot) => {
       const store = game.store;
       scene.fx.burst(store.x[slot] ?? 0, store.y[slot] ?? 0, 0xd8d0e8, 12, 26);
       scene.fx.ring(store.x[slot] ?? 0, store.y[slot] ?? 0, 22, 0xff3b5c, 2);
+      audio.onDeath();
     },
-    onHeroHurt: () => undefined,
+    onHeroHurt: () => {
+      audio.onHeroHurt();
+    },
     onHeroLevel: () => {
       scene.fx.ring(game.hero.x, game.hero.y, 90, 0xffb347, 5);
       scene.fx.burst(game.hero.x, game.hero.y - 20, 0xffb347, 18, 50);
+      audio.onHeroLevel();
     },
-    onSwing: () => undefined,
+    onSwing: () => {
+      audio.onSwing();
+    },
     onQi: (x, y, dirX, dirY) => {
       scene.fx.slash(x, y, dirX, dirY, AI.qiLength, AI.qiHalfWidth * 2);
+      audio.onQi();
     },
     onRangedShot: (_slot, fromX, fromY, toX, toY) => {
       // 只画"飞在半路的一段"：全长实线会被看成一根绑在勇者身上的白绳，
@@ -59,6 +68,7 @@ async function bootstrap(): Promise<void> {
     onDetonate: (x, y, radius) => {
       scene.fx.ring(x, y, radius, 0xc06bd8, 6);
       scene.fx.burst(x, y, 0xc06bd8, 22, radius);
+      audio.onDetonate();
     },
     onTelegraph: (x, y, radius, duration) => {
       scene.fx.telegraph(x, y, radius, duration);
@@ -77,18 +87,27 @@ async function bootstrap(): Promise<void> {
       }
     },
     toast: (text, kind) => hud.toast(text, kind ?? 'info'),
-    onPowerup: (options) => hud.showPowerup(options),
-    onFinish: (won) => hud.showResult(won, game),
+    onPowerup: (options) => {
+      audio.onPowerupOpen();
+      hud.showPowerup(options);
+    },
+    onFinish: (won) => {
+      audio.onFinish(won);
+      hud.showResult(won, game);
+    },
   };
 
   const hud = new Hud(uiRoot, {
     onStart: () => {
+      // 标题页的"开始"是第一个可靠手势，AudioContext 必须在这里创建
+      audio.unlock();
       game.start();
       scene.reset();
       hud.hideOverlay();
       hud.setVisible(true);
     },
     onRestart: () => {
+      audio.unlock();
       game.start();
       scene.reset();
       hud.hideOverlay();
@@ -98,8 +117,12 @@ async function bootstrap(): Promise<void> {
     onPowerup: (id) => {
       game.choosePowerup(id);
       hud.hideOverlay();
+      audio.onPowerupClose();
     },
-    onPause: () => game.togglePause(),
+    onPause: () => {
+      game.togglePause();
+      audio.setPaused(game.state === 'paused');
+    },
   });
 
   game = new Game(events);
@@ -200,6 +223,7 @@ async function bootstrap(): Promise<void> {
     () => {
       const now = performance.now();
       scene.sync(game, 0, (now - startTime) / 1000);
+      updateAudio(game);
       // HUD 走 DOM，每帧都写会触发大量样式重算；15Hz 足够读，且省下主线程时间
       hudTick = (hudTick + 1) % 4;
       if (hudTick === 0) hud.update(game);
