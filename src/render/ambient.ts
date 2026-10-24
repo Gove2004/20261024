@@ -1,5 +1,5 @@
-﻿import { Container, Graphics, Sprite, Texture } from 'pixi.js';
-import { HALL, HALL_WALL } from '../content/config';
+import { Container, Graphics, Sprite, Texture } from 'pixi.js';
+import { HALL, HALL_WALL, MAGIC_CIRCLE } from '../content/config';
 import type { Rng } from '../core/rng';
 
 /**
@@ -77,12 +77,14 @@ export class Ambient {
       mote.vx = (this.rng.next() - 0.5) * 14;
       mote.vy = (this.rng.next() - 0.5) * 10;
     } else {
-      // 余烬从四角火盆升起，之后自由上飘
-      const corner = Math.floor(this.rng.next() * 4);
-      mote.x = (corner % 2 === 0 ? HALL.left + 90 : HALL.right - 90) + (this.rng.next() - 0.5) * 54;
-      mote.y = (corner < 2 ? HALL.top + 90 : HALL.bottom - 90) + (this.rng.next() - 0.5) * 40;
-      mote.vx = (this.rng.next() - 0.5) * 16;
-      mote.vy = -16 - this.rng.next() * 22;
+      // 余烬从中央魔法阵升起 —— 火盆按需求删掉了，场上唯一的光源就是魔法阵，
+      // 所以粒子必须从它身上长出来，否则"环境是活的"这件事就断了。
+      const angle = this.rng.next() * Math.PI * 2;
+      const dist = this.rng.next() * MAGIC_CIRCLE.r * 0.7;
+      mote.x = MAGIC_CIRCLE.x + Math.cos(angle) * dist;
+      mote.y = MAGIC_CIRCLE.y + Math.sin(angle) * dist * 0.5;
+      mote.vx = (this.rng.next() - 0.5) * 12;
+      mote.vy = -18 - this.rng.next() * 26;
     }
     sprite.position.set(mote.x, mote.y);
     return mote;

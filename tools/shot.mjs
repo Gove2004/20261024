@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 定点截图：进局 → 等一会 → 按需要裁一块区域放大拍下来。
  *
  * 存在的理由：整屏截图里 46px 的字只有几个像素，视觉模型看不清，
@@ -38,6 +38,7 @@ const clipRaw = getFlag('--clip', null);
 const wait = Number(getFlag('--wait', '1200'));
 const doStart = !args.includes('--no-start');
 const allCards = args.includes('--all-cards');
+const overview = args.includes('--overview');
 
 const server = createServer(async (req, res) => {
   try {
@@ -73,13 +74,30 @@ if (doStart) {
     for (let i = 0; i < 9; i += 1) {
       const a = (i / 9) * Math.PI * 2;
       const r = 110 + (i % 3) * 55;
-      for (const card of g.hand) card.cd = 0;
+      g.debugRefill();
       g.selectCard(i % g.hand.length);
       g.place(g.hero.x + Math.cos(a) * r, g.hero.y + Math.sin(a) * r);
     }
     g.selected = -1;
   }, allCards);
   await page.waitForTimeout(1200);
+}
+
+// 全景模式：把镜头拉到大厅中心并缩到能看见整个房间 ——
+// 相机平时跟着锅巴，人眼（和 vision）永远看不到完整布局，改房间就没法验收。
+if (overview) {
+  await page.evaluate(() => {
+    const g = window.__game;
+    g.camX = 1200;
+    g.camY = 1200;
+    // 通过 __stage 暴露的容器直接调缩放（仅截图用，不影响真实相机逻辑）
+    const stage = window.__stage;
+    const world = stage?.world;
+    if (world) world.scale.set(0.42);
+    const app = window.__pixiApp;
+    if (app) app.stage.children[0].position.set(0, 0);
+  });
+  await page.waitForTimeout(400);
 }
 
 const abs = resolve(out);

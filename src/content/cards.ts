@@ -1,10 +1,19 @@
 /**
  * 卡池定义。
  *
- * 设计约定（见策划案 §3.2 / §4）：
+ * 设计约定（见策划案 §4）：
  * - 星级 1–10 同时是「强度」与「占地」，属性对星级**线性**增长，
  *   所以 1 只 10★ 与 10 只 1★ 战力等价，差别只在打法。
- * - 初始手牌只有 4 张，其余靠权能解锁。
+ * - **只有 5 种魔物**。这是刻意的：12 种的时候玩家记不住谁是谁（用户反馈原话
+ *   "魔物种类太多，根本没法记住"）。5 种刚好能在一个回合里形成肌肉记忆，
+ *   而且每种=一种明确的战场角色，看一眼就知道该拿它做什么。
+ *
+ * 五种角色（必须互不重复，否则就该合并）：
+ *   史莱姆  —— 潮水：便宜、量大，专门吃掉他的攻击次数
+ *   幽灵    —— 突进：无视同伴碰撞，直线贴脸，逼他翻滚
+ *   毒蜘蛛  —— 远程：站桩消耗 + 减速，逼他进圈（这条是"放风筝"能成立的前提）
+ *   自爆虫  —— 爆发：贴身读条自爆，范围伤害，逼他离开原地
+ *   巫医    —— 支援：给周围回血，制造"先杀它"的目标优先级
  */
 
 export type CardKind = 'melee' | 'ranged' | 'tank' | 'support' | 'summoner';
@@ -14,18 +23,16 @@ export type CardShape = 'blob' | 'wisp' | 'skull' | 'spider';
 
 /**
  * 主动特性。没有特性的怪就是"走上去砍"，
- * 有特性的怪负责制造「这一波你必须换个应对」的时刻（策划案 §4 差异化检查表）。
+ * 有特性的怪负责制造「这一波你必须换个应对」的时刻。
+ * 现在只保留实际用得到的 4 种（taunt / aoe / summon 随卡池一起裁掉）。
  */
-export type MonsterAbility = 'suicide' | 'frost' | 'heal' | 'taunt' | 'aoe' | 'summon';
+export type MonsterAbility = 'suicide' | 'heal' | 'slowShot';
 
 /** 特性编号，存进 SoA 的 Uint8Array（热路径里不能存字符串）。 */
 export const ABILITY_CODE: Record<MonsterAbility, number> = {
   suicide: 1,
-  frost: 2,
-  heal: 3,
-  taunt: 4,
-  aoe: 5,
-  summon: 6,
+  heal: 2,
+  slowShot: 3,
 };
 
 export function abilityCode(def: CardDef): number {
@@ -68,6 +75,16 @@ export interface CardDef {
  */
 export const CARD_CD = { base: 2.5, linear: 1.55, quad: 0.05 } as const;
 
+/**
+ * 卡牌堆叠：每张手牌自带 N 层「通量」，放一次扣一层，没满时按 `cardCdSeconds` 回充。
+ *
+ * 为什么这样改：旧版放完一张立刻进冷却，玩家每次都要「放一张 → 换牌 → 等冷却」，
+ * 手感卡顿（用户原话「卡牌卡手」）。堆叠之后可以连放三次，节奏像真正的铺场，
+ * 但**持续召唤速率不变**（回充间隔与旧冷却完全一致）—— 只加了爆发窗口，
+ * 所以数值曲线不会被推翻，见 docs/GAME_DESIGN.md §7。
+ */
+export const CARD_STACK = { charges: 3 } as const;
+
 export function cardCdSeconds(star: number): number {
   return CARD_CD.base + CARD_CD.linear * star + CARD_CD.quad * star * star;
 }
@@ -80,15 +97,15 @@ export const CARDS: readonly CardDef[] = [
     shape: 'blob',
     startStar: 1,
     maxStar: 10,
-    hp: 42,
+    hp: 46,
     atk: 6,
     armor: 0,
     atkInterval: 1 / 1.2,
-    speed: 90,
+    speed: 92,
     range: 44,
     radius: 15,
     color: 0x7be05f,
-    note: '便宜、CD 短，专门消耗他的攻击次数',
+    note: '潮水：便宜、CD 短，专门消耗他的攻击次数',
   },
   {
     id: 'ghost',
@@ -97,33 +114,16 @@ export const CARDS: readonly CardDef[] = [
     shape: 'wisp',
     startStar: 1,
     maxStar: 10,
-    hp: 25,
-    atk: 8,
+    hp: 28,
+    atk: 9,
     armor: 0,
     atkInterval: 1 / 1.4,
-    speed: 150,
+    speed: 152,
     range: 40,
     radius: 13,
     color: 0x9b6bff,
     ghostly: true,
-    note: '穿行：无视同伴碰撞，能贴脸',
-  },
-  {
-    id: 'skeleton',
-    name: '骷髅兵',
-    kind: 'tank',
-    shape: 'skull',
-    startStar: 2,
-    maxStar: 10,
-    hp: 130,
-    atk: 7,
-    armor: 5,
-    atkInterval: 1 / 0.8,
-    speed: 55,
-    range: 46,
-    radius: 18,
-    color: 0xe6e0d4,
-    note: '护甲高，肉盾，卡他的走位',
+    note: '突进：无视同伴碰撞，能直接贴脸',
   },
   {
     id: 'spider',
@@ -132,51 +132,17 @@ export const CARDS: readonly CardDef[] = [
     shape: 'spider',
     startStar: 2,
     maxStar: 10,
-    hp: 60,
+    hp: 64,
     atk: 4,
     armor: 0,
     atkInterval: 1 / 0.9,
-    speed: 45,
-    range: 260,
+    speed: 48,
+    range: 250,
     radius: 16,
     color: 0x55d68a,
-    slow: 0.2,
-    note: '远程消耗，附带减速',
-  },
-  {
-    id: 'bat',
-    name: '蝙蝠群',
-    kind: 'melee',
-    shape: 'wisp',
-    startStar: 1,
-    maxStar: 10,
-    hp: 17,
-    atk: 3,
-    armor: 0,
-    atkInterval: 1 / 1.5,
-    speed: 165,
-    range: 38,
-    radius: 10,
-    color: 0xc06bd8,
-    ghostly: true,
-    note: '一次 3 只，分散仇恨',
-  },
-  {
-    id: 'assassin',
-    name: '刺客',
-    kind: 'melee',
-    shape: 'wisp',
-    startStar: 3,
-    maxStar: 10,
-    hp: 75,
-    atk: 18,
-    armor: 0,
-    atkInterval: 1 / 1.3,
-    speed: 170,
-    range: 42,
-    radius: 14,
-    color: 0xff5a6e,
-    note: '背击伤害更高，高风险高回报',
+    slow: 0.22,
+    ability: 'slowShot',
+    note: '远程：站桩消耗 + 减速，逼他不停换位置',
   },
   {
     id: 'boom',
@@ -185,37 +151,19 @@ export const CARDS: readonly CardDef[] = [
     shape: 'blob',
     startStar: 2,
     maxStar: 10,
-    hp: 40,
+    hp: 44,
     atk: 0,
     armor: 0,
     atkInterval: 1,
-    speed: 120,
+    speed: 124,
     range: 34,
     radius: 12,
     color: 0xff7a3c,
-    // 穿行很关键：自爆虫挤不过前排的骷髅兵，不穿行就永远贴不到脸，
-    // "引信 0.6 秒"这套读条也就不存在了。
+    // 穿行很关键：自爆虫挤不过前排，不穿行就永远贴不到脸，
+    // 「引信 0.6 秒」这套读条也就不存在了。
     ghostly: true,
     ability: 'suicide',
-    note: '贴身后 0.6s 引信，炸 55×星 范围伤害',
-  },
-  {
-    id: 'frost',
-    name: '冰霜法师',
-    kind: 'ranged',
-    shape: 'wisp',
-    startStar: 3,
-    maxStar: 10,
-    hp: 70,
-    atk: 6,
-    armor: 0,
-    atkInterval: 1 / 0.8,
-    speed: 55,
-    range: 240,
-    radius: 15,
-    color: 0x8fd7ff,
-    ability: 'frost',
-    note: '冰弹减速 35%；叠 3 层冻住 0.8s',
+    note: '爆发：贴身 0.6s 引信，炸 55×星 范围伤害',
   },
   {
     id: 'shaman',
@@ -224,81 +172,27 @@ export const CARDS: readonly CardDef[] = [
     shape: 'skull',
     startStar: 3,
     maxStar: 10,
-    hp: 90,
+    hp: 96,
     atk: 4,
     armor: 0,
     atkInterval: 1 / 0.9,
-    speed: 60,
+    speed: 62,
     range: 200,
     radius: 15,
     color: 0x9be07a,
     ability: 'heal',
-    note: '每 2s 治疗周围 3 只，抬全队血线',
-  },
-  {
-    id: 'gargoyle',
-    name: '石像鬼',
-    kind: 'tank',
-    shape: 'skull',
-    startStar: 4,
-    maxStar: 10,
-    hp: 260,
-    atk: 10,
-    armor: 8,
-    atkInterval: 1 / 0.7,
-    speed: 70,
-    range: 48,
-    radius: 20,
-    color: 0x8a8fa8,
-    ability: 'taunt',
-    note: '落地嘲讽 3s，逼他放弃逃跑',
-  },
-  {
-    id: 'lich',
-    name: '巫妖',
-    kind: 'ranged',
-    shape: 'wisp',
-    startStar: 5,
-    maxStar: 10,
-    hp: 110,
-    atk: 12,
-    armor: 0,
-    atkInterval: 1 / 0.6,
-    speed: 45,
-    range: 300,
-    radius: 16,
-    color: 0xb07cff,
-    ability: 'aoe',
-    note: '每 3s 火球：0.35s 地面预警后炸 90 半径',
-  },
-  {
-    id: 'general',
-    name: '骷髅将军',
-    kind: 'summoner',
-    shape: 'skull',
-    startStar: 6,
-    maxStar: 10,
-    hp: 220,
-    atk: 9,
-    armor: 4,
-    atkInterval: 1 / 0.8,
-    speed: 65,
-    range: 50,
-    radius: 19,
-    color: 0xd8cfae,
-    ability: 'summon',
-    note: '每 7s 召 1 只骷髅兵（不占星，10s 崩解）',
+    note: '支援：每 2s 治疗周围 3 只，制造「先杀它」的目标优先级',
   },
 ];
 
-/** 开局手牌（卡池 id，按手牌顺序）。 */
-export const STARTER_HAND: readonly string[] = ['slime', 'ghost', 'skeleton', 'spider', 'bat'];
+/** 开局手牌（卡池 id，按手牌顺序）。前三种是"潮水 / 突进 / 远程"的骨架。 */
+export const STARTER_HAND: readonly string[] = ['slime', 'ghost', 'spider'];
 
 export function findCard(id: string): CardDef | undefined {
   return CARDS.find((card) => card.id === id);
 }
 
-/** 每次召唤的数量（蝙蝠群一次 3 只）。 */
-export function summonCount(card: CardDef, star: number): number {
-  return card.id === 'bat' ? 3 : 1;
+/** 每次召唤的数量。现在所有卡都是单体 —— 数量靠堆叠与 CD，不靠一张出三只。 */
+export function summonCount(_card: CardDef, _star: number): number {
+  return 1;
 }

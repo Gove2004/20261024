@@ -1,4 +1,5 @@
 import { Application, Container } from 'pixi.js';
+import { CAM_ZOOM } from '../content/config';
 
 /** 设计分辨率。所有关卡/UI 坐标都以此为准，实际屏幕靠等比缩放适配。 */
 export const DESIGN_WIDTH = 1280;
@@ -46,6 +47,8 @@ export async function createStage(canvas: HTMLCanvasElement): Promise<Stage> {
 
   const world = new Container();
   world.label = 'world';
+  // 世界层整体缩放（见 config.CAM_ZOOM）：镜头仍然跟随，但看得见大半个战场
+  world.scale.set(CAM_ZOOM);
 
   const fx = new Container();
   fx.label = 'fx';

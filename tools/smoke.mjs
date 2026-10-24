@@ -152,10 +152,11 @@ await page.evaluate(() => {
   g.place(g.hero.x + 130, g.hero.y + 60);
   g.store.refreshActive();
 });
-// 手动推进 2 秒：不依赖真实帧率，断言才稳定（headless 下 RAF 会被节流）
+// 手动推进 3 秒：不依赖真实帧率，断言才稳定（headless 下 RAF 会被节流）
+// 5 秒：开局手牌只有 3 张低星怪，他蓄力 0.22s，两发命中才够杀一只
 await page.evaluate(() => {
   const g = window.__game;
-  for (let i = 0; i < 120; i += 1) g.update(1 / 60);
+  for (let i = 0; i < 300; i += 1) g.update(1 / 60);
 });
 
 const combat = await page.evaluate(() => {
@@ -204,7 +205,7 @@ const late = await page.evaluate(() => {
   for (let i = 0; i < 8; i += 1) {
     const card = g.hand[i];
     if (!card) continue;
-    card.cd = 0;
+    card.charges = card.maxCharges; card.cd = 0;
     g.selectCard(i);
     const a = (i / 8) * Math.PI * 2;
     const ok = g.place(g.hero.x + Math.cos(a) * 120, g.hero.y + Math.sin(a) * 120);
@@ -233,7 +234,7 @@ const ranged = await page.evaluate(() => {
   const g = window.__game;
   g.start();
   g.debugFillHand();
-  const idx = g.hand.findIndex((card) => card.id === 'gargoyle');
+  const idx = g.hand.findIndex((card) => card.id === 'shaman');
   if (idx < 0) return { ok: false, reason: 'no card' };
   g.selectCard(idx);
   const dist = 268;
@@ -265,7 +266,7 @@ const abilities = await page.evaluate(() => {
   const put = (id, dist) => {
     const idx = g.hand.findIndex((card) => card.id === id);
     if (idx < 0) return false;
-    g.hand[idx].cd = 0;
+    g.debugRefill();
     g.selectCard(idx);
     const a = (n / 8) * Math.PI * 2 + 0.4;
     n += 1;
@@ -275,12 +276,9 @@ const abilities = await page.evaluate(() => {
   };
   const placed = {
     boom: put('boom', 130),
-    frost: put('frost', 210),
-    frost2: put('frost', 170),
     shaman: put('shaman', 160),
-    gargoyle: put('gargoyle', 140),
-    lich: put('lich', 250),
-    general: put('general', 190),
+    spider: put('spider', 220),
+    ghost: put('ghost', 120),
     slime: put('slime', 110),
   };
   let steps = 0;
@@ -293,16 +291,14 @@ const abilities = await page.evaluate(() => {
     placed,
     boom: g.statBoom,
     heal: g.statHeal,
-    taunt: g.statTaunt,
-    freeze: g.statFreeze,
+    spiderShot: g.statRanged,
     alive: g.store.activeCount,
     steps,
   };
 });
 check('自爆虫会点引信并引爆', abilities.boom > 0, `引爆 ${abilities.boom} 次`);
 check('巫医会治疗友军', abilities.heal > 0, `治疗 ${abilities.heal} 次`);
-check('石像鬼会嘲讽', abilities.taunt > 0, `嘲讽 ${abilities.taunt} 次`);
-check('冰霜法师能冻住他', abilities.freeze > 0, `冰冻 ${abilities.freeze} 次`);
+check('毒蜘蛛会远程开火', abilities.spiderShot > 0, `远程弹 ${abilities.spiderShot} 次`);
 
 // ---- M3：勇者技能池必须真的轮得动 ----
 const skills = await page.evaluate(() => {
@@ -319,7 +315,7 @@ const skills = await page.evaluate(() => {
       const idx = (i + round * 6) % g.hand.length;
       const card = g.hand[idx];
       if (!card) continue;
-      card.cd = 0;
+      card.charges = card.maxCharges; card.cd = 0;
       g.selectCard(idx);
       const a = (i / 6) * Math.PI * 2 + round;
       const ok = g.place(g.hero.x + Math.cos(a) * (120 + round * 60), g.hero.y + Math.sin(a) * (120 + round * 60));
@@ -337,7 +333,7 @@ const skills = await page.evaluate(() => {
         const idx = (i / 180 + k) % g.hand.length;
         const card = g.hand[idx];
         if (!card) continue;
-        card.cd = 0;
+        card.charges = card.maxCharges; card.cd = 0;
         g.selectCard(idx);
         const a = (i / 180 + k) * 1.9;
         const ok = g.place(g.hero.x + Math.cos(a) * (150 + k * 40), g.hero.y + Math.sin(a) * (150 + k * 40));
@@ -410,7 +406,7 @@ await page.evaluate(() => {
   for (let i = 0; i < 9; i += 1) {
     const a = (i / 9) * Math.PI * 2;
     const r = 110 + (i % 3) * 55;
-    for (const card of g.hand) card.cd = 0;
+    g.debugRefill();
     g.selectCard(i % g.hand.length);
     g.place(g.hero.x + Math.cos(a) * r, g.hero.y + Math.sin(a) * r);
   }
@@ -419,30 +415,6 @@ await page.evaluate(() => {
 await page.waitForTimeout(1400);
 
 await page.screenshot({ path: join(SHOTS, '02-arena.png') });
-
-// ---- 地图事件（M6）：推到第一个事件点，确认播报与常驻标签都真的出现 ----
-// 直接把 elapsed 推到 56 秒，而不是真等 56 秒 —— 事件触发只看时间戳，
-// 所以这样测的是同一段代码路径，但省掉一分钟。
-await page.evaluate(() => {
-  window.__game.elapsed = 56;
-});
-await page.waitForTimeout(400);
-const eventDiag = await page.evaluate(() => {
-  const chip = document.querySelector('[data-event]');
-  return {
-    id: window.__game.eventId,
-    left: Math.round(window.__game.eventLeft),
-    text: chip?.textContent ?? '',
-    hidden: chip?.hidden ?? true,
-    starCap: window.__game.starCap,
-  };
-});
-check(
-  '地图事件触发并常驻显示',
-  eventDiag.id !== null && !eventDiag.hidden && eventDiag.text.includes('事件'),
-  `id=${eventDiag.id} 剩余=${eventDiag.left}s 标签="${eventDiag.text}" 星数上限=${eventDiag.starCap}`,
-);
-await page.screenshot({ path: join(SHOTS, '06-event.png') });
 
 // ---- 帧率（在满场对局里测，空场数字没有意义） ----
 // 先确保没有任何覆盖层开着：.overlay 带 backdrop-filter，

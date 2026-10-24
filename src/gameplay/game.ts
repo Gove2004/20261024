@@ -1,4 +1,4 @@
-import {
+﻿import {
   HALL,
   HALL_CENTER,
   HERO,
@@ -15,13 +15,7 @@ import {
   inHall,
   starCapAt,
 } from '../content/config';
-import { CARDS, STARTER_HAND, cardCdSeconds, findCard, summonCount } from '../content/cards';
-import {
-  MAP_EVENTS,
-  MAP_EVENT_AT,
-  MAP_EVENT_TUNING,
-  type MapEventId,
-} from '../content/events';
+import { CARDS, CARD_STACK, STARTER_HAND, cardCdSeconds, findCard, summonCount } from '../content/cards';
 import { SKILL_TUNING } from '../content/heroSkills';
 import { MonsterStore } from '../ecs/store';
 import { Hero, type HeroHooks } from './hero';
@@ -36,6 +30,9 @@ export interface HandCard {
   readonly defIdx: number;
   star: number;
   cd: number;
+  /** 剩余可召唤次数。就是"这张牌堆了几张"（见 CARD_STACK） */
+  charges: number;
+  readonly maxCharges: number;
 }
 
 export type PowerupKind =
@@ -147,8 +144,8 @@ export class Game {
   /** 特性触发计数：给冒烟测试断言用，也方便调平衡时看"这些卡到底有没有参与" */
   public statBoom = 0;
   public statHeal = 0;
-  public statTaunt = 0;
-  public statFreeze = 0;
+  /** 远程开火次数（毒蜘蛛），冒烟测试用 */
+  public statRanged = 0;
   /** 勇者技能触发计数（M3）：看"这套技能池到底有没有在动" */
   public statQi = 0;
   public statShot = 0;
@@ -170,13 +167,6 @@ export class Game {
   /** 火球等延迟结算的 AoE */
   private readonly pendingAoe: PendingAoe[] = [];
 
-  /** 当前进行中的地图事件（渲染/UI 只读） */
-  public eventId: MapEventId | null = null;
-  public eventLeft = 0;
-  /** 已触发的事件序号（MAP_EVENT_AT 的下标） */
-  private eventIndex = 0;
-  private eventQueue: MapEventId[] = [];
-
   constructor(
     private readonly events: GameEvents,
     seed = 20261024,
@@ -195,27 +185,9 @@ export class Game {
     this.store.reset();
     this.hero.reset();
     this.pendingAoe.length = 0;
-    // 事件顺序由种子决定：同一局重放一致，不同种子顺序不同
-    this.eventIndex = 0;
-    this.eventId = null;
-    this.eventLeft = 0;
-    // 事件顺序由种子决定：同一局重放一致，不同种子顺序不同。
-    // 用 Fisher-Yates 而不是 sort(随机)，避免"排序不稳定 + 随机数质量"双重不确定性。
-    const queue: MapEventId[] = ['bloodmoon', 'surge', 'sacrifice'];
-    for (let i = queue.length - 1; i > 0; i -= 1) {
-      const j = this.rng.int(i + 1);
-      const a = queue[i];
-      const b = queue[j];
-      if (a !== undefined && b !== undefined) {
-        queue[i] = b;
-        queue[j] = a;
-      }
-    }
-    this.eventQueue = queue;
     this.statBoom = 0;
     this.statHeal = 0;
-    this.statTaunt = 0;
-    this.statFreeze = 0;
+    this.statRanged = 0;
     this.statQi = 0;
     this.statShot = 0;
     this.statBomb = 0;
@@ -226,6 +198,8 @@ export class Game {
       defIdx: CARDS.findIndex((card) => card.id === id),
       star: findCard(id)?.startStar ?? 1,
       cd: 0,
+      charges: CARD_STACK.charges,
+      maxCharges: CARD_STACK.charges,
     }));
     this.selected = -1;
     this.peakStars = 0;
@@ -257,9 +231,19 @@ export class Game {
       defIdx,
       star: card.startStar,
       cd: 0,
+      charges: CARD_STACK.charges,
+      maxCharges: CARD_STACK.charges,
     }));
     this.handBonus = 6;
     this.starBonus = 60;
+  }
+
+  /** 调试/截图用：把全部手牌回满通量（免得脚本里逐张改） */
+  public debugRefill(): void {
+    for (const card of this.hand) {
+      card.charges = card.maxCharges;
+      card.cd = 0;
+    }
   }
 
   public togglePause(): void {
@@ -285,37 +269,25 @@ export class Game {
     this.hero.update(dt, this.store, this.heroHooks);
     updateMonsters(this.store, this.hero, dt, {
       hitHero: (amount, slot) => this.damageHero(amount, slot),
-      onRangedShot: (slot, fx, fy, tx, ty) => this.events.onRangedShot(slot, fx, fy, tx, ty),
-      onExplode: (slot, x, y, radius, damage) => this.explodeAt(slot, x, y, radius, damage),
-      onTelegraph: (x, y, radius, delay, damage) => {
-        this.pendingAoe.push({ x, y, radius, delay, damage });
-        this.events.onTelegraph(x, y, radius, delay);
+      onRangedShot: (slot, fx, fy, tx, ty) => {
+        this.statRanged += 1;
+        this.events.onRangedShot(slot, fx, fy, tx, ty);
       },
+      onExplode: (slot, x, y, radius, damage) => this.explodeAt(slot, x, y, radius, damage),
       onWarn: (x, y, radius, duration) => this.events.onTelegraph(x, y, radius, duration),
       onHeal: (slot, x, y) => this.healAround(slot, x, y),
-      onSummon: (slot, x, y) => this.summonSkeleton(slot, x, y),
-      onTaunt: (slot, seconds) => {
-        this.statTaunt += 1;
-        this.hero.taunt(slot, seconds);
-        this.events.onEffect('taunt', this.hero.x, this.hero.y, 46);
-      },
-      onFrostHit: () => {
-        if (this.hero.addFrostStack(2)) {
-          this.statFreeze += 1;
-          this.events.onEffect('freeze', this.hero.x, this.hero.y, 52);
-          this.events.toast('他被冻住了', 'good');
-        }
-      },
       onExpire: (slot) => this.killMonster(slot, false),
-      atkMul: this.monsterAtkMul,
     });
 
     this.updateAoe(dt);
-    this.updateMapEvent(dt);
 
-    // 狂潮期间卡牌冷却走得更快（-40% ≈ 衰减 ×1.67）
-    const cdMul = this.eventId === 'surge' ? MAP_EVENT_TUNING.surgeCdMul : 1;
-    for (const card of this.hand) card.cd = Math.max(0, card.cd - dt * cdMul);
+    for (const card of this.hand) {
+      if (card.charges >= card.maxCharges) continue;
+      card.cd -= dt;
+      if (card.cd > 0) continue;
+      card.charges += 1;
+      card.cd = card.charges < card.maxCharges ? this.cardCd(card.star) : 0;
+    }
 
     const occupied = this.store.occupiedStars();
     if (occupied > this.peakStars) this.peakStars = occupied;
@@ -389,39 +361,6 @@ export class Game {
     this.events.onSpawn(newSlot);
   }
 
-  /**
-   * 地图事件：三段时间点各触发一个，顺序由种子决定。
-   *
-   * 事件只改"节奏"（攻速 / CD / 地面危险区），不改任何判定规则 ——
-   * 这样加内容不会把已经调好的平衡掀翻，只是让每局的开局记忆不同。
-   */
-  private updateMapEvent(dt: number): void {
-    // 触发
-    if (
-      this.eventIndex < MAP_EVENT_AT.length &&
-      this.elapsed >= (MAP_EVENT_AT[this.eventIndex] ?? Infinity)
-    ) {
-      const id = this.eventQueue[this.eventIndex];
-      this.eventIndex += 1;
-      if (id) {
-        const def = MAP_EVENTS[id];
-        this.eventId = id;
-        this.eventLeft = def.duration;
-        this.events.toast(def.toast, 'good');
-        this.events.onEffect('heal', this.hero.x, this.hero.y, 140);
-      }
-    }
-
-    if (!this.eventId) return;
-    this.eventLeft -= dt;
-    if (this.eventLeft <= 0) this.eventId = null;
-  }
-
-  /** 血月期间魔物的攻速倍率；其它时候是 1。 */
-  private get monsterAtkMul(): number {
-    return this.eventId === 'bloodmoon' ? MAP_EVENT_TUNING.bloodmoonAtkMul : 1;
-  }
-
   /** 火球结算：预警时间到了才判定，绝不瞬间伤害。 */
   private updateAoe(dt: number): void {
     for (let i = this.pendingAoe.length - 1; i >= 0; i -= 1) {
@@ -448,9 +387,7 @@ export class Game {
   // ---------------------------------------------------------------- 召唤
 
   public get starCap(): number {
-    const bonus =
-      this.eventId === 'sacrifice' ? MAP_EVENT_TUNING.sacrificeStarBonus : 0;
-    return starCapAt(this.elapsed, this.starBonus + bonus);
+    return starCapAt(this.elapsed, this.starBonus);
   }
 
   public get occupiedStars(): number {
@@ -472,7 +409,7 @@ export class Game {
     if (this.state !== 'playing') return '现在不能召唤';
     const card = this.hand[this.selected];
     if (!card) return '先选一张卡';
-    if (card.cd > 0) return `冷却中 ${card.cd.toFixed(1)}s`;
+    if (card.charges <= 0) return `回充中 ${card.cd.toFixed(1)}s`;
 
     const def = CARDS[card.defIdx];
     if (!def) return '未知卡牌';
@@ -490,7 +427,7 @@ export class Game {
     if (worldX < left || worldX > right || worldY < top || worldY > bottom) return '超出视野';
 
     if (!inHall(worldX, worldY, 30)) return '超出大厅';
-    if (distance(worldX, worldY, THRONE.x, THRONE.y) < THRONE.r + 20) return '王座台不可放置';
+    // 王座现在是纯装饰（r=0），中央让给魔法阵，所以不再有"不可放置"的死区
     for (const pillar of PILLARS) {
       if (distance(worldX, worldY, pillar.x, pillar.y) < pillar.r + 16) return '石柱上不可放置';
     }
@@ -529,7 +466,10 @@ export class Game {
       this.events.onSpawn(slot);
     }
 
-    card.cd = cardCdSeconds(card.star) * Math.pow(1 - 0.08, this.cdStack);
+    // 堆叠：扣一层。手里还有余量就不用换牌，可以连着放（用户反馈「卡牌卡手」）。
+    // 冷却只在没满时走，所以持续召唤速度和单张卡完全一样 —— 多出来的只是爆发。
+    card.charges = Math.max(0, card.charges - 1);
+    if (card.cd <= 0) card.cd = this.cardCd(card.star);
     this.selected = -1;
     this.store.refreshActive();
     return true;
@@ -640,6 +580,8 @@ export class Game {
       defIdx: CARDS.findIndex((card) => card.id === next.id),
       star: next.startStar,
       cd: 0,
+      charges: CARD_STACK.charges,
+      maxCharges: CARD_STACK.charges,
     });
   }
 
@@ -709,6 +651,11 @@ export class Game {
     this.kills += 1;
     this.hero.onKill();
     this.hero.addXp(star * XP.perStar, this.heroHooks);
+  }
+
+  /** 单张卡的回充间隔：与旧版放完就冷却完全一致，叠加冷却缩减权能。 */
+  private cardCd(star: number): number {
+    return cardCdSeconds(star) * Math.pow(1 - 0.08, this.cdStack);
   }
 
   public get handLimit(): number {

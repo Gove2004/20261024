@@ -1,4 +1,4 @@
-/** 全局可调常量。所有数值调整都应该只改这里，不要散落在逻辑里。 */
+﻿/** 全局可调常量。所有数值调整都应该只改这里，不要散落在逻辑里。 */
 
 import { clamp } from '../core/math';
 
@@ -6,13 +6,22 @@ import { clamp } from '../core/math';
 export const VIEW = { w: 1280, h: 720 } as const;
 
 /** 世界尺寸：大于视口，靠相机跟随。 */
-export const WORLD = { w: 2400, h: 1600 } as const;
+export const WORLD = { w: 1600, h: 1600 } as const;
 
-/** 战斗区域：方形大厅的内墙（可走区域）。世界比它大一圈，外面是深渊。 */
-export const HALL = { left: 380, top: 180, right: 2020, bottom: 1420 } as const;
+/** 战斗区域：**正方形**大厅的内墙（可走区域）。外面一圈是深渊。 */
+export const HALL = { left: 200, top: 200, right: 1400, bottom: 1400 } as const;
 
 /** 墙厚（只是视觉与"贴墙不能出界"的余量）。 */
 export const HALL_WALL = 46;
+
+/**
+ * 世界层缩放。
+ *
+ * 1600 见方的正方形大厅在 1280 设计宽度下一屏只看得见一半。0.8 之后可视约
+ * 1600×900 —— 镜头仍然跟着锅巴，但玩家能看见大半个战场。
+ * 玩家是上帝视角，看得见的战场才谈得上"掌控力"。
+ */
+export const CAM_ZOOM = 0.72;
 
 export const HALL_CENTER = {
   x: (HALL.left + HALL.right) / 2,
@@ -32,8 +41,11 @@ export function inHall(x: number, y: number, margin: number): boolean {
   return x >= HALL.left + margin && x <= HALL.right - margin && y >= HALL.top + margin && y <= HALL.bottom - margin;
 }
 
-/** 中央王座台：不可通行。 */
-export const THRONE = { x: 1200, y: 800, r: 190 } as const;
+/** 中央王座台：装饰物，**不参与碰撞** —— 中心让给魔法阵，锅巴要能跑圈。 */
+export const THRONE = { x: 800, y: 290, r: 0 } as const;
+
+/** 中央魔法阵：纯观赏，无任何实际作用（用户明确要求"观赏性"）。 */
+export const MAGIC_CIRCLE = { x: 800, y: 800, r: 250 } as const;
 
 export interface Obstacle {
   readonly x: number;
@@ -41,14 +53,21 @@ export interface Obstacle {
   readonly r: number;
 }
 
-/** 可绕行的石柱。 */
+/**
+ * 四根石柱，落在**四分之一分位**上（1/4 与 3/4 各取横纵坐标）。
+ *
+ * 为什么是 1/4 而不是"随便摆四根"：正方形大厅里 1/4 分位是最均匀的绕行点位，
+ * 玩家无论把怪铺在哪一角，锅巴绕柱子都有两条等长路线 —— 这直接决定了
+ * "放风筝"能不能玩得起来（见 docs/GAME_DESIGN.md §5）。
+ */
+const QUARTER_XS = [HALL.left + (HALL.right - HALL.left) * 0.25, HALL.left + (HALL.right - HALL.left) * 0.75] as const;
+const QUARTER_YS = [HALL.top + (HALL.bottom - HALL.top) * 0.25, HALL.top + (HALL.bottom - HALL.top) * 0.75] as const;
+
 export const PILLARS: readonly Obstacle[] = [
-  { x: 1200 - 430, y: 800 - 300, r: 54 },
-  { x: 1200 + 430, y: 800 - 300, r: 54 },
-  { x: 1200 - 430, y: 800 + 300, r: 54 },
-  { x: 1200 + 430, y: 800 + 300, r: 54 },
-  { x: 1200, y: 800 - 470, r: 46 },
-  { x: 1200, y: 800 + 470, r: 46 },
+  { x: QUARTER_XS[0], y: QUARTER_YS[0], r: 58 },
+  { x: QUARTER_XS[1], y: QUARTER_YS[0], r: 58 },
+  { x: QUARTER_XS[0], y: QUARTER_YS[1], r: 58 },
+  { x: QUARTER_XS[1], y: QUARTER_YS[1], r: 58 },
 ];
 
 /** 一局时长与提醒节点（秒）。 */

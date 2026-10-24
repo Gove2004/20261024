@@ -7,7 +7,7 @@ import './style-mobile.css';
 import { audio, updateAudio } from './audio';
 import { FixedStepLoop } from './core/loop';
 import { createRng } from './core/rng';
-import { VIEW } from './content/config';
+import { CAM_ZOOM, VIEW } from './content/config';
 import { AI } from './content/heroAi';
 import { Game, type GameEvents } from './gameplay/game';
 import { loadArt, missingArt } from './render/art';
@@ -145,8 +145,14 @@ async function bootstrap(): Promise<void> {
       audio.onPowerupClose();
     },
     onPause: () => {
-      game.togglePause();
-      audio.setPaused(game.state === 'paused');
+      // 暂停必须有可见反馈：之前只改了 game.state，画面上毫无变化，
+      // 玩家会以为按钮坏了（这是用户实测反馈）。
+      if (game.state === 'playing' || game.state === 'paused') {
+        game.togglePause();
+        if (game.state === 'paused') hud.showPause();
+        else hud.hideOverlay();
+        audio.setPaused(game.state === 'paused');
+      }
     },
     onToggleMute: () => {
       muted = !muted;
@@ -166,9 +172,11 @@ async function bootstrap(): Promise<void> {
     const scale = stage.screen.scale.x || 1;
     const designX = (clientX - rect.left - stage.screen.position.x) / scale;
     const designY = (clientY - rect.top - stage.screen.position.y) / scale;
+    // 世界层有 CAM_ZOOM 缩放：设计坐标要除回去才是世界坐标，
+    // 否则指针位置和召唤落点会整体偏移（缩放越大偏得越多）。
     return {
-      x: designX + (game.camX - VIEW.w / 2),
-      y: designY + (game.camY - VIEW.h / 2),
+      x: designX / CAM_ZOOM + (game.camX - VIEW.w / 2 / CAM_ZOOM),
+      y: designY / CAM_ZOOM + (game.camY - VIEW.h / 2 / CAM_ZOOM),
     };
   };
 
@@ -196,7 +204,12 @@ async function bootstrap(): Promise<void> {
   window.addEventListener('keydown', (event) => {
     if (event.code === 'Space') {
       event.preventDefault();
-      if (game.state === 'playing' || game.state === 'paused') game.togglePause();
+      if (game.state === 'playing' || game.state === 'paused') {
+        game.togglePause();
+        if (game.state === 'paused') hud.showPause();
+        else hud.hideOverlay();
+        audio.setPaused(game.state === 'paused');
+      }
     }
     if (event.code === 'Escape') game.selected = -1;
     if (event.code === 'KeyM') {
@@ -253,6 +266,8 @@ async function bootstrap(): Promise<void> {
 
   // 供冒烟测试 / 调试台使用
   (window as unknown as { __game?: Game }).__game = game;
+  // 截图工具用：相机平时跟着锅巴，看不到完整房间，改布局时没法验收
+  (window as unknown as { __stage?: unknown }).__stage = stage;
   (window as unknown as { __dshReady?: boolean }).__dshReady = true;
 }
 

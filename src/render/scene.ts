@@ -1,5 +1,5 @@
-import { Container, Graphics, Sprite, Texture, TilingSprite } from 'pixi.js';
-import { HALL, HALL_CENTER, HALL_WALL, PILLARS, PLACE, THRONE, VIEW, WORLD } from '../content/config';
+﻿import { Container, Graphics, Sprite, Texture, TilingSprite } from 'pixi.js';
+import { CAM_ZOOM, HALL, HALL_CENTER, HALL_WALL, MAGIC_CIRCLE, PILLARS, PLACE, THRONE, VIEW, WORLD } from '../content/config';
 import { CARDS, type CardShape } from '../content/cards';
 import { COLOR } from '../content/palette';
 import { AI } from '../content/heroAi';
@@ -83,6 +83,7 @@ export class Scene {
   private art: ArtMap = new Map();
   private heroArt: Sprite | null = null;
   private floorSprite: Sprite | null = null;
+  private magicCircle: Sprite | null = null;
   private readonly ambient: Ambient;
   /** 镜头抖动幅度（px），每帧衰减 */
   private shakeMag = 0;
@@ -236,52 +237,75 @@ export class Scene {
       }
     }
 
-    // 3) 四角火盆：贴图 + 一层暖色光晕（光晕用程序化，比在贴图里烤更可控）
-    const brazierTex = this.art.get('env-brazier');
-    const warm = this.makeGlowTexture(0xffb066, 0xff7a2f);
+    // 3) 中央魔法阵：纯观赏。用具象的两层环 + 符文程序化画，慢转 + 呼吸。
+    //    它是这张图唯一的"发光中心"（火盆已经按需求删掉了），
+    //    没有它，深色地面上就是一片没有焦点的平地。
+    const circleTex = this.makeMagicCircleTexture(MAGIC_CIRCLE.r);
+    const circle = new Sprite(circleTex);
+    circle.anchor.set(0.5);
+    circle.position.set(MAGIC_CIRCLE.x, MAGIC_CIRCLE.y);
+    circle.blendMode = 'add';
+    circle.alpha = 0.6;
+    world.addChildAt(circle, insertAt + 1);
+    this.magicCircle = circle;
+
     const cool = this.makeGlowTexture(0x7d6bd0, 0x2a2048);
-    const corners: readonly (readonly [number, number])[] = [
-      [HALL.left + 90, HALL.top + 90],
-      [HALL.right - 90, HALL.top + 90],
-      [HALL.left + 90, HALL.bottom - 90],
-      [HALL.right - 90, HALL.bottom - 90],
-    ];
+    const centerGlow = new Sprite(cool);
+    centerGlow.anchor.set(0.5);
+    centerGlow.width = MAGIC_CIRCLE.r * 2.6;
+    centerGlow.height = MAGIC_CIRCLE.r * 2.6;
+    centerGlow.position.set(MAGIC_CIRCLE.x, MAGIC_CIRCLE.y);
+    centerGlow.alpha = 0.34;
+    centerGlow.blendMode = 'add';
+    world.addChildAt(centerGlow, insertAt + 1);
 
-    // 光池：加色混合的径向渐变。这是"平光"最便宜的解法 ——
-    // 一张预烤贴图 + 4 个 add 混合 Sprite，运行时只是 4 次 draw。
-    for (const [cx, cy] of corners) {
-      const pool = new Sprite(warm);
-      pool.anchor.set(0.5);
-      // 460px 的加色大光斑在软件光栅化下很贵（4 个 × 全屏级填充）。
-      // 收到 380px 观感几乎不变，填充量降 32%。
-      pool.width = 380;
-      pool.height = 380;
-      pool.position.set(cx, cy);
-      pool.alpha = 0.5;
-      pool.blendMode = 'add';
-      world.addChildAt(pool, insertAt + 1);
+    // 4) 王座挪到北墙正中方，只当装饰（用户要求中央留给魔法阵）
+    const throneTex = this.art.get('throne');
+    if (throneTex) {
+      const throne = new Sprite(throneTex);
+      throne.anchor.set(0.5, 0.8);
+      throne.width = 300;
+      throne.height = 300;
+      throne.position.set(THRONE.x, THRONE.y);
+      throne.alpha = 0.92;
+      world.addChildAt(throne, insertAt + 2);
     }
+  }
 
-    // 王座台一圈冷紫光：给大厅一个"光源中心"，别让光只从四个角落来
-    const throneGlow = new Sprite(cool);
-    throneGlow.anchor.set(0.5);
-    throneGlow.width = 760;
-    throneGlow.height = 760;
-    throneGlow.position.set(THRONE.x, THRONE.y);
-    throneGlow.alpha = 0.42;
-    throneGlow.blendMode = 'add';
-    world.addChildAt(throneGlow, insertAt + 1);
-
-    if (brazierTex) {
-      for (const [cx, cy] of corners) {
-        const sprite = new Sprite(brazierTex);
-        sprite.anchor.set(0.5);
-        sprite.width = 124;
-        sprite.height = 124;
-        sprite.position.set(cx, cy);
-        world.addChildAt(sprite, insertAt + 2);
+  /** 魔法阵贴图：同心环 + 齿状符文 + 中心六芒，加色混合下很"魔"。 */
+  private makeMagicCircleTexture(radius: number): Texture {
+    const g = new Graphics();
+    const pi2 = Math.PI * 2;
+    // 外环
+    g.circle(0, 0, radius).stroke({ width: 3, color: 0x9b7bff, alpha: 0.5 });
+    g.circle(0, 0, radius * 0.94).stroke({ width: 1.5, color: 0x6f5bd8, alpha: 0.32 });
+    g.circle(0, 0, radius * 0.66).stroke({ width: 2, color: 0x9b7bff, alpha: 0.42 });
+    g.circle(0, 0, radius * 0.3).stroke({ width: 2, color: 0xc0a8ff, alpha: 0.5 });
+    // 齿状符文（外环 24 短刻线 + 内环 12 长刻线）
+    for (let i = 0; i < 24; i += 1) {
+      const a = (i / 24) * pi2;
+      const r0 = radius * 0.96;
+      const r1 = radius * (i % 3 === 0 ? 0.88 : 0.92);
+      g.moveTo(Math.cos(a) * r0, Math.sin(a) * r0);
+      g.lineTo(Math.cos(a) * r1, Math.sin(a) * r1);
+    }
+    g.stroke({ width: 2, color: 0x8f74ff, alpha: 0.55 });
+    // 六芒星
+    for (let k = 0; k < 2; k += 1) {
+      const phase = (k * Math.PI) / 3;
+      g.moveTo(0, 0);
+      for (let i = 0; i <= 3; i += 1) {
+        const a = phase + (i / 3) * pi2;
+        const x = Math.cos(a) * radius * 0.8;
+        const y = Math.sin(a) * radius * 0.8;
+        if (i === 0) g.moveTo(x, y);
+        else g.lineTo(x, y);
       }
     }
+    g.stroke({ width: 1.5, color: 0xb49bff, alpha: 0.3 });
+    const tex = this.stage.app.renderer.generateTexture(g);
+    g.destroy();
+    return tex;
   }
 
   /** 径向渐变光斑贴图：一圈圈递减的半透明圆叠出来，预烤一次反复用。 */
@@ -482,7 +506,16 @@ export class Scene {
     const sx = shake > 0.2 ? Math.sin(time * 96) * shake : 0;
     const sy = shake > 0.2 ? Math.cos(time * 71) * shake : 0;
     this.shakeMag = shake * 0.86;
-    this.stage.world.position.set(VIEW.w / 2 - game.camX + sx, VIEW.h / 2 - game.camY + sy);
+    this.stage.world.position.set(
+      VIEW.w / 2 - game.camX * CAM_ZOOM + sx,
+      VIEW.h / 2 - game.camY * CAM_ZOOM + sy,
+    );
+
+    // 魔法阵：慢转 + 呼吸。观赏性物件必须自己在动，否则就是一张贴在地上的图。
+    if (this.magicCircle) {
+      this.magicCircle.rotation = time * 0.08;
+      this.magicCircle.alpha = 0.5 + Math.sin(time * 1.3) * 0.12;
+    }
 
     this.syncMonsters(game, time);
 

@@ -1,9 +1,10 @@
-import { AI } from '../content/heroAi';
+﻿import { AI } from '../content/heroAi';
 import { PASSIVE_POOL, SKILL_BY_ID, SKILL_TUNING, type SkillId } from '../content/heroSkills';
 
 /** 技能 id 的固定顺序（热路径遍历冷却用，避免每帧 Object.keys） */
 const SKILL_IDS: readonly SkillId[] = ['shot', 'spread', 'qi', 'bomb', 'heavy', 'heal', 'roll'];
 import {
+  HALL,
   HALL_CENTER,
   HERO,
   PILLARS,
@@ -140,6 +141,17 @@ export class Hero {
   public flash = 0;
   public hurtTimer = 0;
   public retreatLock = 0;
+  /** 势场走位的输出方向与压力（steerKite 写入，热路径零分配） */
+  private steerX = 0;
+  private steerY = 0;
+  private steerPressure = 0;
+  private wallPressure = 0;
+  /** 绕圈方向（+1 / -1），带粘性，只有外侧明显更开阔才换边 */
+  private orbitSign = 1;
+  /** 绕圈换边的冷却帧数（见 steerKite） */
+  private orbitEval = 0;
+  /** 当前走位朝向（弧度）。限速转弯用，见 steerKite */
+  private steerAngle = 0;
   public stateTimer = 0;
 
   public intent: HeroIntent = 'chase';
@@ -755,6 +767,134 @@ export class Hero {
   }
 
   /** ---- 移动 ---- */
+
+  /**
+   * 势场走位：这是本作的核心 AI（用户原话「跑圈圈放风筝是本游戏核心，重点难点」）。
+   *
+   * 三股力合成一个期望方向：
+   *  1. **排斥**：附近每只魔物按「威胁权重 / 距离」推他一把。远程和自爆虫权重更高
+   *     （站着挨远程弹比被近战摸一下更疼，自爆虫必须躲）。
+   *  2. **切向（绕圈）**：当压力大到一定程度，加一个垂直于排斥方向的力 ——
+   *     这就是"跑圈"：既不远离战场（那样打不到人），也不直冲（那会送死）。
+   *     绕圈方向有粘性（`orbitSign`），外侧空间明显更大时才换边，否则会每帧抖动。
+   *  3. **离墙推力**：靠近墙就开始被推回中央。这是"不被逼到墙角"的主要保障 ——
+   *     旧版直线后撤时，玩家只要把怪铺在墙边，他就会自己退进墙角被抓死。
+   *
+   * 全部写进字段（`steerX/steerY/steerPressure/wallPressure`），热路径零分配。
+   */
+  private steerKite(store: MonsterStore, toTargetX: number, toTargetY: number, targetDist: number, dt: number): void {
+    const r = AI.threatRadius;
+    let repelX = 0;
+    let repelY = 0;
+    let pressure = 0;
+    let nearest = targetDist;
+
+    for (let i = 0; i < store.activeCount; i += 1) {
+      const slot = store.active[i];
+      if (slot === undefined) continue;
+      const dx = this.x - (store.x[slot] ?? this.x);
+      const dy = this.y - (store.y[slot] ?? this.y);
+      const d2 = dx * dx + dy * dy;
+      if (d2 > r * r) continue;
+      const d = Math.sqrt(d2) + 0.001;
+      if (d < nearest) nearest = d;
+      // 威胁权重：远程 > 自爆 > 近战。留一点基础权重，近战群也不能无视。
+      const abi = store.abi[slot] ?? 0;
+      const weight = (abi === 1 ? AI.threatSuicide : abi === 3 ? AI.threatRanged : 1) * (1 - d / r);
+      repelX += (dx / d) * weight;
+      repelY += (dy / d) * weight;
+      pressure += weight;
+    }
+
+    // 离墙推力：每面墙独立算，角落自然叠成双倍
+    const m = AI.wallMargin;
+    let wallX = 0;
+    let wallY = 0;
+    const dl = this.x - HALL.left;
+    const dr = HALL.right - this.x;
+    const dt2 = this.y - HALL.top;
+    const db = HALL.bottom - this.y;
+    if (dl < m) wallX += (1 - dl / m) ** 2;
+    if (dr < m) wallX -= (1 - dr / m) ** 2;
+    if (dt2 < m) wallY += (1 - dt2 / m) ** 2;
+    if (db < m) wallY -= (1 - db / m) ** 2;
+    const wallPressure = Math.sqrt(wallX * wallX + wallY * wallY);
+
+    let x = repelX;
+    let y = repelY;
+    const len = Math.sqrt(x * x + y * y);
+
+    if (pressure > 0.06) {
+      // 切向：垂直于排斥方向。选空间更大的一侧（外侧=能跑得更远）。
+      let nx: number;
+      let ny: number;
+      if (len > 0.0001) {
+        nx = x / len;
+        ny = y / len;
+      } else {
+        // 被完全包围时排斥力互相抵消，用"背离目标"当基准方向
+        nx = -toTargetX;
+        ny = -toTargetY;
+      }
+      const tangX = -ny;
+      const tangY = nx;
+      const sign = this.orbitSign >= 0 ? 1 : -1;
+      // 换边有冷却：每帧都比较会让绕圈方向一直抖（实测绕圈率只有 0.2），
+      // 而"跑圈"成立的前提是方向稳定 —— 必须先转完一段弧再考虑换边。
+      this.orbitEval -= 1;
+      if (this.orbitEval <= 0) {
+        this.orbitEval = 48; // 0.8 秒（60fps）
+        const freePlus = this.freeAlong(tangX * sign, tangY * sign);
+        const freeMinus = this.freeAlong(-tangX * sign, -tangY * sign);
+        if (freeMinus > freePlus * AI.orbitFlipGain) this.orbitSign = -this.orbitSign;
+      }
+      const s = this.orbitSign;
+      // 压力越大越贴向切向（绕圈），压力小时以排斥为主（退开）
+      const orbit = Math.min(1, pressure * 1.6) * AI.orbitWeight;
+      x = nx * (1 - orbit * 0.45) + tangX * s * orbit;
+      y = ny * (1 - orbit * 0.45) + tangY * s * orbit;
+    } else if (targetDist > AI.keepRange) {
+      // 没压力但离得太远：压向目标
+      x = toTargetX;
+      y = toTargetY;
+    }
+
+    x += wallX * AI.wallWeight;
+    y += wallY * AI.wallWeight;
+
+    const finalLen = Math.sqrt(x * x + y * y);
+    if (finalLen > 0.0001) {
+      // 方向限速（转弯半径）：这是"跑圈"能看出来的关键。
+      // 只算合力的话，被围住时各个方向互相抵消，锅巴会在原地疯狂抖动（实测轨迹是一团乱麻）。
+      // 限制每秒最多转多少弧度之后，方向有惯性 —— 他自己会跑出弧线，看着就像在放风筝。
+      const want = Math.atan2(y / finalLen, x / finalLen);
+      let diff = want - this.steerAngle;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      const maxTurn = AI.turnRate * dt;
+      if (diff > maxTurn) diff = maxTurn;
+      else if (diff < -maxTurn) diff = -maxTurn;
+      this.steerAngle += diff;
+      this.steerX = Math.cos(this.steerAngle);
+      this.steerY = Math.sin(this.steerAngle);
+    } else {
+      this.steerX = 0;
+      this.steerY = 0;
+    }
+    this.steerPressure = pressure;
+    this.wallPressure = wallPressure;
+  }
+
+  /** 沿某方向到最近的墙还有多远（用于比较"往哪边绕更开阔"）。 */
+  private freeAlong(dx: number, dy: number): number {
+    let best = 1e6;
+    if (dx > 0.0001) best = Math.min(best, (HALL.right - this.x) / dx);
+    else if (dx < -0.0001) best = Math.min(best, (HALL.left - this.x) / dx);
+    if (dy > 0.0001) best = Math.min(best, (HALL.bottom - this.y) / dy);
+    else if (dy < -0.0001) best = Math.min(best, (HALL.top - this.y) / dy);
+    return best;
+  }
+
   private updateMovement(dt: number, store: MonsterStore): void {
     let dirX = 0;
     let dirY = 0;
@@ -778,31 +918,28 @@ export class Hero {
       const d = distance(this.x, this.y, tx, ty);
       const dir = normalize(tx - this.x, ty - this.y);
 
+      // 射击始终朝向目标；走位则交给势场（下面三股力）
+      this.facingX = dir.x;
+      this.facingY = dir.y;
+
+      this.steerKite(store, dir.x, dir.y, d, dt);
+
       if (this.state === 'retreat') {
-        dirX = -dir.x;
-        dirY = -dir.y;
-        wantMove = true;
-      } else if (d < AI.panicRange) {
-        // 被贴脸：他是远程，这时候必须后撤而不是硬顶。
-        // 后撤是"侧向偏一点地退"，不是直线逃跑 —— 直线跑会被追着打死。
+        // 撤退：势场方向本身就是"远离所有威胁"，再偏一点侧向避免被直线追死
         const side = this.dodgeSign >= 0 ? 1 : -1;
-        dirX = -dir.x * 0.78 - dir.y * 0.62 * side;
-        dirY = -dir.y * 0.78 + dir.x * 0.62 * side;
+        dirX = this.steerX * 0.84 - this.steerY * 0.54 * side;
+        dirY = this.steerY * 0.84 + this.steerX * 0.54 * side;
         wantMove = true;
-        this.facingX = dir.x;
-        this.facingY = dir.y;
-      } else if (d > AI.keepRange) {
-        // 够不到就往里压，压到 keepRange 就停手站着射
-        dirX = dir.x;
-        dirY = dir.y;
+      } else if (d > AI.shootRange * 1.15) {
+        // 目标在射程外：压上去（此时势场仍然在起作用，避免一头撞进怪物堆）
+        dirX = this.steerX * 0.55 + dir.x * 0.75;
+        dirY = this.steerY * 0.55 + dir.y * 0.75;
         wantMove = true;
-        this.facingX = dir.x;
-        this.facingY = dir.y;
       } else {
-        // 在舒适距离内：只做微调，保持脸朝着目标（射击方向）
-        this.facingX = dir.x;
-        this.facingY = dir.y;
-        wantMove = d > AI.keepRange * 1.12;
+        // 射程内：走位全交给势场 —— 这就是"拉扯 / 跑圈"的落点
+        dirX = this.steerX;
+        dirY = this.steerY;
+        wantMove = this.steerPressure > 0.04 || this.wallPressure > 0.05;
       }
     } else {
       const homeX = HALL_CENTER.x;

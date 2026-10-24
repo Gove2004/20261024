@@ -4,45 +4,27 @@ import { normalize } from '../core/math';
 import type { Hero } from './hero';
 
 export interface MonsterHooks {
-  /** 当帧的攻速倍率（血月事件 >1）；缺省 1 */
-  atkMul?: number;
   /** 魔物打中勇者 */
   hitHero(amount: number, slot: number): void;
   /** 远程攻击的开火表现 */
   onRangedShot(slot: number, fromX: number, fromY: number, toX: number, toY: number): void;
   /** 自爆虫引爆：范围内对勇者造成伤害 */
   onExplode(slot: number, x: number, y: number, radius: number, damage: number): void;
-  /** 火球落点预警（0.35s 后由 game 结算伤害） */
-  onTelegraph(x: number, y: number, radius: number, delay: number, damage: number): void;
   /** 只有视觉预警、伤害由魔物自己结算（自爆虫引信） */
-  onWarn(x: number, y: number, radius: number, duration: number): void;  /** 巫医治疗周围友军 */
+  onWarn(x: number, y: number, radius: number, duration: number): void;
+  /** 巫医治疗周围友军 */
   onHeal(slot: number, x: number, y: number): void;
-  /** 骷髅将军召唤（由 game 决定生成什么） */
-  onSummon(slot: number, x: number, y: number): void;
-  /** 石像鬼嘲讽 */
-  onTaunt(slot: number, seconds: number): void;
-  /** 冰霜：叠层满了冻住 */
-  onFrostHit(slot: number): void;
   /** 召唤物寿命到期 */
   onExpire(slot: number): void;
 }
 
 /** 特性编号，与 cards.ts 的 ABILITY_CODE 对应。 */
 const ABI_SUICIDE = 1;
-const ABI_FROST = 2;
-const ABI_HEAL = 3;
-const ABI_TAUNT = 4;
-const ABI_AOE = 5;
-const ABI_SUMMON = 6;
+const ABI_HEAL = 2;
+const ABI_SLOW_SHOT = 3;
 
 const FUSE_TIME = 0.6;
 const HEAL_INTERVAL = 2;
-const TAUNT_DELAY = 1;
-const TAUNT_SECONDS = 3;
-const AOE_INTERVAL = 3;
-const AOE_RADIUS = 90;
-const AOE_WARN = 0.35;
-const SUMMON_INTERVAL = 7;
 
 /**
  * 魔物行为：朝勇者靠拢 → 进入射程 → 按攻速攻击。
@@ -107,29 +89,13 @@ export function updateMonsters(store: MonsterStore, hero: Hero, dt: number, hook
       }
     }
 
-    // 特性计时
-    if (abi === ABI_TAUNT) {
-      const t = store.abT[slot] ?? 0;
-      if (t > 0) {
-        store.abT[slot] = t - dt;
-        if ((store.abT[slot] ?? 0) <= 0) {
-          store.abT[slot] = -1;
-          hooks.onTaunt(slot, TAUNT_SECONDS);
-        }
-      }
-    } else if (abi === ABI_HEAL || abi === ABI_AOE || abi === ABI_SUMMON) {
+    // 特性计时。卡池裁到 5 种之后只剩「自爆（引信，上面已处理）」和「巫医回血」，
+    // 嘲讽 / 火球 / 召唤随卡池一起删掉了 —— 留着没人调用的分支只是负担。
+    if (abi === ABI_HEAL) {
       store.abT[slot] = (store.abT[slot] ?? 0) - dt;
       if ((store.abT[slot] ?? 0) <= 0) {
-        if (abi === ABI_HEAL) {
-          store.abT[slot] = HEAL_INTERVAL;
-          hooks.onHeal(slot, x, y);
-        } else if (abi === ABI_AOE) {
-          store.abT[slot] = AOE_INTERVAL;
-          if (dist < range + 60) hooks.onTelegraph(hero.x, hero.y, AOE_RADIUS, AOE_WARN, 40 * star);
-        } else {
-          store.abT[slot] = SUMMON_INTERVAL;
-          hooks.onSummon(slot, x, y);
-        }
+        store.abT[slot] = HEAL_INTERVAL;
+        hooks.onHeal(slot, x, y);
       }
     }
 
@@ -179,9 +145,8 @@ export function updateMonsters(store: MonsterStore, hero: Hero, dt: number, hook
     store.vx[slot] = vx;
     store.vy[slot] = vy;
 
-    // 攻击：atkMul 来自地图事件（血月），缺省 1 —— 只缩放计时器，不改间隔本身，
-    // 所以事件结束时冷却不会被"截断"到奇怪的值。
-    store.atkTimer[slot] = (store.atkTimer[slot] ?? 0) - dt * (hooks.atkMul ?? 1);
+    // 攻击
+    store.atkTimer[slot] = (store.atkTimer[slot] ?? 0) - dt;
     const inRange = dist <= range + heroRadius;
 
     // 自爆虫：贴到身边就点引信（引信期间不再移动，给对手反应时间）
@@ -198,7 +163,8 @@ export function updateMonsters(store: MonsterStore, hero: Hero, dt: number, hook
       store.atkTimer[slot] = store.atkInterval[slot] ?? 1;
       if (range > 120) hooks.onRangedShot(slot, x, y, hero.x, hero.y);
       hooks.hitHero(store.atk[slot] ?? 1, slot);
-      if (abi === ABI_FROST) hooks.onFrostHit(slot);
+      // 毒蜘蛛的远程弹会给勇者叠减速层：这是"必须换位置"的压力来源
+      if (abi === ABI_SLOW_SHOT) store.slowFactor[slot] = 1;
     }
   }
 

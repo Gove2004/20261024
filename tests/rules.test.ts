@@ -2,18 +2,13 @@ import { describe, expect, it } from 'vitest';
 import {
   CARDS,
   CARD_CD,
+  CARD_STACK,
   STARTER_HAND,
   cardCdSeconds,
   findCard,
   summonCount,
 } from '../src/content/cards';
-import { STAR_CAP, RUN, heroAtk, heroMaxHp, starCapAt, xpNeed } from '../src/content/config';
-import {
-  MAP_EVENTS,
-  MAP_EVENT_AT,
-  MAP_EVENT_TUNING,
-  type MapEventId,
-} from '../src/content/events';
+import { STAR_CAP, heroAtk, heroMaxHp, starCapAt, xpNeed } from '../src/content/config';
 import { AI } from '../src/content/heroAi';
 import { PASSIVE_POOL, SKILLS, SKILL_TUNING } from '../src/content/heroSkills';
 import { PASSIVE_COUNT, PASSIVE_POOL_COUNT } from '../src/gameplay/hero';
@@ -84,18 +79,26 @@ describe('卡池', () => {
     }
   });
 
-  it('卡池 12 张，功能卡都挂了特性', () => {
-    expect(CARDS.length).toBe(12);
+  it('卡池只有 5 种，且五种角色互不重复', () => {
+    // 12 种的时候玩家记不住谁是谁（用户反馈）。5 种是刻意的上限，
+    // 这条断言就是"以后别再往里加"的闸门。
+    expect(CARDS.length).toBe(5);
     const withAbility = CARDS.filter((card) => card.ability !== undefined).map((card) => card.id);
-    expect(withAbility.sort()).toEqual(['boom', 'frost', 'gargoyle', 'general', 'lich', 'shaman']);
+    expect(withAbility.sort()).toEqual(['boom', 'shaman', 'spider']);
+    // 五种魔物必须覆盖「近战 / 远程 / 支援」三类骨架（kind 允许重合，
+    // 但少任何一类，战场就只剩一种打法）
+    const kinds = new Set(CARDS.map((card) => card.kind));
+    expect(kinds.has('melee')).toBe(true);
+    expect(kinds.has('ranged')).toBe(true);
+    expect(kinds.has('support')).toBe(true);
+    expect(new Set(CARDS.map((card) => card.id)).size).toBe(5);
   });
 
-  it('蝙蝠群一次召 3 只并按 3 倍占星结算', () => {
-    const bat = findCard('bat');
-    expect(bat).toBeDefined();
-    if (!bat) return;
-    expect(summonCount(bat, 1)).toBe(3);
-    expect(summonCount(bat, 3)).toBe(3);
+  it('卡牌堆叠：每张手牌可连放，且持续速率与旧冷却一致', () => {
+    expect(CARD_STACK.charges).toBeGreaterThanOrEqual(2);
+    expect(CARD_STACK.charges).toBeLessThanOrEqual(4);
+    // 通量回充间隔必须等于旧版 CD —— 堆叠只加爆发窗口，不该悄悄加强度
+    expect(cardCdSeconds(3)).toBeCloseTo(CARD_CD.base + CARD_CD.linear * 3 + CARD_CD.quad * 9, 6);
   });
 });
 
@@ -156,43 +159,3 @@ describe('AI 参数', () => {
   });
 });
 
-describe('地图事件', () => {
-  it('三个事件定义完整，播报里必须带具体数字', () => {
-    const ids = Object.keys(MAP_EVENTS);
-    expect(ids.length).toBe(3);
-    for (const id of ids) {
-      const def = MAP_EVENTS[id as MapEventId];
-      expect(def.name.length).toBeGreaterThan(0);
-      // 只说"发生了一件事"的播报没用，玩家需要知道该怎么打
-      expect(def.toast).toMatch(/\+\d+|-\d+/);
-      expect(def.duration).toBeGreaterThan(10);
-    }
-    expect(MAP_EVENT_AT.length).toBe(3);
-  });
-
-  it('触发时刻递增，且都在单局时长之内', () => {
-    for (let i = 1; i < MAP_EVENT_AT.length; i += 1) {
-      expect(MAP_EVENT_AT[i]!).toBeGreaterThan(MAP_EVENT_AT[i - 1]!);
-    }
-    expect(MAP_EVENT_AT[0]!).toBeGreaterThan(30);
-    expect(MAP_EVENT_AT[MAP_EVENT_AT.length - 1]!).toBeLessThan(RUN.duration - 20);
-  });
-
-  it('事件窗口不重叠（否则播报会互相顶掉）', () => {
-    const order: readonly MapEventId[] = ['bloodmoon', 'surge', 'sacrifice'];
-    let prevEnd = 0;
-    for (let i = 0; i < MAP_EVENT_AT.length; i += 1) {
-      const start = MAP_EVENT_AT[i]!;
-      expect(start).toBeGreaterThanOrEqual(prevEnd);
-      prevEnd = start + MAP_EVENTS[order[i]!].duration;
-    }
-  });
-
-  it('数值在"能感觉到但不失衡"的区间', () => {
-    expect(MAP_EVENT_TUNING.bloodmoonAtkMul).toBeGreaterThan(1.2);
-    expect(MAP_EVENT_TUNING.bloodmoonAtkMul).toBeLessThan(1.6);
-    expect(MAP_EVENT_TUNING.surgeCdMul).toBeGreaterThan(1.4);
-    expect(MAP_EVENT_TUNING.surgeCdMul).toBeLessThan(2);
-    expect(MAP_EVENT_TUNING.sacrificeStarBonus).toBeGreaterThanOrEqual(8);
-  });
-});

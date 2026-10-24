@@ -1,4 +1,4 @@
-/* ── 全局调色板（与 docs/GAME_DESIGN.md §8.1 保持一致）────────────
+﻿/* ── 全局调色板（与 docs/GAME_DESIGN.md §8.1 保持一致）────────────
    深渊底色 #0B0A14 / #151226   大厅石 #2E2740 / #43395C
    熔岩     #FF6B4A / #FFB347   血色   #FF3B5C
    锅巴皮甲 #8A6A4A / #D8C8B0   钢刃   #9AA3AD                */
@@ -79,34 +79,6 @@ body {
 .hud.hidden .btn-pause,
 .hud.hidden .toasts {
   display: none;
-}
-
-/* 地图事件常驻标签：toast 1.5 秒就没了，但"血月还在生效"必须一直看得见 */
-.event-chip {
-  margin-top: 2px;
-  padding: 3px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 179, 71, 0.45);
-  background: rgba(255, 179, 71, 0.12);
-  color: #ffca7a;
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  animation: event-in 0.24s ease-out;
-}
-
-.event-chip[hidden] {
-  display: none;
-}
-
-@keyframes event-in {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 
 .hud-top {

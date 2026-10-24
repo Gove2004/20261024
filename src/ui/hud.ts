@@ -1,6 +1,5 @@
 import { CARDS, cardCdSeconds } from '../content/cards';
 import { RUN, VIEW } from '../content/config';
-import { MAP_EVENTS } from '../content/events';
 import type { Game, PowerupOption } from '../gameplay/game';
 
 export interface HudHandlers {
@@ -18,11 +17,13 @@ interface CardNode {
   cd: HTMLDivElement;
   star: HTMLSpanElement;
   name: HTMLSpanElement;
+  stack: HTMLSpanElement;
   /** 上一次写入的值（只在这些值变化时才碰 DOM） */
   lastPct: string;
   lastCdText: string;
   lastReady: boolean;
   lastSelected: boolean;
+  lastStack: string;
   lastName: string;
   lastStar: string;
   lastDisp: boolean;
@@ -50,7 +51,7 @@ export class Hud {
   private readonly levelupPassiveEl: HTMLElement;
   private levelupTimer = 0;
   private muteEl!: HTMLButtonElement;
-  private eventEl!: HTMLDivElement;
+  private pauseEl!: HTMLButtonElement;
   private lastToast: { text: string; at: number; el: HTMLElement } | null = null;
   /** 上一帧写进 DOM 的值：一样就不写，避免软件渲染下整块 HUD 每帧重新合成 */
   private lastTimer = '';
@@ -60,7 +61,6 @@ export class Hud {
   private lastLv = '';
   private lastIntent = '';
   private lastStarText = '';
-  private lastEventText = '';
   private lastStarRatio = '';
   private lastUrgent = false;
   private lastWarn = false;
@@ -87,7 +87,6 @@ export class Hud {
           <div class="hero-hp"><div class="hero-hp-fill" data-hp></div><span class="hero-hp-text" data-hp-text>12000 / 12000</span></div>
         </div>
         <div class="timer-sub">打不死他，5 分钟就到</div>
-        <div class="event-chip" data-event hidden></div>
       </div>
       <div class="hud-bottom">
         <div class="star-budget">
@@ -124,10 +123,10 @@ export class Hud {
     this.levelupPassiveEl = this.must('[data-levelup-passive]');
     this.overlayEl = this.must('[data-overlay]');
 
-    this.must('[data-pause]').addEventListener('click', () => this.handlers.onPause());
+    this.pauseEl = this.must('[data-pause]');
+    this.pauseEl.addEventListener('click', () => this.handlers.onPause());
     this.muteEl = this.must('[data-mute]');
     this.muteEl.addEventListener('click', () => this.handlers.onToggleMute());
-    this.eventEl = this.must('[data-event]');
   }
 
   /** 静音按钮的图标由这里翻，避免"点了没反应"的观感。 */
@@ -158,14 +157,6 @@ export class Hud {
     }
     const urgent = timeLeft <= RUN.finalWarnAt;
     const warn = timeLeft <= RUN.warnAt && !urgent;
-
-    // 地图事件：toast 一闪而过，这里给一个"还在生效"的常驻标签
-    const eventText = game.eventId ? `事件 · ${MAP_EVENTS[game.eventId].name} ${Math.ceil(game.eventLeft)}s` : '';
-    if (eventText !== this.lastEventText) {
-      this.lastEventText = eventText;
-      this.eventEl.hidden = eventText.length === 0;
-      this.eventEl.textContent = eventText;
-    }
     if (urgent !== this.lastUrgent) {
       this.lastUrgent = urgent;
       this.timerEl.classList.toggle('urgent', urgent);
@@ -236,6 +227,7 @@ export class Hud {
         <div class="card-cd"></div>
         <span class="card-star"></span>
         <span class="card-name"></span>
+        <span class="card-stack"></span>
       `;
       root.addEventListener('click', () => this.handlers.onCard(index));
       this.handEl.appendChild(root);
@@ -243,13 +235,15 @@ export class Hud {
       const cd = root.querySelector<HTMLDivElement>('.card-cd');
       const star = root.querySelector<HTMLSpanElement>('.card-star');
       const name = root.querySelector<HTMLSpanElement>('.card-name');
-      if (!art || !cd || !star || !name) throw new Error('卡牌节点构建失败');
+      const stack = root.querySelector<HTMLSpanElement>('.card-stack');
+      if (!art || !cd || !star || !name || !stack) throw new Error('卡牌节点构建失败');
       this.nodes.push({
         root,
         art,
         cd,
         star,
         name,
+        stack,
         lastPct: '',
         lastCdText: '',
         lastReady: true,
@@ -257,6 +251,7 @@ export class Hud {
         lastName: '',
         lastStar: '',
         lastDisp: false,
+        lastStack: '',
       });
     }
 
@@ -286,7 +281,14 @@ export class Hud {
         node.lastCdText = cdText;
         node.cd.textContent = cdText;
       }
-      const ready = card.cd <= 0;
+      // 通量：把「这张牌还剩几次」直接印在卡面上 —— 堆叠之后玩家最需要知道的就是这个
+      const stackText = `${card.charges}/${card.maxCharges}`;
+      if (node.lastStack !== stackText) {
+        node.lastStack = stackText;
+        node.stack.textContent = stackText;
+        node.root.classList.toggle('spent', card.charges <= 0);
+      }
+      const ready = card.charges > 0;
       if (node.lastReady !== ready) {
         node.lastReady = ready;
         node.root.classList.toggle('ready', ready);
@@ -437,7 +439,30 @@ export class Hud {
     this.overlayEl.querySelector('[data-restart]')?.addEventListener('click', () => this.handlers.onRestart());
   }
 
+  /**
+   * 暂停面板。
+   *
+   * 之前"暂停"只是把 `game.state` 设成 paused —— 逻辑确实停了，但画面上什么都没变，
+   * 玩家点下去只会觉得"按钮坏了"（用户实测反馈原话：暂停按钮貌似无法使用）。
+   * 任何一个会停掉游戏的操作，都必须给出可见的反馈。
+   */
+  public showPause(): void {
+    this.overlayEl.className = 'overlay is-open pause';
+    this.pauseEl.classList.add('is-paused');
+    this.pauseEl.textContent = '▶';
+    this.overlayEl.innerHTML = `
+      <div class="panel pause-panel" data-resume>
+        <div class="pause-icon">❚❚</div>
+        <div class="pause-title">已暂停</div>
+        <div class="pause-sub">点这里或按空格继续 · 卡牌冷却也跟着停了</div>
+      </div>
+    `;
+    this.overlayEl.querySelector('[data-resume]')?.addEventListener('click', () => this.handlers.onPause());
+  }
+
   public hideOverlay(): void {
+    this.pauseEl.classList.remove('is-paused');
+    this.pauseEl.textContent = '❚❚';
     this.overlayEl.className = 'overlay';
     this.overlayEl.innerHTML = '';
   }

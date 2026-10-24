@@ -1,4 +1,4 @@
-import { abilityCode } from '../content/cards';
+﻿import { abilityCode } from '../content/cards';
 import type { CardDef } from '../content/cards';
 
 /**
@@ -34,7 +34,7 @@ export class MonsterStore {
   public readonly alive = new Uint8Array(MAX_MONSTERS);
   /** 是否穿行（无视同伴碰撞） */
   public readonly ghostly = new Uint8Array(MAX_MONSTERS);
-  /** 特性编号（见 cards.ts ABILITY_CODE）：自爆 / 冰霜 / 治疗 / 嘲讽 / 火球 / 召唤 */
+  /** 特性编号（见 cards.ts ABILITY_CODE）：自爆 / 治疗 / 减速远程 */
   public readonly abi = new Uint8Array(MAX_MONSTERS);
   /** 特性冷却或持续时间（按特性各自解释） */
   public readonly abT = new Float32Array(MAX_MONSTERS);
