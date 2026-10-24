@@ -3,7 +3,7 @@ import { Container, Graphics } from 'pixi.js';
 import { FixedStepLoop } from './core/loop';
 import { DESIGN_HEIGHT, DESIGN_WIDTH, createStage } from './render/stage';
 
-/** 全局调色板，数值与 `src/style.css` / `docs/GAME_DESIGN.md §6.1` 一致。 */
+/** 全局调色板，数值与 `src/style.css` / `docs/GAME_DESIGN.md` §5.1 一致。 */
 const COLOR = {
   abyss: 0x0b0a14,
   stone0: 0x2e2740,
@@ -12,6 +12,11 @@ const COLOR = {
   lava: 0xff6b4a,
   guoba: 0xf5c24b,
   blood: 0xff3b5c,
+  /** 勇者皮甲 */
+  leather: 0x8a6a4a,
+  /** 焦痕 / 铁锅 */
+  char0: 0x3a2620,
+  char1: 0x1e1512,
 } as const;
 
 const ARENA_RADIUS = 330;
@@ -53,17 +58,35 @@ function buildArena(world: Container): void {
   world.addChild(floor);
 }
 
-/** 锅巴占位：一个会呼吸的方块，M4 换成正式立绘。 */
-function buildGuoba(world: Container): Graphics {
-  const guoba = new Graphics();
-  guoba.roundRect(-34, -34, 68, 68, 10).fill({ color: COLOR.guoba, alpha: 0.95 });
-  guoba.roundRect(-34, -34, 68, 68, 10).stroke({ width: 3, color: 0x241a14, alpha: 0.9 });
-  guoba.circle(-13, -8, 6).fill({ color: 0x241a14 });
-  guoba.circle(13, -8, 6).fill({ color: 0x241a14 });
-  guoba.ellipse(0, 13, 13, 6).fill({ color: 0x241a14, alpha: 0.85 });
-  guoba.position.set(DESIGN_WIDTH / 2, DESIGN_HEIGHT / 2 + 8);
-  world.addChild(guoba);
-  return guoba;
+/**
+ * 勇者「锅巴」占位：瘦长身形 + 背上一口铁锅（这是他唯一的记忆点）。
+ * M4 换成正式立绘；这里用几何体把**剪影特征**先立住，避免美术接入时才发现比例不对。
+ */
+function buildHero(world: Container): Container {
+  const hero = new Container();
+
+  // 背上的铁锅（当盾用，压在身后）——比人物本身更宽，剪影才有辨识度
+  const wok = new Graphics();
+  wok.circle(0, 10, 30).fill({ color: COLOR.char0, alpha: 0.95 });
+  wok.circle(0, 10, 30).stroke({ width: 3, color: 0x241a14, alpha: 0.9 });
+  wok.circle(0, 10, 20).stroke({ width: 2, color: COLOR.stone1, alpha: 0.7 });
+  wok.arc(0, 10, 30, -Math.PI * 0.85, -Math.PI * 0.15).stroke({ width: 4, color: COLOR.char1 });
+
+  // 身体：窄长，和"方块锅巴"划清界限
+  const body = new Graphics();
+  body.roundRect(-13, -26, 26, 34, 7).fill({ color: COLOR.leather, alpha: 0.95 });
+  body.roundRect(-13, -26, 26, 34, 7).stroke({ width: 3, color: 0x241a14, alpha: 0.9 });
+
+  // 头 + 一只泛橙光的眼（狂化阶段的伏笔）
+  const head = new Graphics();
+  head.circle(0, -38, 13).fill({ color: 0xe8c9a0, alpha: 0.95 });
+  head.circle(0, -38, 13).stroke({ width: 3, color: 0x241a14, alpha: 0.9 });
+  head.circle(4, -39, 3).fill({ color: COLOR.lava, alpha: 0.95 });
+
+  hero.addChild(wok, body, head);
+  hero.position.set(DESIGN_WIDTH / 2, DESIGN_HEIGHT / 2 + 8);
+  world.addChild(hero);
+  return hero;
 }
 
 /** 会乱走的占位小怪，用来确认同屏多实体的更新与绘制开销。 */
@@ -107,13 +130,13 @@ function createTitleScreen(uiRoot: HTMLElement, onStart: () => void): () => void
   screen.innerHTML = `
     <div class="title-kicker">Reverse Roguelike</div>
     <h1 class="title-main">锅巴必须死</h1>
-    <p class="title-sub">你是深渊，他是来讨伐你的勇者。</p>
+    <p class="title-sub">你是魔王，他是来讨伐你的勇者。</p>
     <p class="title-hook">
-      把怪物摆上祭坛喂给他 —— 他吃得越肥，你杀死他时拿的分越高。<br />
-      但喂得太肥，<em>翻车的就会是你。</em>
+      把魔物摆到大殿上送去给他砍 —— 他吸的魔气越多，斩落他时的战功越高。<br />
+      但养得太肥，<em>翻车的就会是你。</em>
     </p>
     <button class="btn-start" type="button">开 始</button>
-    <p class="title-foot">鼠标点卡 → 点地放置　·　双击怪物献祭　·　<kbd>Space</kbd> 暂停　·　<kbd>F3</kbd> 调试</p>
+    <p class="title-foot">鼠标点卡 → 点地放置　·　双击魔物献祭　·　<kbd>Space</kbd> 暂停　·　<kbd>F3</kbd> 调试</p>
   `;
   uiRoot.appendChild(screen);
 
@@ -153,7 +176,7 @@ async function boot(): Promise<void> {
   const stage = await createStage(canvas);
 
   buildArena(stage.world);
-  const guoba = buildGuoba(stage.world);
+  const hero = buildHero(stage.world);
 
   const monsters = buildMonsters();
   for (const monster of monsters) stage.world.addChild(monster.gfx);
@@ -206,8 +229,8 @@ async function boot(): Promise<void> {
 
     // 呼吸感：缩放 + 轻微浮动，验证"不用 sprite sheet 也能有生命"
     const breathe = 1 + Math.sin(elapsed * 2.6) * 0.045;
-    guoba.scale.set(breathe, 2 - breathe);
-    guoba.y = DESIGN_HEIGHT / 2 + 8 + Math.sin(elapsed * 1.8) * 3;
+    hero.scale.set(breathe, 2 - breathe);
+    hero.y = DESIGN_HEIGHT / 2 + 8 + Math.sin(elapsed * 1.8) * 3;
 
     stage.app.render();
 

@@ -1,6 +1,6 @@
 # 技术选型与资产管线
 
-> 目标：用 **TypeScript + Vite + PixiJS 8** 在浏览器里跑出一个 60fps、有完整表现层（贴图/粒子/镜头/转场/音效/BGM）的 2D 反向肉鸽，**所有美术与音频由生成式模型产出**。
+> 目标：用 **TypeScript + Vite + PixiJS 8** 在浏览器里跑出一个 60fps、有完整表现层（贴图/粒子/镜头/转场/音效/BGM）的 2D 反向肉鸽，**美术由生成式模型产出，音乐音效 100% 程序合成**。
 >
 > 本文所有结论都标注了**验证状态**：✅ 已实测通过 / ⚠️ 端点存在但未跑通 / ❓ 未验证。
 
@@ -17,16 +17,18 @@
 | 粒子 | 自研对象池 + `ParticleContainer` | 600 粒子零 GC；不引第三方发射器（API 变动风险） |
 | 后期 | `pixi-filters`（Bloom / Vignette / CRT / Displacement） | 一晚上就有"成品感"，且移动端可一键降级 |
 | UI | **DOM 覆盖层 + CSS**（不用 Pixi 排版文字） | 中文排版清晰、可访问、开发快 3 倍；卡片 3D 悬停 CSS 直接做 |
-| 音频 | 自研 WebAudio 封装（总线/侧链/程序化 SFX） | 短音效实时合成，零资源体积；BGM 用解码后的 buffer 循环 |
+| 音频 | 自研 WebAudio 封装（音序器 BGM + 合成 SFX + 三条总线） | **零音频资源**：BGM 与音效全部实时合成，能随战况动态变化 |
 | 状态/存档 | 自研 + `localStorage` | 无服务端，无需框架 |
 | 测试 | Vitest（逻辑）+ Playwright（真机 E2E / 截图回归） | 逻辑层可无渲染跑 1000 局做数值校准 |
 | 部署 | 静态托管（GitHub Pages / 任意 CDN） | 评委点开就能玩，不需要后端 |
 | 图像模型 | `gpt-image-2` / `gemini-3-pro-image` / `doubao-seedream-5-0-pro` | ✅ 已实测出图（22s/张） |
-| 音乐模型 | Suno（`suno-v4.5`，`/suno/submit/music`） | ⚠️ 端点存在，当前 Key 返回 403，需确认额度；有程序化 BGM 退路 |
-| 语音 | `tts-1` / `speech-1.6` | ⚠️ 端点存在，当前返回 429（限流/额度） |
-| 视频 | `sora-2` / `veo3.1` → `/v1/video/generations` | ⚠️ 端点存在，参数契约未确认；仅用于标题页过场，**不阻塞交付** |
+| BGM / SFX | **WebAudio 程序合成**（音序器 + 合成器配方） | ✅ 方案确定：0 KB 音频资源，不依赖任何外部音频服务 |
+| 视频（可选） | `sora-2` / `veo3.1` → `/v1/video/generations` | ⚠️ 端点存在，参数契约未确认；仅用于标题过场，**不阻塞交付** |
 
-**一句话**：渲染和玩法完全不依赖外部服务，随时可以交付；生成式媒体是**锦上添花且可降级**的部分。
+**一句话**：渲染、玩法、音频全部不依赖外部服务，随时可以交付；图像生成是**锦上添花且可降级**的部分。
+
+> 音频不再使用 Suno / TTS：`/suno/submit/music` 实测返回 403、`/v1/audio/speech` 返回 429，
+> 且程序化方案本身更轻、更可控（能随勇者强度实时改变音乐），因此**直接采用程序生成，不做退路**。
 
 ---
 
@@ -129,8 +131,10 @@ Base URL：`https://api.openai-next.com`
 **视频**
 `sora-2` / `veo3.1(-fast/-pro)` / `kling-video-pro-5s|10s` / `doubao-seedance-2-0…2-5` / `grok-imagine-video`
 
-**音频**
-`suno-v4.5` / `suno-v4.5+` / `tts-1(-hd)` / `speech-1.5` / `speech-1.6` / `qwen3-tts-flash` / `whisper-1`
+**音频**（本作**不使用**，仅供参考平台能力）
+`suno-v4.5` / `tts-1(-hd)` / `speech-1.6` / `qwen3-tts-flash` / `whisper-1`
+> 实测：`/suno/submit/music` 403（无权限）、`/v1/audio/speech` 429（限流）。
+> 本项目已改为 **WebAudio 程序合成**，不再依赖上述任何一个。
 
 **文本**（用于批量写 prompt、生成卡牌文案）
 `gpt-4.1-mini` 等（✅ 已验证）
@@ -140,29 +144,27 @@ Base URL：`https://api.openai-next.com`
 | 任务 | 首选 | 理由 | 备选 |
 | --- | --- | --- | --- |
 | 风格锚点图（1 张） | `gpt-image-2` | 综合质量最好 | `gemini-3-pro-image` |
-| 锅巴 3 形态（同角色变体） | `gemini-3-pro-image` / `nano-banana` | **支持参考图，角色一致性最强** | `gpt-image-2` + 参考图 |
-| 小怪 9 张（4 族） | `doubao-seedream-5-0` | 便宜、快、风格化强 | `gpt-image-1.5` |
-| 场地祭坛（正俯视大图） | `gpt-image-2` | 大场景细节 | `gemini-3-pro-image` |
+| 勇者锅巴 3 形态（同角色变体） | `gemini-3-pro-image` / `nano-banana` | **支持参考图，角色一致性最强** | `gpt-image-2` + 参考图 |
+| 魔物 9 张（4 族） | `doubao-seedream-5-0` | 便宜、快、风格化强 | `gpt-image-1.5` |
+| 魔王殿（正俯视大图） | `gpt-image-2` | 大场景细节 | `gemini-3-pro-image` |
 | UI 图标 18 个 | `gpt-image-1.5` | 小图足够，批量便宜 | 生成 4×4 拼版后切图 |
 | 卡面/框 | `gpt-image-2` | 需要质感 | CSS 渐变兜底 |
 | 特效贴图 | `gpt-image-1.5` | 单色发光图即可 | **程序化 Canvas 生成**（更可控） |
 | 标题主视觉 + 主角卡 | `gpt-image-2` / `gemini-3-pro-image` | 宣传级质量 | — |
-| BGM 4 首 | Suno `suno-v4.5` | 唯一可选 | **WebAudio 程序化音序器**（退路） |
-| 锅巴 4 句台词 | `tts-1` / `speech-1.6` | 现成 | 无配音，只用文字气泡 |
+| **BGM 4 段** | **WebAudio 音序器（程序合成）** | 零资源、可随战况分层 | — |
+| **音效 25 个** | **WebAudio 合成器配方** | 零资源、可随机音高 | — |
 | 标题过场 4s | `sora-2` / `veo3.1-fast` | 加分项 | 静态大图 + 视差动画（足够好） |
 
-### 3.4 待确认的接口（不阻塞，但影响加分项）
+### 3.4 待确认的接口（不阻塞交付）
 
 | 接口 | 需要确认 | 怎么确认 |
 | --- | --- | --- |
 | `/v1/video/generations` | 请求字段（`size`? `seconds`? `aspect_ratio`?）与是否异步轮询 | 拿到平台「图像与视频」文档的视频 tab，或用 `sora-2` 试一次最小请求看返回 |
-| `/suno/submit/music` | 是否有权限、任务轮询路径与产物字段 | 请平台确认该 Key 是否开通音乐模型 |
-| `/v1/audio/speech` | 429 是限流还是无额度 | 隔 1 分钟重试一次 |
 
-**降级策略（默认执行，不等确认）**
-1. BGM：先写 WebAudio 程序化 BGM（8 小节循环 + 3 层叠加），Suno 能用了再替换 —— 音频接口 100% 可插拔。
-2. 过场：默认用"静态大图 + 视差 + 光效"，视频模型可用再升级。
-3. 台词：默认用文字气泡 + 程序化"咔嚓"音效。
+**已确定不需要的**
+1. BGM / 音效 → 全部 WebAudio 程序合成（见 §5），不调任何音频接口。
+2. 过场 → 默认"静态大图 + 视差 + 光效"；视频模型可用再升级为加分项。
+3. 台词 → 文字气泡 + 程序化"铁锅闷响"音效，不需要 TTS。
 
 ### 3.5 调用封装约定
 
@@ -171,11 +173,9 @@ Base URL：`https://api.openai-next.com`
 ```
 tools/media/
   client.mjs        # 统一 fetch + 重试 + 并发闸门 + 日志（脱敏）
-  gen-image.mjs     # 出图（支持 --model --prompt --out --ref）
-  gen-music.mjs     # 出 BGM（Suno，含轮询）
-  gen-tts.mjs       # 出配音
-  gen-video.mjs     # 出视频（可选）
-  manifest.json     # 每个资产的 prompt + 模型 + seed + 生成时间（可复现）
+  gen-image.mjs     # 出图（支持 --model --prompt --out）
+  gen-video.mjs     # 出视频（可选，待接口确认）
+  manifest.json     # 每个资产的 prompt + 模型 + 用量 + 生成时间（可复现）
 ```
 
 - 读 Key：`process.env.CREDIT_MEDIA_API_KEY`，缺失直接 exit 1 并提示复制 `.env.example`。
@@ -188,8 +188,7 @@ tools/media/
 | --- | --- | --- |
 | 批量出图 | ~120 次（含淘汰） | `gpt-image-2` ≈1056 / `gpt-image-1` ≈4200 image tokens 每张 |
 | 精选重出 | ~30 次 | 风格统一返工 |
-| BGM | 4–8 次 | 每次可能出 2 首 |
-| TTS | ~10 次 | 台词试音 |
+| 音频 | **0 次** | 程序合成，零 API 消耗 |
 | 视频 | 0–2 次 | 可选 |
 
 > 先跑 6 张验证风格，确认账户额度后再批量。**不要一次性跑 120 张。**
@@ -226,14 +225,51 @@ public/assets/atlas/*.{png,json}
 
 ---
 
-## 5. 音频管线
+## 5. 音频管线（全程序生成，0 KB 资源）
 
-| 类型 | 方案 |
+> 不加载任何音频文件。音乐与音效都在运行时用 WebAudio 合成。
+> 好处：零加载/零解码、无版权问题、能随战况实时改变（勇者越强音乐越凶）、不依赖外部音频服务。
+
+### 5.1 架构
+
+```
+src/audio/
+  context.ts     # AudioContext 首次 pointerdown 解锁；三级总线 + 压缩器
+  synth.ts       # 基础发声单元：osc / noise / ADSR / filter / reverb（Convolver 用程序生成的脉冲）
+  sfx.ts         # 25 个音效配方（纯函数：参数 → 一次性播放）
+  music.ts       # 步进音序器：120 BPM、16 步、D 弗里吉亚、i–♭VI–♭III–♭VII
+  layer.ts       # 动态分层：按勇者阶段 / 血量增删音轨、调低通、提速 8%
+```
+
+### 5.2 音乐
+
+| 项 | 设计 |
 | --- | --- |
-| SFX（命中/放置/死亡/UI/升级…） | **WebAudio 实时合成**：噪声/振荡器 + ADSR 包络 + 滤波 + 随机音高。约 15 个合成器函数，覆盖 25 个音效，0 KB 资源 |
-| BGM | 优先 Suno 生成 mp3 → 转 96kbps Opus；退路：WebAudio 音序器（方波/三角波 + 噪声鼓 + 侧链压缩） |
-| 混音 | `Master → Compressor → Destination`；`BGM 总线`、`SFX 总线`、`UI 总线` 三条，命中时对 BGM 做 3dB 侧链压低 |
-| 首次交互解锁 | 必须等第一次 `pointerdown` 再 `resume()` AudioContext（浏览器策略） |
+| 音序器 | 120 BPM，16 分步进；`setTimeout` 不用于计时，改用 `AudioContext.currentTime` 预排 100ms 内的音符，避免抖动 |
+| 音轨 | drone / bass / pad / 鼓 / 旋律，五层独立增益，按阶段淡入淡出 |
+| 鼓 | 底鼓=正弦 120→45Hz 下滑；军鼓=噪声 + 带通 1.8kHz；镲=高通噪声 6kHz 短衰减 |
+| 混响 | 用程序生成的衰减噪声当 Convolver 脉冲，省一个文件 |
+| 危机处理 | 勇者 HP < 30%：心跳层（0.9s 两次 55Hz 脉冲）+ BGM 低通截止推到 18kHz（变亮变刺） |
+
+### 5.3 音效
+
+| 类型 | 配方 |
+| --- | --- |
+| 命中 | 白噪声 40ms + 带通 1.2kHz + 快衰减，音高随机 ±8%（同一种音效听 500 次不腻） |
+| 暴击 | 方波 400→120Hz 下滑 + 失真 + 噪声 |
+| 死亡 | 噪声 + 低通 2k→200Hz 扫频 240ms |
+| 升级 | 大三和弦琶音 + 上升扫频 + 1.2s 混响 |
+| 铁锅格挡 | 三角波 180Hz + 金属泛音（×2.7、×5.4），**这是锅巴的"声音签名"** |
+| 献祭 | 80Hz 下坠 400ms + 失真 + 噪声爆 |
+| UI | 方波 1kHz 8ms |
+
+### 5.4 混音与性能
+
+- `Master → DynamicsCompressor → destination`；`BGM` / `SFX` / `UI` 三条子总线。
+- 命中时对 BGM 侧链压低 3dB、200ms 恢复，让打击感"顶出来"。
+- 同时发声 ≤ 40 个；振荡器用完立即 `disconnect()`；40ms 内同类音效合并，防止爆音。
+- 首次 `pointerdown` 再 `resume()` AudioContext（浏览器自动播放策略）。
+- 设置面板：「音乐 / 音效」两条滑杆，默认 70% / 85%。
 
 ---
 
