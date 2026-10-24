@@ -717,5 +717,614 @@
       "input_tokens_details": null
     },
     "createdAt": "2026-10-24T10:55:57.007Z"
+  },
+  {
+    "kind": "image",
+    "id": "skeleton",
+    "model": "gpt-image-2",
+    "prompt": "可爱 Q 版卡通风格，扁平化（flat）2D 游戏角色，圆润简洁造型，粗深色描边，明亮饱和配色，2–3 阶平涂、无写实材质、无渐变高光，单一角色居中、全身完整、无阴影，背景纯白 #FFFFFF 无渐变，无文字无边框。一只萌萌的小骷髅兵：奶白色圆头骨、黑豆眼、笑成小弧线的嘴，戴着偏小的铁灰圆头盔，手里举着一面小圆盾和一把短短的骨头剑，短手短脚。",
+    "size": "1024x1024",
+    "file": "art/raw/skeleton.png",
+    "bytes": 907027,
+    "sourceUrl": "https://imagefil.scdn.app/public/image/26e640509a72e118fcc27b4727fa6e980.png",
+    "usage": {
+      "prompt_tokens": 86,
+      "completion_tokens": 1056,
+      "total_tokens": 1142,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "reasoning_tokens": 0,
+        "text_tokens": 86
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "image_tokens": 1056
+      },
+      "input_tokens": 86,
+      "output_tokens": 1056,
+      "input_tokens_details": {
+        "text_tokens": 86,
+        "cached_tokens": 0
+      },
+      "output_tokens_details": {
+        "text_tokens": 0,
+        "reasoning_tokens": 0,
+        "image_tokens": 1056
+      }
+    },
+    "createdAt": "2026-10-24T11:09:20.845Z"
+  },
+  {
+    "kind": "image",
+    "id": "spider",
+    "model": "gpt-image-2",
+    "prompt": "可爱 Q 版卡通风格，扁平化（flat）2D 游戏角色，圆润简洁造型，粗深色描边，明亮饱和配色，2–3 阶平涂、无写实材质、无渐变高光，单一角色居中、全身完整、无阴影，背景纯白 #FFFFFF 无渐变，无文字无边框。一只萌萌的小蜘蛛：深绿色圆滚滚身体带亮黄色斑点，八条短短的弯折小腿，头顶四颗依次排开的黑豆眼，嘴边挂着一小滴亮绿色口水。",
+    "size": "1024x1024",
+    "file": "art/raw/spider.png",
+    "bytes": 688901,
+    "sourceUrl": "https://imagefil.scdn.app/public/image/8305af509a72e118ffc27b47d520d9950.png",
+    "usage": {
+      "prompt_tokens": 146,
+      "completion_tokens": 1056,
+      "total_tokens": 1202,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "reasoning_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "cached_tokens": 0
+      },
+      "input_tokens": 146,
+      "output_tokens": 1056,
+      "input_tokens_details": {
+        "text_tokens": 146,
+        "cached_tokens": 0
+      },
+      "output_tokens_details": {
+        "text_tokens": 0,
+        "reasoning_tokens": 0,
+        "image_tokens": 1056
+      }
+    },
+    "createdAt": "2026-10-24T11:09:21.589Z"
+  },
+  {
+    "kind": "image",
+    "id": "bat",
+    "model": "gpt-image-2",
+    "prompt": "可爱 Q 版卡通风格，扁平化（flat）2D 游戏角色，圆润简洁造型，粗深色描边，明亮饱和配色，2–3 阶平涂、无写实材质、无渐变高光，单一角色居中、全身完整、无阴影，背景纯白 #FFFFFF 无渐变，无文字无边框。一只萌萌的小蝙蝠：紫色圆胖身体，翅膀是两块圆角的扇形，尖尖的小耳朵，两颗小虎牙，眼睛眯成开心的形状，脚爪短短的。",
+    "size": "1024x1024",
+    "file": "art/raw/bat.png",
+    "bytes": 802939,
+    "sourceUrl": "https://imagefil.scdn.app/public/image/25a3e1056578e1186d187c47a992aa8a0.png",
+    "usage": {
+      "prompt_tokens": 82,
+      "completion_tokens": 1056,
+      "total_tokens": 1138,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "reasoning_tokens": 0,
+        "text_tokens": 82
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "image_tokens": 1056
+      },
+      "input_tokens": 82,
+      "output_tokens": 1056,
+      "input_tokens_details": {
+        "text_tokens": 82,
+        "cached_tokens": 0
+      },
+      "output_tokens_details": {
+        "text_tokens": 0,
+        "reasoning_tokens": 0,
+        "image_tokens": 1056
+      }
+    },
+    "createdAt": "2026-10-24T12:56:26.621Z"
+  },
+  {
+    "kind": "image",
+    "id": "ghost",
+    "model": "gpt-image-2",
+    "prompt": "可爱 Q 版卡通风格，扁平化（flat）2D 游戏角色，圆润简洁造型，粗深色描边，明亮饱和配色，2–3 阶平涂、无写实材质、无渐变高光，单一角色居中、全身完整、无阴影，背景纯白 #FFFFFF 无渐变，无文字无边框。一只萌萌的小幽灵：浅蓝紫色圆润身体、下摆是三个波浪小尾巴，两颗黑色豆豆眼和一个小小的 O 型嘴，双手短短的抱在胸前。身体颜色用浅蓝紫，不要纯白。",
+    "size": "1024x1024",
+    "file": "art/raw/ghost.png",
+    "bytes": 830893,
+    "sourceUrl": "https://imagefil.scdn.app/public/image/05c052ec6478e1186b187c47911c395d0.png",
+    "usage": {
+      "prompt_tokens": 90,
+      "completion_tokens": 1056,
+      "total_tokens": 1146,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "reasoning_tokens": 0,
+        "text_tokens": 90
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "image_tokens": 1056
+      },
+      "input_tokens": 90,
+      "output_tokens": 1056,
+      "input_tokens_details": {
+        "text_tokens": 90,
+        "cached_tokens": 0
+      },
+      "output_tokens_details": {
+        "text_tokens": 0,
+        "reasoning_tokens": 0,
+        "image_tokens": 1056
+      }
+    },
+    "createdAt": "2026-10-24T12:56:39.024Z"
+  },
+  {
+    "kind": "image",
+    "id": "assassin",
+    "model": "gemini-3-pro-image",
+    "prompt": "可爱 Q 版卡通风格，扁平化（flat）2D 游戏角色，圆润简洁造型，粗深色描边，明亮饱和配色，2–3 阶平涂、无写实材质、无渐变高光，单一角色居中、全身完整、剪影封闭无破洞、无阴影，背景纯白 #FFFFFF 无渐变，无文字无边框。一只萌萌的小刺客：深紫色连体小斗篷把身体整个包住，兜帽下露出两只发光的黄眼睛，双手各握一把短短的弯匕首，脚是两只小尖鞋，头大身子小。",
+    "size": "1024x1024",
+    "file": "art/raw/assassin.png",
+    "bytes": 357500,
+    "sourceUrl": "(b64_json)",
+    "usage": {
+      "prompt_tokens": 45,
+      "completion_tokens": 1923,
+      "total_tokens": 1968,
+      "prompt_tokens_details": {},
+      "completion_tokens_details": {},
+      "input_tokens": 45,
+      "output_tokens": 1923,
+      "input_tokens_details": null
+    },
+    "createdAt": "2026-10-24T12:56:54.851Z"
+  },
+  {
+    "kind": "image",
+    "id": "slime",
+    "model": "gpt-image-2",
+    "prompt": "可爱 Q 版卡通风格，扁平化（flat）2D 游戏角色，圆润简洁造型，粗深色描边，明亮饱和配色，2–3 阶平涂、无写实材质、无渐变高光，单一角色居中、全身完整、无阴影，背景纯白 #FFFFFF 无渐变，无文字无边框。一只萌萌的绿色史莱姆：半圆果冻身体，两颗圆滚滚的大眼睛配小腮红，头顶挂着一片小叶子，身体里有几颗比背景更深的墨绿气泡（不要白色）。",
+    "size": "1024x1024",
+    "file": "art/raw/slime.png",
+    "bytes": 893664,
+    "sourceUrl": "https://imagefil.scdn.app/public/image/5d1788b56478e11865187c471acfd6450.png",
+    "usage": {
+      "prompt_tokens": 86,
+      "completion_tokens": 1056,
+      "total_tokens": 1142,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "reasoning_tokens": 0,
+        "text_tokens": 86
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "image_tokens": 1056
+      },
+      "input_tokens": 86,
+      "output_tokens": 1056,
+      "input_tokens_details": {
+        "text_tokens": 86,
+        "cached_tokens": 0
+      },
+      "output_tokens_details": {
+        "text_tokens": 0,
+        "reasoning_tokens": 0,
+        "image_tokens": 1056
+      }
+    },
+    "createdAt": "2026-10-24T12:57:05.035Z"
+  },
+  {
+    "kind": "image",
+    "id": "boom",
+    "model": "gpt-image-2",
+    "prompt": "可爱 Q 版卡通风格，扁平化（flat）2D 游戏角色，圆润简洁造型，粗深色描边，明亮饱和配色、主体避免纯白、无写实材质、无渐变高光，单一角色居中、全身完整、无阴影，背景纯白 #FFFFFF 无渐变，无文字无边框。一只萌萌的自爆虫：橙红色圆球身体，背上三颗鼓起的黄色小囊泡，六条短短的腿，两颗生气的黑豆眼和一张小尖嘴，头顶一根卷曲的小引信，引信尖端有一小簇火苗。",
+    "size": "1024x1024",
+    "file": "art/raw/boom.png",
+    "bytes": 881241,
+    "sourceUrl": "https://imagefil.scdn.app/public/image/a074b9bb7b78e118ed197c474aaefe5d0.png",
+    "usage": {
+      "prompt_tokens": 90,
+      "completion_tokens": 1056,
+      "total_tokens": 1146,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "reasoning_tokens": 0,
+        "text_tokens": 90
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "image_tokens": 1056
+      },
+      "input_tokens": 90,
+      "output_tokens": 1056,
+      "input_tokens_details": {
+        "text_tokens": 90,
+        "cached_tokens": 0
+      },
+      "output_tokens_details": {
+        "text_tokens": 0,
+        "reasoning_tokens": 0,
+        "image_tokens": 1056
+      }
+    },
+    "createdAt": "2026-10-24T12:58:14.156Z"
+  },
+  {
+    "kind": "image",
+    "id": "frost",
+    "model": "gpt-image-2",
+    "prompt": "可爱 Q 版卡通风格，扁平化（flat）2D 游戏角色，圆润简洁造型，粗深色描边，明亮饱和配色、主体避免纯白、无写实材质、无渐变高光，单一角色居中、全身完整、无阴影，背景纯白 #FFFFFF 无渐变，无文字无边框。一只萌萌的冰霜法师：蓝色小尖帽和蓝色斗篷，圆脸、两颗黑豆眼、脸颊有淡蓝色冻红，双手举着一根顶端嵌小蓝宝石的短法杖，帽尖挂着一小片雪花。",
+    "size": "1024x1024",
+    "file": "art/raw/frost.png",
+    "bytes": 790205,
+    "sourceUrl": "https://imagefil.scdn.app/public/image/811c21297f78e1182c1a7c47e93247a20.png",
+    "usage": {
+      "prompt_tokens": 160,
+      "completion_tokens": 1056,
+      "total_tokens": 1216,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "reasoning_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "cached_tokens": 0
+      },
+      "input_tokens": 160,
+      "output_tokens": 1056,
+      "input_tokens_details": {
+        "text_tokens": 160,
+        "cached_tokens": 0
+      },
+      "output_tokens_details": {
+        "text_tokens": 0,
+        "reasoning_tokens": 0,
+        "image_tokens": 1056
+      }
+    },
+    "createdAt": "2026-10-24T12:58:15.180Z"
+  },
+  {
+    "kind": "image",
+    "id": "shaman",
+    "model": "gpt-image-2",
+    "prompt": "可爱 Q 版卡通风格，扁平化（flat）2D 游戏角色，圆润简洁造型，粗深色描边，明亮饱和配色、主体避免纯白、无写实材质、无渐变高光，单一角色居中、全身完整、无阴影，背景纯白 #FFFFFF 无渐变，无文字无边框。一只萌萌的小巫医：浅绿色圆脸、两颗黑豆眼，戴着一顶插着三根彩色羽毛的草帽，披着带骨片串的小披肩，手里摇晃一只冒着绿色小烟的陶罐。",
+    "size": "1024x1024",
+    "file": "art/raw/shaman.png",
+    "bytes": 1085646,
+    "sourceUrl": "https://imagefil.scdn.app/public/image/0d6898c58178e118571a7c47cb827c410.png",
+    "usage": {
+      "prompt_tokens": 85,
+      "completion_tokens": 1056,
+      "total_tokens": 1141,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "reasoning_tokens": 0,
+        "text_tokens": 85
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "image_tokens": 1056
+      },
+      "input_tokens": 85,
+      "output_tokens": 1056,
+      "input_tokens_details": {
+        "text_tokens": 85,
+        "cached_tokens": 0
+      },
+      "output_tokens_details": {
+        "text_tokens": 0,
+        "reasoning_tokens": 0,
+        "image_tokens": 1056
+      }
+    },
+    "createdAt": "2026-10-24T12:58:47.855Z"
+  },
+  {
+    "kind": "image",
+    "id": "gargoyle",
+    "model": "gpt-image-2",
+    "prompt": "可爱 Q 版卡通风格，扁平化（flat）2D 游戏角色，圆润简洁造型，粗深色描边，明亮饱和配色、主体避免纯白、无写实材质、无渐变高光，单一角色居中、全身完整、无阴影，背景纯白 #FFFFFF 无渐变，无文字无边框。一只萌萌的石像鬼：灰蓝色圆胖身体，一对收拢的小蝠翼，头顶两只短短的小弯角，眼睛是两颗橙黄色发光的小圆点，嘴巴是个小小的方形，手脚是小爪子。",
+    "size": "1024x1024",
+    "file": "art/raw/gargoyle.png",
+    "bytes": 875275,
+    "sourceUrl": "https://imagefil.scdn.app/public/image/ceccdbc29178e1184c1b7c471bc4bb780.png",
+    "usage": {
+      "prompt_tokens": 88,
+      "completion_tokens": 1056,
+      "total_tokens": 1144,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "reasoning_tokens": 0,
+        "text_tokens": 88
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "image_tokens": 1056
+      },
+      "input_tokens": 88,
+      "output_tokens": 1056,
+      "input_tokens_details": {
+        "text_tokens": 88,
+        "cached_tokens": 0
+      },
+      "output_tokens_details": {
+        "text_tokens": 0,
+        "reasoning_tokens": 0,
+        "image_tokens": 1056
+      }
+    },
+    "createdAt": "2026-10-24T12:59:26.037Z"
+  },
+  {
+    "kind": "image",
+    "id": "lich",
+    "model": "gpt-image-2",
+    "prompt": "可爱 Q 版卡通风格，扁平化（flat）2D 游戏角色，圆润简洁造型，粗深色描边，明亮饱和配色、主体避免纯白、无写实材质、无渐变高光，单一角色居中、全身完整、无阴影，背景纯白 #FFFFFF 无渐变，无文字无边框。一只萌萌的巫妖：紫色小长袍里露出一颗圆头骨，戴着一顶歪歪的金色小三叉冠，眼窝里是两点紫色小灯，脚不落地、身体下面飘着三小缕黑烟，手里托着一团紫色小火球。",
+    "size": "1024x1024",
+    "file": "art/raw/lich.png",
+    "bytes": 965084,
+    "sourceUrl": "https://imagefil.scdn.app/public/image/d44e2e1f9278e118521b7c47d74982550.png",
+    "usage": {
+      "prompt_tokens": 91,
+      "completion_tokens": 1056,
+      "total_tokens": 1147,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "reasoning_tokens": 0,
+        "text_tokens": 91
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "image_tokens": 1056
+      },
+      "input_tokens": 91,
+      "output_tokens": 1056,
+      "input_tokens_details": {
+        "text_tokens": 91,
+        "cached_tokens": 0
+      },
+      "output_tokens_details": {
+        "text_tokens": 0,
+        "reasoning_tokens": 0,
+        "image_tokens": 1056
+      }
+    },
+    "createdAt": "2026-10-24T12:59:27.578Z"
+  },
+  {
+    "kind": "image",
+    "id": "general",
+    "model": "gpt-image-2",
+    "prompt": "可爱 Q 版卡通风格，扁平化（flat）2D 游戏角色，圆润简洁造型，粗深色描边，明亮饱和配色、主体避免纯白、无写实材质、无渐变高光，单一角色居中、全身完整、无阴影，背景纯白 #FFFFFF 无渐变，无文字无边框。一只萌萌的骷髅将军：奶白色圆头骨配一顶红色带羽饰的小头盔，肩上搭着暗红色小披风，双手举着一把比自己还高的宽刃大剑，短手短脚、肚子圆。",
+    "size": "1024x1024",
+    "file": "art/raw/general.png",
+    "bytes": 991104,
+    "sourceUrl": "https://imagefil.scdn.app/public/image/4a4e57b59978e118cc1b7c4786c93d460.png",
+    "usage": {
+      "prompt_tokens": 86,
+      "completion_tokens": 1056,
+      "total_tokens": 1142,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "reasoning_tokens": 0,
+        "text_tokens": 86
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "image_tokens": 1056
+      },
+      "input_tokens": 86,
+      "output_tokens": 1056,
+      "input_tokens_details": {
+        "text_tokens": 86,
+        "cached_tokens": 0
+      },
+      "output_tokens_details": {
+        "text_tokens": 0,
+        "reasoning_tokens": 0,
+        "image_tokens": 1056
+      }
+    },
+    "createdAt": "2026-10-24T13:00:17.308Z"
+  },
+  {
+    "kind": "image",
+    "id": "guoba-rage",
+    "model": "gpt-image-2",
+    "prompt": "可爱 Q 版卡通风格，扁平化（flat）2D 游戏角色，圆润简洁造型，粗深色描边，明亮饱和配色、主体避免纯白、无写实材质、无渐变高光，Q 版 3 头身、头大身子小，单一角色居中、全身完整、无阴影，背景纯白 #FFFFFF 无渐变，无文字无边框。主角「锅巴」的狂化形态：金黄色锅巴身体裂开缝隙透出橙红火光，眼睛变成金色发亮的样子，短斗篷被热浪掀起，手里举的Y 字木弹弓缠着火焰，头顶冒着两小缕烟。",
+    "size": "1024x1024",
+    "file": "art/raw/guoba-rage.png",
+    "bytes": 1100275,
+    "sourceUrl": "https://imagefil.scdn.app/public/image/28b680d6a278e1187f1c7c477243eb1a0.png",
+    "usage": {
+      "prompt_tokens": 98,
+      "completion_tokens": 1056,
+      "total_tokens": 1154,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "reasoning_tokens": 0,
+        "text_tokens": 98
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "image_tokens": 1056
+      },
+      "input_tokens": 98,
+      "output_tokens": 1056,
+      "input_tokens_details": {
+        "text_tokens": 98,
+        "cached_tokens": 0
+      },
+      "output_tokens_details": {
+        "text_tokens": 0,
+        "reasoning_tokens": 0,
+        "image_tokens": 1056
+      }
+    },
+    "createdAt": "2026-10-24T13:01:39.935Z"
+  },
+  {
+    "kind": "image",
+    "id": "guoba",
+    "model": "gpt-image-2",
+    "prompt": "可爱 Q 版卡通风格，扁平化（flat）2D 游戏角色，圆润简洁造型，粗深色描边，明亮饱和配色、主体避免纯白、无写实材质、无渐变高光，Q 版 3 头身、头大身子小，单一角色居中、全身完整、无阴影，背景纯白 #FFFFFF 无渐变，无文字无边框。主角「锅巴」：一块金黄色焦脆米饭锅巴变成的小勇者，方形圆角的大脑袋上撒着几粒黑芝麻，两颗又大又亮的黑豆眼，脸颊红扑扑，披着浅灰蓝色的短斗篷，手里举着一把Y 字木弹弓（他是远程单位，不要剑），腰上挂着一个小皮袋。",
+    "size": "1024x1024",
+    "file": "art/raw/guoba.png",
+    "bytes": 1027137,
+    "sourceUrl": "https://imagefil.scdn.app/public/image/63a7317da278e118771c7c47bfb05c030.png",
+    "usage": {
+      "prompt_tokens": 113,
+      "completion_tokens": 1056,
+      "total_tokens": 1169,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "reasoning_tokens": 0,
+        "text_tokens": 113
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "image_tokens": 1056
+      },
+      "input_tokens": 113,
+      "output_tokens": 1056,
+      "input_tokens_details": {
+        "text_tokens": 113,
+        "cached_tokens": 0
+      },
+      "output_tokens_details": {
+        "text_tokens": 0,
+        "reasoning_tokens": 0,
+        "image_tokens": 1056
+      }
+    },
+    "createdAt": "2026-10-24T13:01:45.967Z"
+  },
+  {
+    "kind": "image",
+    "id": "throne",
+    "model": "gpt-image-2",
+    "prompt": "可爱 Q 版卡通风格，扁平化（flat）2D 游戏场景道具，圆润简洁造型，粗深色描边，明亮饱和配色、主体避免纯白、无写实材质、无渐变高光，单一物件居中、完整、无阴影，背景纯白 #FFFFFF 无渐变，无文字无边框。一座萌萌的魔王小空王座：深紫色圆角高背椅，扶手末端是两个可爱的小骷髅头，坐垫是红色，椅背后有一圈浅浅的紫色魔法光环。椅上没有人（魔王没有身体）。",
+    "size": "1024x1024",
+    "file": "art/raw/throne.png",
+    "bytes": 914936,
+    "sourceUrl": "https://imagefil.scdn.app/public/image/82cb2c76ae78e118c11d7c471974d0db0.png",
+    "usage": {
+      "prompt_tokens": 89,
+      "completion_tokens": 1056,
+      "total_tokens": 1145,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "reasoning_tokens": 0,
+        "text_tokens": 89
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "image_tokens": 1056
+      },
+      "input_tokens": 89,
+      "output_tokens": 1056,
+      "input_tokens_details": {
+        "text_tokens": 89,
+        "cached_tokens": 0
+      },
+      "output_tokens_details": {
+        "text_tokens": 0,
+        "reasoning_tokens": 0,
+        "image_tokens": 1056
+      }
+    },
+    "createdAt": "2026-10-24T13:02:20.309Z"
+  },
+  {
+    "kind": "image",
+    "id": "skeleton",
+    "model": "gpt-image-2",
+    "prompt": "可爱 Q 版卡通风格，扁平化（flat）2D 游戏角色，圆润简洁造型，粗深色描边，明亮饱和配色、主体避免纯白、无写实材质、无渐变高光，单一角色居中、全身完整、双手结构清晰各自握持一件道具、无阴影，背景纯白 #FFFFFF 无渐变，无文字无边框。一只萌萌的小骷髅兵：奶白色圆头骨、黑豆眼、笑成小弧线的嘴，戴着偏小的铁灰圆头盔，左手举一面小圆盾、右手握一把短短的小骨头棒，两只手都要清楚画出来且与道具的连接自然，短手短脚、肚子圆。",
+    "size": "1024x1024",
+    "file": "art/raw/skeleton.png",
+    "bytes": 889260,
+    "sourceUrl": "https://imagefil.scdn.app/public/image/cf5088511d79e118d2247c478b5a40080.png",
+    "usage": {
+      "prompt_tokens": 106,
+      "completion_tokens": 1056,
+      "total_tokens": 1162,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "reasoning_tokens": 0,
+        "text_tokens": 106
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "image_tokens": 1056
+      },
+      "input_tokens": 106,
+      "output_tokens": 1056,
+      "input_tokens_details": {
+        "text_tokens": 106,
+        "cached_tokens": 0
+      },
+      "output_tokens_details": {
+        "text_tokens": 0,
+        "reasoning_tokens": 0,
+        "image_tokens": 1056
+      }
+    },
+    "createdAt": "2026-10-24T13:09:52.499Z"
+  },
+  {
+    "kind": "image",
+    "id": "general",
+    "model": "gpt-image-2",
+    "prompt": "可爱 Q 版卡通风格，扁平化（flat）2D 游戏角色，圆润简洁造型，粗深色描边，明亮饱和配色、主体避免纯白、无写实材质、无渐变高光，单一角色居中、全身完整、双手结构清晰、无阴影，背景纯白 #FFFFFF 无渐变，无文字无边框。一只萌萌的骷髅将军：奶白色圆头骨配一顶红色带羽饰的小头盔，肩上搭着暗红色小披风，双手一起握着一把宽刃大剑的剑柄（两只手都在剑柄上、手指分明、握持关系清楚），短手短脚、肚子圆。",
+    "size": "1024x1024",
+    "file": "art/raw/general.png",
+    "bytes": 962546,
+    "sourceUrl": "https://imagefil.scdn.app/public/image/a7a6a6e41d79e118da247c4705810acd0.png",
+    "usage": {
+      "prompt_tokens": 100,
+      "completion_tokens": 1056,
+      "total_tokens": 1156,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "reasoning_tokens": 0,
+        "text_tokens": 100
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "image_tokens": 1056
+      },
+      "input_tokens": 100,
+      "output_tokens": 1056,
+      "input_tokens_details": {
+        "text_tokens": 100,
+        "cached_tokens": 0
+      },
+      "output_tokens_details": {
+        "text_tokens": 0,
+        "reasoning_tokens": 0,
+        "image_tokens": 1056
+      }
+    },
+    "createdAt": "2026-10-24T13:10:02.240Z"
   }
 ]
