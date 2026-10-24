@@ -18,7 +18,10 @@ param(
     [string]$Branch = 'main'
 )
 
-$ErrorActionPreference = 'Stop'
+# 注意：PS 5.1 里 native 命令写 stderr 时会被包成 ErrorRecord，
+# 若 ErrorActionPreference=Stop 会误判成致命错误（git push 成功也走 stderr）。
+# 所以统一用 Continue + 显式检查 $LASTEXITCODE。
+$ErrorActionPreference = 'Continue'
 
 function Write-Step($text) { Write-Host "`n== $text" -ForegroundColor Cyan }
 function Write-Ok($text) { Write-Host "   $text" -ForegroundColor Green }
@@ -28,7 +31,10 @@ function Write-Err2($text) { Write-Host "   $text" -ForegroundColor Red }
 function Invoke-Git {
     param([Parameter(ValueFromRemainingArguments = $true)][string[]]$GitArgs)
     & git @GitArgs
-    if ($LASTEXITCODE -ne 0) { throw "git $($GitArgs -join ' ') 失败（exit $LASTEXITCODE）" }
+    if ($LASTEXITCODE -ne 0) {
+        Write-Err2 "git $($GitArgs -join ' ') 失败（exit $LASTEXITCODE）"
+        exit 1
+    }
 }
 
 # 0. 前置检查 ---------------------------------------------------------------
@@ -42,8 +48,8 @@ if ($dirty) {
 }
 Write-Ok '工作区干净'
 
-$envLeak = & git ls-files --error-unmatch .env.local 2>$null
-if ($LASTEXITCODE -eq 0) {
+$tracked = & git ls-files -- .env.local 2>$null
+if ($tracked) {
     Write-Err2 '.env.local 已被 git 跟踪！立即处理：git rm --cached .env.local，并重置该 Key。'
     exit 1
 }
