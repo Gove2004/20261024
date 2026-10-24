@@ -51,7 +51,7 @@
 - [x] 玩法说明（[`docs/GAME_DESIGN.md`](GAME_DESIGN.md)）
 - [x] 音频说明（[`docs/AUDIO.md`](AUDIO.md)）
 - [x] 实机截图（`shots/01-title.png`、`shots/02-arena.png`、`shots/05-levelup.png`、`shots/04-lost.png`）
-- [ ] **线上链接**：https://gove2004.github.io/20261024/ （需在仓库 Settings → Pages 里选 `gh-pages` 分支，一键开启）
+- [x] **线上链接**：**https://gove2004.github.io/20261024/**（`gh-pages` 分支已开，`node tools/live-probe.mjs` 全部通过：进局 / 召唤 / 无 4xx / 无报错）
 - [x] 主角卡图片：`shots/guoba-card.png`（1080×1440，`python tools/art/card.py` 可重出）
 
 ## 7. 部署（维护者操作）
