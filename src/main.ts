@@ -36,6 +36,8 @@ async function bootstrap(): Promise<void> {
   let game!: Game;
   /** 顿帧剩余帧数（见主循环） */
   let hitStop = 0;
+  /** 星级里程碑去重（见渲染回调） */
+  let lastStarTier = 0;
 
   const events: GameEvents = {
     onSpawn: (slot) => {
@@ -63,6 +65,14 @@ async function bootstrap(): Promise<void> {
     },
     onMonsterHit: (x, y, amount, crit) => {
       scene.fx.damage(x, y, amount, crit);
+      // 打击感：只有暴击才给火花 + 顿帧。每一下都炸火花会糊屏，也会拖死软件渲染
+      // （爆发池只有 20 个），所以把"重"留给稀有的那一下。
+      if (crit) {
+        scene.fx.burst(x, y, 0xffd08a, 6, 18);
+        scene.shake(1.4);
+        hitStop = Math.max(hitStop, 1);
+        audio.onCritHit();
+      }
     },
     onSkillLabel: (text, kind) => {
       const color =
@@ -257,6 +267,12 @@ async function bootstrap(): Promise<void> {
       const now = performance.now();
       scene.sync(game, 0, (now - startTime) / 1000);
       updateAudio(game);
+      // 星级里程碑（20/40/60）：玩家在上帝视角里数不清星，靠声音判断"这波铺大了"
+      const tier = game.peakStars >= 60 ? 3 : game.peakStars >= 40 ? 2 : game.peakStars >= 20 ? 1 : 0;
+      if (tier !== lastStarTier) {
+        lastStarTier = tier;
+        if (tier > 0) audio.onStarMilestone(tier);
+      }
       // HUD 走 DOM，每帧都写会触发大量样式重算；15Hz 足够读，且省下主线程时间
       hudTick = (hudTick + 1) % 4;
       if (hudTick === 0) hud.update(game);

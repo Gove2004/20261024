@@ -1,4 +1,4 @@
-/**
+﻿/**
  * WebAudio 程序合成引擎。
  *
  * 策划案要求音乐音效 **100% 程序合成、零音频资源**，所以这里没有任何 mp3/ogg，
@@ -71,6 +71,9 @@ export class AudioEngine {
 
   private voices = 0;
   private intensity = 0;
+  /** 低血量心跳节流 / 状态（见 update） */
+  private dying = false;
+  private nextBeat = 0;
   private step = 0;
   private nextNoteTime = 0;
   private timer: number | null = null;
@@ -189,6 +192,44 @@ export class AudioEngine {
       this.intensity = level;
       filter.frequency.setTargetAtTime(900 + level * 3200, ctx.currentTime, 0.8);
     }
+
+    // 斩杀前的最后一段：他真的快死了 —— 心跳 + 音乐闷成"耳朵里的血"
+    // （这是玩家最需要"知道自己快赢了"的时刻，只靠血条读不出来）
+    const dying = game.hero.hpRatio <= 0.25;
+    const now = ctx.currentTime;
+    if (dying && !this.dying) {
+      this.dying = true;
+      filter.frequency.setTargetAtTime(1500, now, 0.6);
+    } else if (!dying && this.dying) {
+      this.dying = false;
+      filter.frequency.setTargetAtTime(900 + this.intensity * 3200, now, 0.6);
+    }
+    if (dying && now >= this.nextBeat) {
+      this.nextBeat = now + 0.62;
+      this.sfxHeartbeat(now);
+    }
+  }
+
+  /** 心跳：两个低频短促撞击，第二个稍弱 —— 生理上就是"咚·咚"。 */
+  private sfxHeartbeat(t: number): void {
+    const bus = this.sfxBus;
+    if (bus === null) return;
+    this.tone({ freq: 62, time: t, dur: 0.16, type: 'sine', gain: 0.3, dest: bus, glide: 40 });
+    this.tone({ freq: 54, time: t + 0.2, dur: 0.14, type: 'sine', gain: 0.2, dest: bus, glide: 36 });
+  }
+
+  /**
+   * 星级里程碑（20 / 40 / 60）：场面压过某个量级时给一次上扬音。
+   * 玩家在上帝视角里很难用眼睛数星，声音是更可靠的"我这波铺大了"反馈。
+   */
+  public onStarMilestone(tier: number): void {
+    const ctx = this.ctx;
+    const bus = this.sfxBus;
+    if (ctx === null || bus === null) return;
+    const t = ctx.currentTime;
+    const base = 220 * Math.pow(1.12, tier);
+    this.tone({ freq: base, time: t, dur: 0.5, type: 'triangle', gain: 0.1, dest: bus, glide: base * 2.2 });
+    this.noise({ time: t, dur: 0.4, gain: 0.08, dest: bus, filter: 'highpass', freq: 2600 });
   }
 
   /** 消费一帧里的事件。必须在 `clearEvents` 之前调用。 */
@@ -208,6 +249,14 @@ export class AudioEngine {
     this.sfxSummon(star);
   }
 
+  public onCritHit(): void {
+    const ctx = this.ctx;
+    const bus = this.sfxBus;
+    if (ctx === null || bus === null) return;
+    const t = ctx.currentTime;
+    this.tone({ freq: 1480, time: t, dur: 0.1, type: 'square', gain: 0.07, dest: bus, glide: 2100 });
+    this.noise({ time: t, dur: 0.06, gain: 0.06, dest: bus, filter: 'highpass', freq: 4200 });
+  }
   public onDeath(): void {
     if (this.ctx === null) return;
     this.sfxDeath();
