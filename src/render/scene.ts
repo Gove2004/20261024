@@ -1,4 +1,4 @@
-import { Container, Graphics, Sprite } from 'pixi.js';
+import { Container, Graphics, Sprite, Texture } from 'pixi.js';
 import { HALL, HALL_CENTER, HALL_WALL, PILLARS, PLACE, THRONE, VIEW, WORLD } from '../content/config';
 import { CARDS, type CardShape } from '../content/cards';
 import { COLOR } from '../content/palette';
@@ -6,6 +6,7 @@ import { AI } from '../content/heroAi';
 import type { Game } from '../gameplay/game';
 import type { Rng } from '../core/rng';
 import { FxLayer } from './fx';
+import type { ArtMap } from './art';
 import type { Stage } from './stage';
 
 const HERO_RADIUS_SCALE = 1;
@@ -73,8 +74,12 @@ export class Scene {
   private readonly heroNode = new Container();
   private readonly heroBody = new Graphics();
   private readonly heroSword = new Graphics();
-  private readonly monsters = new Map<number, Graphics>();
+  private readonly monsters = new Map<number, Container>();
   private readonly monsterDef = new Map<number, number>();
+  /** 每只魔物的基准缩放（贴图按尺寸换算，占位造型是 1） */
+  private readonly monsterBase = new Map<number, number>();
+  private art: ArtMap = new Map();
+  private heroArt: Sprite | null = null;
 
   constructor(
     private readonly stage: Stage,
@@ -106,6 +111,26 @@ export class Scene {
 
     this.previewLayer.addChild(this.preview);
     world.addChild(this.previewLayer);
+  }
+
+  /**
+   * 注入贴图。贴图是异步加载的，Scene 构造时可能还没有，
+   * 所以这里允许随时注入；缺图的实体保持程序化造型不变。
+   */
+  public setArt(art: ArtMap): void {
+    this.art = art;
+    const texture = art.get('guoba');
+    if (!texture || this.heroArt) return;
+
+    const sprite = new Sprite(texture);
+    sprite.anchor.set(0.5, 0.82);
+    const size = 118;
+    sprite.width = size;
+    sprite.height = size;
+    this.heroBody.visible = false;
+    this.heroSword.visible = false;
+    this.heroNode.addChild(sprite);
+    this.heroArt = sprite;
   }
 
   /** 召唤落点预览：绿=可放，红=不可放。 */
@@ -250,16 +275,26 @@ export class Scene {
     const wobble = hero.moving ? Math.sin(time * 15) * 0.075 : Math.sin(time * 2.4) * 0.012;
     this.heroNode.rotation = hero.windup > 0 ? -0.1 : wobble;
     const bob = hero.moving ? Math.sin(time * 30) * 2 : 0;
-    this.heroBody.y = bob;
     this.heroNode.alpha = hero.alive ? 1 : 0;
 
     // 挥砍：前摇收剑 → 后摇出剑
     const swingTarget = hero.windup > 0 ? -0.5 : hero.recover > 0 ? 0.75 : -0.35;
     this.heroSword.rotation += (swingTarget - this.heroSword.rotation) * 0.35;
 
-    // 阶段配色
+    // 阶段配色：5 级起偏暖，10 级狂化贴图整张换掉
     const stageTint = hero.level >= 10 ? 0xffb0a0 : hero.level >= 5 ? 0xd9c4a8 : 0xffffff;
-    this.heroBody.tint = hero.flash > 0.4 ? 0xffffff : stageTint;
+    const wantTint = hero.flash > 0.4 ? 0xffffff : stageTint;
+
+    if (this.heroArt) {
+      const rage = hero.level >= 10;
+      const texture = this.art.get(rage ? 'guoba-rage' : 'guoba');
+      if (texture && this.heroArt.texture !== texture) this.heroArt.texture = texture;
+      this.heroArt.y = bob;
+      if (this.heroArt.tint !== wantTint) this.heroArt.tint = wantTint;
+    } else {
+      this.heroBody.y = bob;
+      if (this.heroBody.tint !== wantTint) this.heroBody.tint = wantTint;
+    }
 
     this.drawTelegraphs(hero, time);
     this.fx.update(1 / 60);
@@ -279,8 +314,23 @@ export class Scene {
       let gfx = this.monsters.get(slot);
       if (!gfx || this.monsterDef.get(slot) !== defIdx) {
         if (gfx) gfx.destroy();
-        gfx = new Graphics();
-        drawMonster(gfx, def.shape, def.color, def.radius);
+        const texture: Texture | undefined = this.art.get(def.id);
+        if (texture) {
+          // 贴图是 256 见方、主体已撑满画布，按半径换算显示尺寸；
+          // anchor 压在脚底，这样 y 排序（zIndex = y）和分离力才对得上。
+          const sprite = new Sprite(texture);
+          sprite.anchor.set(0.5, 0.8);
+          const size = def.radius * 4.6;
+          sprite.width = size;
+          sprite.height = size;
+          gfx = sprite;
+          this.monsterBase.set(slot, size / texture.width);
+        } else {
+          const placeholder = new Graphics();
+          drawMonster(placeholder, def.shape, def.color, def.radius);
+          gfx = placeholder;
+          this.monsterBase.set(slot, 1);
+        }
         this.entityLayer.addChild(gfx);
         this.monsters.set(slot, gfx);
         this.monsterDef.set(slot, defIdx);
@@ -290,9 +340,10 @@ export class Scene {
       const y = store.y[slot] ?? 0;
       const star = store.star[slot] ?? 1;
       const size = 1 + 0.055 * (star - 1);
+      const base = this.monsterBase.get(slot) ?? 1;
       gfx.position.set(x, y);
       gfx.zIndex = y;
-      gfx.scale.set(size);
+      gfx.scale.set(base * size);
 
       const phase = store.phase[slot] ?? 0;
       const moving = Math.abs(store.vx[slot] ?? 0) + Math.abs(store.vy[slot] ?? 0) > 12;
@@ -355,6 +406,7 @@ export class Scene {
     for (const gfx of this.monsters.values()) gfx.destroy();
     this.monsters.clear();
     this.monsterDef.clear();
+    this.monsterBase.clear();
     this.fx.clear();
   }
 }

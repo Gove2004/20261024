@@ -98,7 +98,9 @@ async function postJson(url, headers, body, timeoutMs = 300_000) {
 
 /**
  * 出图。
- * @returns {Promise<{ url: string, usage: unknown }>}
+ * 两种返回形态都要接：有的模型返 CDN `url`（gpt-image-2），有的直接返 `b64_json`
+ * （gemini-3-pro-image 等）。只认 url 会在换模型时直接报"响应里没有图片 URL"。
+ * @returns {Promise<{ url?: string, base64?: string, usage: unknown }>}
  */
 export async function generateImage({ model, prompt, size = '1024x1024' }) {
   const { key, base } = await getConfig();
@@ -109,10 +111,20 @@ export async function generateImage({ model, prompt, size = '1024x1024' }) {
   );
 
   const item = data?.data?.[0];
-  if (!item?.url) {
-    throw new Error(`响应里没有图片 URL：${JSON.stringify(data).slice(0, 300)}`);
+  if (item?.url) return { url: item.url, usage: data.usage };
+  if (typeof item?.b64_json === 'string' && item.b64_json.length > 0) {
+    return { base64: item.b64_json, usage: data.usage };
   }
-  return { url: item.url, usage: data.usage };
+  throw new Error(`响应里没有图片（url / b64_json 都缺）：${JSON.stringify(data).slice(0, 200)}`);
+}
+
+/** 把 base64 结果落盘。 */
+export async function saveBase64(base64, outPath) {
+  const target = resolve(PROJECT_ROOT, outPath);
+  await mkdir(dirname(target), { recursive: true });
+  const buffer = Buffer.from(base64, 'base64');
+  await writeFile(target, buffer);
+  return { path: target, bytes: buffer.length };
 }
 
 /** 下载生成的资源到本地（CDN URL 有时效，必须立刻落盘）。 */

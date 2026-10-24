@@ -292,7 +292,7 @@ export const CARDS: readonly CardDef[] = [
 ];
 
 /** 开局手牌（卡池 id，按手牌顺序）。 */
-export const STARTER_HAND: readonly string[] = ['slime', 'ghost', 'skeleton', 'spider'];
+export const STARTER_HAND: readonly string[] = ['slime', 'ghost', 'skeleton', 'spider', 'bat'];
 
 export function findCard(id: string): CardDef | undefined {
   return CARDS.find((card) => card.id === id);

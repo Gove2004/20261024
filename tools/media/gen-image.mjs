@@ -11,7 +11,7 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { appendManifest, download, generateImage, getConfig, mask } from './client.mjs';
+import { appendManifest, download, generateImage, getConfig, mask, saveBase64 } from './client.mjs';
 
 const PROJECT_ROOT = resolve(fileURLToPath(new URL('../..', import.meta.url)));
 
@@ -52,8 +52,8 @@ console.log(`提示 ${prompt.slice(0, 90)}${prompt.length > 90 ? '…' : ''}`);
 console.log(`输出 ${out}`);
 
 const started = Date.now();
-const { url, usage } = await generateImage({ model, prompt, size });
-const file = await download(url, out);
+const { url, base64, usage } = await generateImage({ model, prompt, size });
+const file = base64 ? await saveBase64(base64, out) : await download(url, out);
 
 console.log(`✅ 完成 ${(file.bytes / 1024).toFixed(0)}KB · ${((Date.now() - started) / 1000).toFixed(1)}s`);
 if (usage) console.log(`   用量 ${mask(JSON.stringify(usage))}`);

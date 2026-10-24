@@ -40,8 +40,15 @@ export interface PowerupOption {
   readonly value: number;
 }
 
-const POWERUPS: readonly PowerupOption[] = [
-  { id: 'atk', title: '尖牙', desc: '全魔物攻击 +14%', kind: 'atk', value: 0.14 },
+/**
+ * 手牌从 4 提到 6：12 张卡池里 4 个格子意味着"这局我能玩到什么"太随机，
+ * 6 格才够组出一个流派（坦克 + 输出 + 功能），也让新解锁的卡真的能被用上。
+ * 再往上给 2 格权能，上限 8 —— 再多人就只看手牌不看战场了。
+ */
+const HAND_BASE = 6;
+const HAND_MAX_EXTRA = 2;
+
+const POWERUPS: readonly PowerupOption[] = [  { id: 'atk', title: '尖牙', desc: '全魔物攻击 +14%', kind: 'atk', value: 0.14 },
   { id: 'hp', title: '厚壳', desc: '全魔物生命 +18%', kind: 'hp', value: 0.18 },
   { id: 'atkspeed', title: '躁动', desc: '全魔物攻速 +10%', kind: 'atkspeed', value: 0.1 },
   { id: 'cd', title: '冷却缩减', desc: '全卡 CD −8%', kind: 'cd', value: 0.08 },
@@ -501,7 +508,7 @@ export class Game {
         this.starBonus += picked.value;
         break;
       case 'hand':
-        this.handBonus = Math.min(2, this.handBonus + 1);
+        this.handBonus = Math.min(HAND_MAX_EXTRA, this.handBonus + 1);
         this.grantExtraCard();
         break;
       case 'star':
@@ -522,7 +529,7 @@ export class Game {
     });
     const picked = this.rng.pick(candidates);
     if (!picked) {
-      this.handBonus = Math.min(2, this.handBonus + 1);
+      this.handBonus = Math.min(HAND_MAX_EXTRA, this.handBonus + 1);
       this.grantExtraCard();
       return;
     }
@@ -591,7 +598,7 @@ export class Game {
   }
 
   public get handLimit(): number {
-    return 4 + this.handBonus;
+    return HAND_BASE + this.handBonus;
   }
 
   /** 调试 / 冒烟测试用：把下一次权能提前到 `seconds` 秒后。 */

@@ -12,6 +12,7 @@ export interface HudHandlers {
 
 interface CardNode {
   root: HTMLButtonElement;
+  art: HTMLImageElement;
   cd: HTMLDivElement;
   star: HTMLSpanElement;
   name: HTMLSpanElement;
@@ -129,17 +130,19 @@ export class Hud {
       root.className = 'card';
       root.dataset['idx'] = String(index);
       root.innerHTML = `
+        <img class="card-art" alt="" draggable="false" />
         <div class="card-cd"></div>
         <span class="card-star"></span>
         <span class="card-name"></span>
       `;
       root.addEventListener('click', () => this.handlers.onCard(index));
       this.handEl.appendChild(root);
+      const art = root.querySelector<HTMLImageElement>('.card-art');
       const cd = root.querySelector<HTMLDivElement>('.card-cd');
       const star = root.querySelector<HTMLSpanElement>('.card-star');
       const name = root.querySelector<HTMLSpanElement>('.card-name');
-      if (!cd || !star || !name) throw new Error('卡牌节点构建失败');
-      this.nodes.push({ root, cd, star, name });
+      if (!art || !cd || !star || !name) throw new Error('卡牌节点构建失败');
+      this.nodes.push({ root, art, cd, star, name });
     }
 
     for (let i = 0; i < this.nodes.length; i += 1) {
@@ -161,6 +164,10 @@ export class Hud {
       node.cd.style.setProperty('--p', pct.toFixed(3));
       node.cd.textContent = card.cd > 0 ? card.cd.toFixed(1) : '';
       node.root.classList.toggle('disp', def?.shape === 'blob');
+      // 卡面直接用游戏内贴图：玩家在卡上看到的和场上看到的必须是同一只怪
+      const wanted = `${import.meta.env.BASE_URL ?? '/'}art/${card.id}.png`;
+      if (node.art.getAttribute('src') !== wanted) node.art.src = wanted;
+      node.art.style.display = '';
     }
   }
 

@@ -257,6 +257,24 @@ body {
   pointer-events: auto;
 }
 
+/* 卡面贴图：占上半张卡，名字压在下沿 —— 玩家靠图认怪，不靠字认怪 */
+.card-art {
+  position: absolute;
+  top: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 74px;
+  height: 68px;
+  object-fit: contain;
+  pointer-events: none;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.75));
+}
+
+/* 贴图加载失败时不显示破图图标 */
+.card-art:not([src]) {
+  display: none;
+}
+
 .card {
   position: relative;
   width: 86px;
@@ -299,22 +317,26 @@ body {
   transform: translateY(-10px);
 }
 
+/* CD 遮罩：扇形压暗 + 右下角小数字。
+   数字必须小 —— 18px 的数字会把刚加的卡面贴图整个盖掉，玩家就认不出卡了。 */
 .card-cd {
   position: absolute;
   inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  font-weight: 900;
+  font-size: 11px;
+  font-weight: 800;
   color: #fff;
   letter-spacing: 0;
   background: conic-gradient(
     from 0deg,
-    rgba(5, 4, 10, 0.82) calc(var(--p, 0) * 360deg),
+    rgba(5, 4, 10, 0.78) calc(var(--p, 0) * 360deg),
     rgba(5, 4, 10, 0) 0
   );
   pointer-events: none;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: 0 5px 3px 0;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95);
 }
 
 .card-star {

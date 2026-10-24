@@ -128,8 +128,9 @@ export class FxLayer {
 
     const g = fx.gfx;
     g.clear();
-    g.rect(width / 2, -width / 2, length, width).fill({ color: 0xd8f0ff, alpha: 0.55 });
-    g.rect(width / 2, -2, length, 4).fill({ color: 0xffffff, alpha: 0.9 });
+    // 剑气：外沿宽而淡、中轴细而亮。全是实心白条会被看成"一根白绳"（实测过）
+    g.rect(width / 2, -width / 2, length, width).fill({ color: 0x8fb8d8, alpha: 0.32 });
+    g.rect(width / 2, -1.6, length * 0.92, 3.2).fill({ color: 0xf2fbff, alpha: 0.85 });
     g.position.set(x, y);
     g.rotation = Math.atan2(dirY, dirX);
     g.alpha = 1;

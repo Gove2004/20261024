@@ -4,6 +4,7 @@ import { createRng } from './core/rng';
 import { VIEW } from './content/config';
 import { AI } from './content/heroAi';
 import { Game, type GameEvents } from './gameplay/game';
+import { loadArt, missingArt } from './render/art';
 import { Scene } from './render/scene';
 import { createStage } from './render/stage';
 import { Hud } from './ui/hud';
@@ -15,6 +16,12 @@ async function bootstrap(): Promise<void> {
 
   const stage = await createStage(canvas);
   const scene = new Scene(stage, createRng(0x5eed1));
+
+  // 贴图异步加载，缺图就继续用程序化造型 —— 美术不该阻塞开局
+  const art = await loadArt();
+  scene.setArt(art);
+  const gaps = missingArt(art);
+  if (gaps.length > 0) console.warn(`缺贴图（用占位造型）：${gaps.join(', ')}`);
 
   // 进游戏后立刻渲染第一帧，避免标题页是一片纯色
   let game!: Game;
@@ -39,10 +46,15 @@ async function bootstrap(): Promise<void> {
       scene.fx.slash(x, y, dirX, dirY, AI.qiLength, AI.qiHalfWidth * 2);
     },
     onRangedShot: (_slot, fromX, fromY, toX, toY) => {
+      // 只画"飞在半路的一段"：全长实线会被看成一根绑在勇者身上的白绳，
+      // 短促的斜光带才像弹道。
       const dx = toX - fromX;
       const dy = toY - fromY;
       const len = Math.hypot(dx, dy) || 1;
-      scene.fx.slash(fromX, fromY, dx / len, dy / len, len, 3);
+      const ux = dx / len;
+      const uy = dy / len;
+      const start = len * 0.5;
+      scene.fx.slash(fromX + ux * start, fromY + uy * start, ux, uy, Math.min(58, len * 0.4), 2);
     },
     onDetonate: (x, y, radius) => {
       scene.fx.ring(x, y, radius, 0xc06bd8, 6);

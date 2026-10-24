@@ -34,5 +34,688 @@
       }
     },
     "createdAt": "2026-10-24T08:20:34.072Z"
+  },
+  {
+    "kind": "image",
+    "id": "spider",
+    "model": "gpt-image-2",
+    "prompt": "半写实暗黑奇幻风格，DQ 系怪物图鉴风，3/4 俯视角，单一怪物居中、全身完整、无场景、无落地阴影，背景是纯深色 #0E0C14 无渐变，2px 深色描边，游戏角色贴图，无文字无边框。一只毒蜘蛛：暗绿色甲壳覆盖的鼓胀腹部带黄色毒斑，八条关节分明的长腿，口器滴落粘稠毒液，多枚密集的黑色单眼。",
+    "size": "1024x1024",
+    "file": "art/raw/spider.png",
+    "bytes": 1281778,
+    "sourceUrl": "https://imagefil.scdn.app/public/image/e58836d97771e11883af7b47ca68d7730.png",
+    "usage": {
+      "prompt_tokens": 72,
+      "completion_tokens": 1056,
+      "total_tokens": 1128,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "reasoning_tokens": 0,
+        "text_tokens": 72
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "image_tokens": 1056
+      },
+      "input_tokens": 72,
+      "output_tokens": 1056,
+      "input_tokens_details": {
+        "text_tokens": 72,
+        "cached_tokens": 0
+      },
+      "output_tokens_details": {
+        "text_tokens": 0,
+        "reasoning_tokens": 0,
+        "image_tokens": 1056
+      }
+    },
+    "createdAt": "2026-10-24T10:48:30.170Z"
+  },
+  {
+    "kind": "image",
+    "id": "slime",
+    "model": "gpt-image-2",
+    "prompt": "半写实暗黑奇幻风格，DQ 系怪物图鉴风，3/4 俯视角，单一怪物居中、全身完整、无场景、无落地阴影，背景是纯深色 #0E0C14 无渐变，2px 深色描边，游戏角色贴图，无文字无边框。一只沼泽史莱姆：半透明墨绿色胶质身体，内部有浑浊气泡与未消化的骨头，表面湿润反光，两只不对称的小眼睛，微微上扬的弧形身体。",
+    "size": "1024x1024",
+    "file": "art/raw/slime.png",
+    "bytes": 1253128,
+    "sourceUrl": "https://imagefil.scdn.app/public/image/623a73d97771e11885af7b471708e41b0.png",
+    "usage": {
+      "prompt_tokens": 76,
+      "completion_tokens": 1056,
+      "total_tokens": 1132,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "reasoning_tokens": 0,
+        "text_tokens": 76
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "image_tokens": 1056
+      },
+      "input_tokens": 76,
+      "output_tokens": 1056,
+      "input_tokens_details": {
+        "text_tokens": 76,
+        "cached_tokens": 0
+      },
+      "output_tokens_details": {
+        "text_tokens": 0,
+        "reasoning_tokens": 0,
+        "image_tokens": 1056
+      }
+    },
+    "createdAt": "2026-10-24T10:48:30.443Z"
+  },
+  {
+    "kind": "image",
+    "id": "skeleton",
+    "model": "gpt-image-2",
+    "prompt": "半写实暗黑奇幻风格，DQ 系怪物图鉴风，3/4 俯视角，单一怪物居中、全身完整、无场景、无落地阴影，背景是纯深色 #0E0C14 无渐变，2px 深色描边，游戏角色贴图，无文字无边框。一名骷髅兵：发黄的骨骼躯干，锈迹斑斑的圆形铁盔与破损的木质小圆盾，右手握一把短铁剑，肋骨间挂着残破的布条。",
+    "size": "1024x1024",
+    "file": "art/raw/skeleton.png",
+    "bytes": 1216984,
+    "sourceUrl": "https://imagefil.scdn.app/public/image/ac0fead87771e11882af7b478bb200020.png",
+    "usage": {
+      "prompt_tokens": 72,
+      "completion_tokens": 1056,
+      "total_tokens": 1128,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "reasoning_tokens": 0,
+        "text_tokens": 72
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "image_tokens": 1056
+      },
+      "input_tokens": 72,
+      "output_tokens": 1056,
+      "input_tokens_details": {
+        "text_tokens": 72,
+        "cached_tokens": 0
+      },
+      "output_tokens_details": {
+        "text_tokens": 0,
+        "reasoning_tokens": 0,
+        "image_tokens": 1056
+      }
+    },
+    "createdAt": "2026-10-24T10:48:34.887Z"
+  },
+  {
+    "kind": "image",
+    "id": "ghost",
+    "model": "gpt-image-2",
+    "prompt": "半写实暗黑奇幻风格，DQ 系怪物图鉴风，3/4 俯视角，单一怪物居中、全身完整、无场景、无落地阴影，背景是纯深色 #0E0C14 无渐变，2px 深色描边，游戏角色贴图，无文字无边框。一只幽魂：青紫色半透明的破布长袍飘在空中，下摆化成雾气，兜帽下没有脸只有两点发光的冷光眼睛，双手是苍白细长的指骨。",
+    "size": "1024x1024",
+    "file": "art/raw/ghost.png",
+    "bytes": 1313348,
+    "sourceUrl": "https://imagefil.scdn.app/public/image/a86b32d87771e11881af7b4741a4a0180.png",
+    "usage": {
+      "prompt_tokens": 74,
+      "completion_tokens": 1056,
+      "total_tokens": 1130,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "reasoning_tokens": 0,
+        "text_tokens": 74
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "image_tokens": 1056
+      },
+      "input_tokens": 74,
+      "output_tokens": 1056,
+      "input_tokens_details": {
+        "text_tokens": 74,
+        "cached_tokens": 0
+      },
+      "output_tokens_details": {
+        "text_tokens": 0,
+        "reasoning_tokens": 0,
+        "image_tokens": 1056
+      }
+    },
+    "createdAt": "2026-10-24T10:48:43.359Z"
+  },
+  {
+    "kind": "image",
+    "id": "assassin",
+    "model": "gpt-image-2",
+    "prompt": "半写实暗黑奇幻风格，DQ 系怪物图鉴风，3/4 俯视角，单一怪物居中、全身完整、无场景、无落地阴影，背景是纯深色 #0E0C14 无渐变，2px 深色描边，游戏角色贴图，无文字无边框。一名暗影刺客：黑色贴身皮甲配暗红围巾，兜帽遮住上半张脸只露出红光的眼缝，双手各握一把弯曲的匕首，身形前倾准备突刺。",
+    "size": "1024x1024",
+    "file": "art/raw/assassin.png",
+    "bytes": 1198888,
+    "sourceUrl": "https://imagefil.scdn.app/public/image/9c2d06887d71e118daaf7b476e6b106a0.png",
+    "usage": {
+      "prompt_tokens": 74,
+      "completion_tokens": 1056,
+      "total_tokens": 1130,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "reasoning_tokens": 0,
+        "text_tokens": 74
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "image_tokens": 1056
+      },
+      "input_tokens": 74,
+      "output_tokens": 1056,
+      "input_tokens_details": {
+        "text_tokens": 74,
+        "cached_tokens": 0
+      },
+      "output_tokens_details": {
+        "text_tokens": 0,
+        "reasoning_tokens": 0,
+        "image_tokens": 1056
+      }
+    },
+    "createdAt": "2026-10-24T10:49:00.246Z"
+  },
+  {
+    "kind": "image",
+    "id": "bat",
+    "model": "gpt-image-2",
+    "prompt": "半写实暗黑奇幻风格，DQ 系怪物图鉴风，3/4 俯视角，单一怪物居中、全身完整、无场景、无落地阴影，背景是纯深色 #0E0C14 无渐变，2px 深色描边，游戏角色贴图，无文字无边框。一只洞穴蝙蝠：暗紫色绒膜翅膀张开，小而尖锐的耳廓，通红的眼睛，露出两颗细牙，身体瘦小干瘪。",
+    "size": "1024x1024",
+    "file": "art/raw/bat.png",
+    "bytes": 1169362,
+    "sourceUrl": "https://imagefil.scdn.app/public/image/b06435787d71e118d8af7b4793e6580f0.png",
+    "usage": {
+      "prompt_tokens": 68,
+      "completion_tokens": 1056,
+      "total_tokens": 1124,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "reasoning_tokens": 0,
+        "text_tokens": 68
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "image_tokens": 1056
+      },
+      "input_tokens": 68,
+      "output_tokens": 1056,
+      "input_tokens_details": {
+        "text_tokens": 68,
+        "cached_tokens": 0
+      },
+      "output_tokens_details": {
+        "text_tokens": 0,
+        "reasoning_tokens": 0,
+        "image_tokens": 1056
+      }
+    },
+    "createdAt": "2026-10-24T10:49:01.504Z"
+  },
+  {
+    "kind": "image",
+    "id": "boom",
+    "model": "gpt-image-2",
+    "prompt": "半写实暗黑奇幻风格，DQ 系怪物图鉴风，3/4 俯视角，单一怪物居中、全身完整、无场景、无落地阴影，背景是纯深色 #0E0C14 无渐变，2px 深色描边，游戏角色贴图，无文字无边框。一只自爆虫：橙红色的甲壳圆球身体，背部长满鼓起的囊泡并透出炽热岩浆的光，六条短腿，正面有愤怒的小眼睛和一条引信般的触须。",
+    "size": "1024x1024",
+    "file": "art/raw/boom.png",
+    "bytes": 1319967,
+    "sourceUrl": "https://imagefil.scdn.app/public/image/d1e179917e71e118f0af7b479ff8aaf10.png",
+    "usage": {
+      "prompt_tokens": 76,
+      "completion_tokens": 1056,
+      "total_tokens": 1132,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "reasoning_tokens": 0,
+        "text_tokens": 76
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "image_tokens": 1056
+      },
+      "input_tokens": 76,
+      "output_tokens": 1056,
+      "input_tokens_details": {
+        "text_tokens": 76,
+        "cached_tokens": 0
+      },
+      "output_tokens_details": {
+        "text_tokens": 0,
+        "reasoning_tokens": 0,
+        "image_tokens": 1056
+      }
+    },
+    "createdAt": "2026-10-24T10:49:02.542Z"
+  },
+  {
+    "kind": "image",
+    "id": "frost",
+    "model": "gpt-image-2",
+    "prompt": "半写实暗黑奇幻风格，DQ 系怪物图鉴风，3/4 俯视角，单一角色居中、全身完整、无场景、无落地阴影，背景是纯深色 #0E0C14 无渐变，2px 深色描边，游戏角色贴图，无文字无边框。一名冰霜法师：深蓝色厚重长袍，肩头与兜帽结着冰棱，手持一根顶端嵌有发光蓝宝石的木杖，胸前一团旋转的寒气，下摆拖出薄霜。",
+    "size": "1024x1024",
+    "file": "art/raw/frost.png",
+    "bytes": 1091842,
+    "sourceUrl": "https://imagefil.scdn.app/public/image/51db08898071e1180bb07b47689d20380.png",
+    "usage": {
+      "prompt_tokens": 144,
+      "completion_tokens": 1056,
+      "total_tokens": 1200,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "reasoning_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "cached_tokens": 0
+      },
+      "input_tokens": 144,
+      "output_tokens": 1056,
+      "input_tokens_details": {
+        "text_tokens": 144,
+        "cached_tokens": 0
+      },
+      "output_tokens_details": {
+        "text_tokens": 0,
+        "reasoning_tokens": 0,
+        "image_tokens": 1056
+      }
+    },
+    "createdAt": "2026-10-24T10:49:15.223Z"
+  },
+  {
+    "kind": "image",
+    "id": "shaman",
+    "model": "gpt-image-2",
+    "prompt": "半写实暗黑奇幻风格，DQ 系怪物图鉴风，3/4 俯视角，单一角色居中、全身完整、无场景、无落地阴影，背景是纯深色 #0E0C14 无渐变，2px 深色描边，游戏角色贴图，无文字无边框。一名巫医：佝偻的绿皮小身板披着羽毛与骨片串成的斗篷，脸上戴着木质彩绘面具，手里摇晃一只冒绿烟的药罐，腰间挂着铃铛与草药。",
+    "size": "1024x1024",
+    "file": "art/raw/shaman.png",
+    "bytes": 1370000,
+    "sourceUrl": "https://imagefil.scdn.app/public/image/5b31b4908471e11842b07b4775ffacd70.png",
+    "usage": {
+      "prompt_tokens": 76,
+      "completion_tokens": 1056,
+      "total_tokens": 1132,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "reasoning_tokens": 0,
+        "text_tokens": 76
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "image_tokens": 1056
+      },
+      "input_tokens": 76,
+      "output_tokens": 1056,
+      "input_tokens_details": {
+        "text_tokens": 76,
+        "cached_tokens": 0
+      },
+      "output_tokens_details": {
+        "text_tokens": 0,
+        "reasoning_tokens": 0,
+        "image_tokens": 1056
+      }
+    },
+    "createdAt": "2026-10-24T10:49:28.743Z"
+  },
+  {
+    "kind": "image",
+    "id": "lich",
+    "model": "gpt-image-2",
+    "prompt": "半写实暗黑奇幻风格，DQ 系怪物图鉴风，3/4 俯视角，单一角色居中、全身完整、无场景、无落地阴影，背景是纯深色 #0E0C14 无渐变，2px 深色描边，游戏角色贴图，无文字无边框。一名巫妖：漂浮的紫黑色残破法袍里只有骨架，头顶戴着歪斜的黄金王冠，手中悬浮一团紫火，脚下伸出几缕黑烟，眼窝是紫色魂火。",
+    "size": "1024x1024",
+    "file": "art/raw/lich.png",
+    "bytes": 1305846,
+    "sourceUrl": "https://imagefil.scdn.app/public/image/8a41511a8571e1184bb07b477eb776ce0.png",
+    "usage": {
+      "prompt_tokens": 75,
+      "completion_tokens": 1056,
+      "total_tokens": 1131,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "reasoning_tokens": 0,
+        "text_tokens": 75
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "image_tokens": 1056
+      },
+      "input_tokens": 75,
+      "output_tokens": 1056,
+      "input_tokens_details": {
+        "text_tokens": 75,
+        "cached_tokens": 0
+      },
+      "output_tokens_details": {
+        "text_tokens": 0,
+        "reasoning_tokens": 0,
+        "image_tokens": 1056
+      }
+    },
+    "createdAt": "2026-10-24T10:49:35.808Z"
+  },
+  {
+    "kind": "image",
+    "id": "general",
+    "model": "gpt-image-2",
+    "prompt": "半写实暗黑奇幻风格，DQ 系怪物图鉴风，3/4 俯视角，单一角色居中、全身完整、无场景、无落地阴影，背景是纯深色 #0E0C14 无渐变，2px 深色描边，游戏角色贴图，无文字无边框。一名骷髅将军：高大的骨架披着锈红重甲与破裂披风，头盔有破损的冠饰，手持一柄巨大的双手骨剑，肩甲上有骷髅浮雕。",
+    "size": "1024x1024",
+    "file": "art/raw/general.png",
+    "bytes": 1390209,
+    "sourceUrl": "https://imagefil.scdn.app/public/image/c37df9f48771e11872b07b47b5a7d3e60.png",
+    "usage": {
+      "prompt_tokens": 73,
+      "completion_tokens": 1056,
+      "total_tokens": 1129,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "reasoning_tokens": 0,
+        "text_tokens": 73
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "image_tokens": 1056
+      },
+      "input_tokens": 73,
+      "output_tokens": 1056,
+      "input_tokens_details": {
+        "text_tokens": 73,
+        "cached_tokens": 0
+      },
+      "output_tokens_details": {
+        "text_tokens": 0,
+        "reasoning_tokens": 0,
+        "image_tokens": 1056
+      }
+    },
+    "createdAt": "2026-10-24T10:49:46.354Z"
+  },
+  {
+    "kind": "image",
+    "id": "guoba",
+    "model": "gpt-image-2",
+    "prompt": "半写实暗黑奇幻风格游戏主角贴图，DQ 风格 4 头身，3/4 俯视角，单一角色居中、全身完整、无场景、无落地阴影，背景是纯深色 #0E0C14 无渐变，2px 深色描边，无文字无边框。主角「锅巴」：一块焦黄酥脆的方形米饭锅巴变成了小勇者，表皮有裂纹与黑芝麻粒，一双坚定的大眼睛，披着暗灰色破旧旅行斗篷，右手握一把缺口铁剑，左肩挂着皮质小包。",
+    "size": "1024x1024",
+    "file": "art/raw/guoba.png",
+    "bytes": 1278951,
+    "sourceUrl": "https://imagefil.scdn.app/public/image/d6826a1a8b71e118a5b07b47e16a44720.png",
+    "usage": {
+      "prompt_tokens": 85,
+      "completion_tokens": 1056,
+      "total_tokens": 1141,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "reasoning_tokens": 0,
+        "text_tokens": 85
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "image_tokens": 1056
+      },
+      "input_tokens": 85,
+      "output_tokens": 1056,
+      "input_tokens_details": {
+        "text_tokens": 85,
+        "cached_tokens": 0
+      },
+      "output_tokens_details": {
+        "text_tokens": 0,
+        "reasoning_tokens": 0,
+        "image_tokens": 1056
+      }
+    },
+    "createdAt": "2026-10-24T10:50:03.895Z"
+  },
+  {
+    "kind": "image",
+    "id": "guoba-rage",
+    "model": "gpt-image-2",
+    "prompt": "半写实暗黑奇幻风格游戏主角贴图，DQ 风格 4 头身，3/4 俯视角，单一角色居中、全身完整、无场景、无落地阴影，背景是纯深色 #0E0C14 无渐变，2px 深色描边，无文字无边框。主角「锅巴」的狂化形态：焦黄米饭锅巴身体裂开，裂缝里透出橙红火光，眼睛变成金色发光的竖瞳，斗篷被热浪掀起，铁剑上缠绕着火焰。",
+    "size": "1024x1024",
+    "file": "art/raw/guoba-rage.png",
+    "bytes": 1494066,
+    "sourceUrl": "https://imagefil.scdn.app/public/image/f19e38c18c71e118bcb07b47fe1619570.png",
+    "usage": {
+      "prompt_tokens": 77,
+      "completion_tokens": 1056,
+      "total_tokens": 1133,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "reasoning_tokens": 0,
+        "text_tokens": 77
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "image_tokens": 1056
+      },
+      "input_tokens": 77,
+      "output_tokens": 1056,
+      "input_tokens_details": {
+        "text_tokens": 77,
+        "cached_tokens": 0
+      },
+      "output_tokens_details": {
+        "text_tokens": 0,
+        "reasoning_tokens": 0,
+        "image_tokens": 1056
+      }
+    },
+    "createdAt": "2026-10-24T10:50:05.914Z"
+  },
+  {
+    "kind": "image",
+    "id": "throne",
+    "model": "gpt-image-2",
+    "prompt": "半写实暗黑奇幻风格游戏场景素材，俯视 45 度，单一物件居中、完整，无落地阴影，背景纯深色 #0E0C14 无渐变，2px 深色描边，无文字无边框。一座空旷的魔王王座：黑曜石雕成的尖刺高背王座，扶手末端是骷髅造型，椅面空无一物（魔王没有身体），周围环绕一圈暗紫色魔法阵纹路。",
+    "size": "1024x1024",
+    "file": "art/raw/throne.png",
+    "bytes": 1147524,
+    "sourceUrl": "https://imagefil.scdn.app/public/image/7e8aac348f71e118e2b07b47847902a30.png",
+    "usage": {
+      "prompt_tokens": 125,
+      "completion_tokens": 1056,
+      "total_tokens": 1181,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "reasoning_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "cached_tokens": 0
+      },
+      "input_tokens": 125,
+      "output_tokens": 1056,
+      "input_tokens_details": {
+        "text_tokens": 125,
+        "cached_tokens": 0
+      },
+      "output_tokens_details": {
+        "text_tokens": 0,
+        "reasoning_tokens": 0,
+        "image_tokens": 1056
+      }
+    },
+    "createdAt": "2026-10-24T10:50:30.250Z"
+  },
+  {
+    "kind": "image",
+    "id": "gargoyle",
+    "model": "gpt-image-2",
+    "prompt": "半写实暗黑奇幻风格，DQ 系怪物图鉴风，3/4 俯视角，单一怪物居中、全身完整、无场景、无落地阴影，背景是纯深色 #0E0C14 无渐变，2px 深色描边，游戏角色贴图，无文字无边框。一只石像鬼：灰黑色花岗岩雕成的蹲伏恶魔，蝠翼收拢，头上两只弯角，眼窝燃烧橙色火焰，肌肉线条呈石匠凿刻的块面感，手脚有爪。",
+    "size": "1024x1024",
+    "file": "art/raw/gargoyle.png",
+    "bytes": 1360644,
+    "sourceUrl": "https://imagefil.scdn.app/public/image/559824c38471e11849b07b478a15ff8b0.png",
+    "usage": {
+      "prompt_tokens": 76,
+      "completion_tokens": 1056,
+      "total_tokens": 1132,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "reasoning_tokens": 0,
+        "text_tokens": 76
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "image_tokens": 1056
+      },
+      "input_tokens": 76,
+      "output_tokens": 1056,
+      "input_tokens_details": {
+        "text_tokens": 76,
+        "cached_tokens": 0
+      },
+      "output_tokens_details": {
+        "text_tokens": 0,
+        "reasoning_tokens": 0,
+        "image_tokens": 1056
+      }
+    },
+    "createdAt": "2026-10-24T10:50:55.490Z"
+  },
+  {
+    "kind": "image",
+    "id": "guoba",
+    "model": "gpt-image-2",
+    "prompt": "半写实暗黑奇幻风格，写实比例 4 头身、写实人体结构（不要 Q 版、不要卡通大眼、不要积木/方块头），3/4 俯视角，单一角色居中、全身完整、无场景、无落地阴影，背景纯深色 #0E0C14 无渐变，2px 深色描边，与暗黑奇幻怪物同一渲染口径，无文字无边框。主角「锅巴」：一具由焦黄酥脆米饭锅巴构成躯体的战士，皮肤是龟裂的锅巴硬壳、裂缝里透出微弱的余烬红光、表面撒着黑芝麻粒，脸是粗粝的锅巴质感只留两个内凹的暗色眼窝和一道向下压的裂纹嘴，披着磨破的暗灰色旅行斗篷，右手握一把缺口铁剑。整体气质阴沉、粗糙、有颗粒感。",
+    "size": "1024x1024",
+    "file": "art/raw/guoba.png",
+    "bytes": 1347759,
+    "sourceUrl": "https://imagefil.scdn.app/public/image/988b9284b471e11845b37b47c4b186110.png",
+    "usage": {
+      "prompt_tokens": 128,
+      "completion_tokens": 1056,
+      "total_tokens": 1184,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "reasoning_tokens": 0,
+        "text_tokens": 128
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "image_tokens": 1056
+      },
+      "input_tokens": 128,
+      "output_tokens": 1056,
+      "input_tokens_details": {
+        "text_tokens": 128,
+        "cached_tokens": 0
+      },
+      "output_tokens_details": {
+        "text_tokens": 0,
+        "reasoning_tokens": 0,
+        "image_tokens": 1056
+      }
+    },
+    "createdAt": "2026-10-24T10:52:57.140Z"
+  },
+  {
+    "kind": "image",
+    "id": "guoba-rage",
+    "model": "gpt-image-2",
+    "prompt": "半写实暗黑奇幻风格，写实比例 4 头身、写实人体结构（不要 Q 版、不要卡通大眼、不要积木/方块头），3/4 俯视角，单一角色居中、全身完整、无场景、无落地阴影，背景纯深色 #0E0C14 无渐变，2px 深色描边，与暗黑奇幻怪物同一渲染口径，无文字无边框。主角「锅巴」的狂化形态：焦黄米饭锅巴的躯体大面积裂开，裂缝中喷出橙红火光，眼窝里是两点金红色余烬光，斗篷被热浪掀翻，缺口铁剑上缠着火焰与裂纹，肩背升腾黑烟。整体气质狂暴、炽热、粗糙有颗粒感。",
+    "size": "1024x1024",
+    "file": "art/raw/guoba-rage.png",
+    "bytes": 1560634,
+    "sourceUrl": "https://imagefil.scdn.app/public/image/eabbd685b471e11846b37b47bfaf375e0.png",
+    "usage": {
+      "prompt_tokens": 112,
+      "completion_tokens": 1056,
+      "total_tokens": 1168,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "reasoning_tokens": 0,
+        "text_tokens": 112
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "image_tokens": 1056
+      },
+      "input_tokens": 112,
+      "output_tokens": 1056,
+      "input_tokens_details": {
+        "text_tokens": 112,
+        "cached_tokens": 0
+      },
+      "output_tokens_details": {
+        "text_tokens": 0,
+        "reasoning_tokens": 0,
+        "image_tokens": 1056
+      }
+    },
+    "createdAt": "2026-10-24T10:52:57.201Z"
+  },
+  {
+    "kind": "image",
+    "id": "assassin",
+    "model": "gpt-image-2",
+    "prompt": "半写实暗黑奇幻风格，DQ 系怪物图鉴风，3/4 俯视角，单一角色居中、全身完整、轮廓连贯不可破碎、无场景、无落地阴影，背景是纯深色 #0E0C14 无渐变，2px 深色描边，游戏角色贴图，无文字无边框。一名暗影刺客：一身完整的黑色贴身皮甲（肩甲、护腕、腰带齐全），暗红色围巾，兜帽遮住上半张脸只露出一道红光眼缝，双手各握一把弯曲匕首，身形前倾随时突刺；身体是连贯的人形剪影，不要碎片化、不要悬浮零件。",
+    "size": "1024x1024",
+    "file": "art/raw/assassin.png",
+    "bytes": 1211819,
+    "sourceUrl": "https://imagefil.scdn.app/public/image/5e38d985b471e11847b37b4730e944e90.png",
+    "usage": {
+      "prompt_tokens": 100,
+      "completion_tokens": 1056,
+      "total_tokens": 1156,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "reasoning_tokens": 0,
+        "text_tokens": 100
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "image_tokens": 1056
+      },
+      "input_tokens": 100,
+      "output_tokens": 1056,
+      "input_tokens_details": {
+        "text_tokens": 100,
+        "cached_tokens": 0
+      },
+      "output_tokens_details": {
+        "text_tokens": 0,
+        "reasoning_tokens": 0,
+        "image_tokens": 1056
+      }
+    },
+    "createdAt": "2026-10-24T10:53:22.301Z"
+  },
+  {
+    "kind": "image",
+    "id": "assassin",
+    "model": "gemini-3-pro-image",
+    "prompt": "半写实暗黑奇幻风格，游戏角色概念设定图，写实比例，3/4 俯视角，单一角色居中、全身完整、剪影封闭无破洞、无场景、无落地阴影，背景纯深色 #0E0C14 无渐变，2px 深色描边，无文字无边框。一名黑衣盗贼刺客：完整的黑色连体皮衣与皮质头巾（衣裤靴连成一体，不要飘散的碎片、不要烟、不要重影），头巾下露出一双眼睛，腰间皮带上挂着匕首袋，双手各握一把弯曲短刀，站姿，双脚踩实地面。",
+    "size": "1024x1024",
+    "file": "art/raw/assassin.png",
+    "bytes": 393670,
+    "sourceUrl": "(b64_json)",
+    "usage": {
+      "prompt_tokens": 47,
+      "completion_tokens": 1634,
+      "total_tokens": 1681,
+      "prompt_tokens_details": {},
+      "completion_tokens_details": {},
+      "input_tokens": 47,
+      "output_tokens": 1634,
+      "input_tokens_details": null
+    },
+    "createdAt": "2026-10-24T10:55:57.007Z"
   }
 ]
