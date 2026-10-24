@@ -3,6 +3,7 @@ import { HALL, HALL_CENTER, HALL_WALL, PILLARS, PLACE, THRONE, VIEW, WORLD } fro
 import { CARDS, type CardShape } from '../content/cards';
 import { COLOR } from '../content/palette';
 import { AI } from '../content/heroAi';
+import { SKILL_BY_ID, SKILL_TUNING } from '../content/heroSkills';
 import type { Game } from '../gameplay/game';
 import type { Rng } from '../core/rng';
 import { FxLayer } from './fx';
@@ -71,7 +72,6 @@ export class Scene {
   private readonly entityLayer = new Container();
   private readonly warn = new Graphics();
   private readonly preview = new Graphics();
-  private readonly detonateHint = new Graphics();
   private readonly heroNode = new Container();
   private readonly heroBody = new Graphics();
   private readonly heroSword = new Graphics();
@@ -111,7 +111,6 @@ export class Scene {
     this.fx = new FxLayer(fxLayer, rng);
 
     this.previewLayer.addChild(this.preview);
-    this.previewLayer.addChild(this.detonateHint);
     world.addChild(this.previewLayer);
   }
 
@@ -144,19 +143,6 @@ export class Scene {
     g.circle(target.x, target.y, PLACE.minDistHero * 0.5).fill({ color, alpha: 0.16 });
     g.circle(target.x, target.y, PLACE.minDistHero * 0.5).stroke({ color, width: 2, alpha: 0.85 });
     g.circle(target.x, target.y, 4).fill({ color, alpha: 0.9 });
-  }
-
-  /**
-   * 引爆提示：指针悬停在一只魔物上时，给它套一圈紫环。
-   * 双击引爆是隐藏操作，没有这个反馈玩家永远发现不了。
-   */
-  public setDetonateHint(target: { x: number; y: number } | null): void {
-    const g = this.detonateHint;
-    g.clear();
-    if (!target) return;
-    g.circle(target.x, target.y, 30).stroke({ color: 0xc06bd8, width: 2.5, alpha: 0.9 });
-    g.circle(target.x, target.y, 38).stroke({ color: 0xc06bd8, width: 1, alpha: 0.35 });
-    g.circle(target.x, target.y, 6).fill({ color: 0xc06bd8, alpha: 0.55 });
   }
 
   // ------------------------------------------------------------------ 静态
@@ -260,15 +246,18 @@ export class Scene {
     this.heroBody.circle(4, -47, 2.2).fill({ color: 0x0b0a14 });
     this.heroNode.addChild(this.heroBody);
 
-    // 剑：锚点在握把处，绕它旋转做挥砍
+    // 弹弓（占位造型用）：锚点在握把处，拉弓时往回收
     this.heroSword.clear();
     this.heroSword
-      .rect(0, -2.5, 34, 5)
-      .fill({ color: COLOR.steel })
-      .stroke({ color: 0x0b0a14, width: 2, alpha: 0.9 });
-    this.heroSword.rect(0, -5, 6, 10).fill({ color: 0x6d5b3e });
-    this.heroSword.position.set(10, -26);
-    this.heroSword.rotation = -0.35;
+      .moveTo(0, -12)
+      .lineTo(0, 6)
+      .moveTo(0, -12)
+      .lineTo(12, 0)
+      .moveTo(0, 6)
+      .lineTo(12, 0)
+      .stroke({ color: 0x8a6a3c, width: 4, alpha: 1 });
+    this.heroSword.position.set(8, -30);
+    this.heroSword.rotation = 0.2;
     this.heroNode.addChild(this.heroSword);
 
     this.heroNode.zIndex = 0;
@@ -292,9 +281,9 @@ export class Scene {
     const bob = hero.moving ? Math.sin(time * 30) * 2 : 0;
     this.heroNode.alpha = hero.alive ? 1 : 0;
 
-    // 挥砍：前摇收剑 → 后摇出剑
-    const swingTarget = hero.windup > 0 ? -0.5 : hero.recover > 0 ? 0.75 : -0.35;
-    this.heroSword.rotation += (swingTarget - this.heroSword.rotation) * 0.35;
+    // 拉弓：前摇把弹弓往后拉，出手后回弹
+    const drawTarget = hero.windup > 0 ? -0.35 : hero.recover > 0 ? 0.45 : 0.2;
+    this.heroSword.rotation += (drawTarget - this.heroSword.rotation) * 0.3;
 
     // 阶段配色：5 级起偏暖，10 级狂化贴图整张换掉
     const stageTint = hero.level >= 10 ? 0xffb0a0 : hero.level >= 5 ? 0xd9c4a8 : 0xffffff;
@@ -405,30 +394,56 @@ export class Scene {
   private drawTelegraphs(hero: Game['hero'], time: number): void {
     const g = this.warn;
     g.clear();
+    g.position.set(0, 0);
+    g.rotation = 0;
 
-    if (hero.windup > 0) {
-      const r = AI.engageRange + 26;
-      const a0 = Math.atan2(hero.facingY, hero.facingX) - AI.halfArc;
-      const a1 = a0 + AI.halfArc * 2;
-      g.moveTo(hero.x, hero.y);
-      g.arc(hero.x, hero.y, r, a0, a1);
-      g.closePath();
-      g.fill({ color: 0xff3b5c, alpha: 0.14 });
-    }
+    const skill = hero.pendingSkill;
+    const pulse = 0.18 + Math.sin(time * 26) * 0.05;
+    const angle = Math.atan2(hero.facingY, hero.facingX);
 
-    if (hero.qiWindup > 0) {
-      const progress = 1 - hero.qiWindup / AI.qiWindup;
+    // 瞄准线：他是远程，所以预警不是"扇形范围"而是一条指向目标的细线。
+    // 玩家能据此判断"他要先打谁"，从而决定要不要把那只撤下来。
+    if (skill === 'shot' || skill === 'spread') {
+      g.position.set(hero.x, hero.y);
+      g.rotation = angle;
+      const range = skill === 'spread' ? 300 : AI.shootRange * 0.9;
+      g.rect(26, -1.5, range, 3).fill({ color: 0xff3b5c, alpha: pulse });
+      g.circle(26 + range, 0, 4).fill({ color: 0xff3b5c, alpha: pulse + 0.25 });
+      // 散射额外画出扇面，玩家才知道"别站成一排"
+      if (skill === 'spread') {
+        const half = 0.42;
+        g.moveTo(20, 0);
+        g.arc(20, 0, range, -half, half);
+        g.lineTo(20, 0);
+        g.fill({ color: 0xff3b5c, alpha: 0.1 });
+      }
+    } else if (skill === 'qi') {
+      const progress = 1 - hero.windup / Math.max(0.01, SKILL_BY_ID.qi.windup);
       const len = AI.qiLength * Math.min(1, progress * 1.6);
-      const angle = Math.atan2(hero.qiDirY, hero.qiDirX);
+      g.position.set(hero.x, hero.y);
+      g.rotation = Math.atan2(hero.qiDirY, hero.qiDirX);
       g.rect(0, -AI.qiHalfWidth, len, AI.qiHalfWidth * 2).fill({
         color: 0x9dd7ff,
         alpha: 0.1 + Math.sin(time * 30) * 0.03,
       });
+    } else if (skill === 'heavy') {
+      // 重击：更粗、更红、带蓄力收缩感 —— 这是最该被躲的一发
+      const charge = 1 - hero.windup / Math.max(0.01, SKILL_BY_ID.heavy.windup);
       g.position.set(hero.x, hero.y);
       g.rotation = angle;
-    } else {
-      g.position.set(0, 0);
-      g.rotation = 0;
+      g.rect(24, -3, SKILL_TUNING.heavyRange * (0.35 + charge * 0.65), 6).fill({
+        color: 0xff2a44,
+        alpha: 0.22 + charge * 0.2,
+      });
+    } else if (skill === 'bomb') {
+      const r = SKILL_TUNING.bombRadius;
+      g.circle(hero.bombX, hero.bombY, r).fill({ color: 0xff7a3c, alpha: 0.12 });
+      g.circle(hero.bombX, hero.bombY, r).stroke({ color: 0xff9a5c, width: 2.5, alpha: 0.7 });
+      g.circle(hero.bombX, hero.bombY, r * 0.4).stroke({ color: 0xffc08a, width: 1.5, alpha: 0.5 });
+    } else if (skill === 'heal') {
+      g.circle(hero.x, hero.y, 62).stroke({ color: 0x7be05f, width: 2, alpha: 0.45 });
+    } else if (skill === 'roll') {
+      g.circle(hero.x, hero.y, 26).stroke({ color: 0x9dd7ff, width: 2.5, alpha: 0.75 });
     }
   }
 

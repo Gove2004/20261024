@@ -1,7 +1,7 @@
 import {
-  DETONATE,
   HALL_CENTER,
   HERO,
+  MONSTER_DMG_MUL,
   PILLARS,
   PLACE,
   POWERUP,
@@ -15,6 +15,7 @@ import {
   starCapAt,
 } from '../content/config';
 import { CARDS, STARTER_HAND, cardCdSeconds, findCard, summonCount } from '../content/cards';
+import { SKILL_TUNING } from '../content/heroSkills';
 import { MonsterStore } from '../ecs/store';
 import { Hero, type HeroHooks } from './hero';
 import { updateMonsters } from './monsters';
@@ -30,7 +31,18 @@ export interface HandCard {
   cd: number;
 }
 
-export type PowerupKind = 'atk' | 'hp' | 'atkspeed' | 'cd' | 'starcap' | 'hand' | 'star';
+export type PowerupKind =
+  | 'atk'
+  | 'hp'
+  | 'atkspeed'
+  | 'cd'
+  | 'starcap'
+  | 'hand'
+  | 'star'
+  | 'armor'
+  | 'weak'
+  | 'slow'
+  | 'skillcd';
 
 export interface PowerupOption {
   readonly id: string;
@@ -48,12 +60,22 @@ export interface PowerupOption {
 const HAND_BASE = 6;
 const HAND_MAX_EXTRA = 2;
 
-const POWERUPS: readonly PowerupOption[] = [  { id: 'atk', title: '尖牙', desc: '全魔物攻击 +14%', kind: 'atk', value: 0.14 },
+/**
+ * 权能池（M3 补全）。每轮三选一，全部是"给玩家（魔王）自己用的增益"：
+ * 前六条改魔物数值，后四条直接改勇者的数值 ——
+ * 后者才是"我在跟一个具体的对手博弈"的感觉来源。
+ */
+const POWERUPS: readonly PowerupOption[] = [
+  { id: 'atk', title: '尖牙', desc: '全魔物攻击 +14%', kind: 'atk', value: 0.14 },
   { id: 'hp', title: '厚壳', desc: '全魔物生命 +18%', kind: 'hp', value: 0.18 },
   { id: 'atkspeed', title: '躁动', desc: '全魔物攻速 +10%', kind: 'atkspeed', value: 0.1 },
   { id: 'cd', title: '冷却缩减', desc: '全卡 CD −8%', kind: 'cd', value: 0.08 },
   { id: 'starcap', title: '星域扩张', desc: '星数上限 +5', kind: 'starcap', value: 5 },
-  { id: 'hand', title: '更多手牌', desc: '手牌位 +1（最多 6）', kind: 'hand', value: 1 },
+  { id: 'hand', title: '更多手牌', desc: '手牌位 +1（最多 8）', kind: 'hand', value: 1 },
+  { id: 'armor', title: '硬皮', desc: '全魔物护甲 +2', kind: 'armor', value: 2 },
+  { id: 'weak', title: '诅咒', desc: '锅巴攻击 −6%', kind: 'weak', value: 0.06 },
+  { id: 'slow', title: '泥泞', desc: '锅巴移速 −7%', kind: 'slow', value: 0.07 },
+  { id: 'skillcd', title: '封印', desc: '锅巴技能冷却 +12%', kind: 'skillcd', value: 0.12 },
 ];
 
 /** 升星永远出现在每轮三选一里：它是玩家"养大自己的东西"的唯一通道。 */
@@ -71,10 +93,12 @@ export interface GameEvents {
   onDeath(slot: number): void;
   onHeroHurt(amount: number): void;
   onHeroLevel(level: number, passive: string): void;
-  onSwing(): void;
+  /** 锅巴开弓射击（视觉：弹丸从弹弓飞出去） */
+  onShot(x: number, y: number, dirX: number, dirY: number): void;
   onQi(x: number, y: number, dirX: number, dirY: number): void;
   onRangedShot(slot: number, fromX: number, fromY: number, toX: number, toY: number): void;
-  onDetonate(x: number, y: number, radius: number): void;
+  /** 爆炸表现（自爆虫 / 火球），纯视觉 */
+  onBlast(x: number, y: number, radius: number): void;
   /** 地面预警圈（火球/自爆），duration 秒后结算 */
   onTelegraph(x: number, y: number, radius: number, duration: number): void;
   /** 治疗/冰冻等即时表现 */
@@ -111,13 +135,19 @@ export class Game {
 
   public peakStars = 0;
   public kills = 0;
-  public detonations = 0;
+  public placedTotal = 0;
   public score = 0;
   /** 特性触发计数：给冒烟测试断言用，也方便调平衡时看"这些卡到底有没有参与" */
   public statBoom = 0;
   public statHeal = 0;
   public statTaunt = 0;
   public statFreeze = 0;
+  /** 勇者技能触发计数（M3）：看"这套技能池到底有没有在动" */
+  public statQi = 0;
+  public statShot = 0;
+  public statBomb = 0;
+  public statSelfHeal = 0;
+  public statRoll = 0;
 
   /** 权能叠层 */
   public starBonus = 0;
@@ -126,8 +156,8 @@ export class Game {
   private hpStack = 0;
   private atkSpeedStack = 0;
   private cdStack = 0;
+  private armorStack = 0;
 
-  private detonateCd = 0;
   private powerupTimer: number = POWERUP.interval;
   private pendingPowerup: PowerupOption[] | null = null;
   /** 火球等延迟结算的 AoE */
@@ -155,6 +185,11 @@ export class Game {
     this.statHeal = 0;
     this.statTaunt = 0;
     this.statFreeze = 0;
+    this.statQi = 0;
+    this.statShot = 0;
+    this.statBomb = 0;
+    this.statSelfHeal = 0;
+    this.statRoll = 0;
     this.hand = STARTER_HAND.map((id) => ({
       id,
       defIdx: CARDS.findIndex((card) => card.id === id),
@@ -164,7 +199,7 @@ export class Game {
     this.selected = -1;
     this.peakStars = 0;
     this.kills = 0;
-    this.detonations = 0;
+    this.placedTotal = 0;
     this.score = 0;
     this.starBonus = 0;
     this.handBonus = 0;
@@ -172,7 +207,7 @@ export class Game {
     this.hpStack = 0;
     this.atkSpeedStack = 0;
     this.cdStack = 0;
-    this.detonateCd = 0;
+    this.armorStack = 0;
     this.powerupTimer = POWERUP.interval;
     this.pendingPowerup = null;
     this.camX = this.hero.x;
@@ -245,8 +280,6 @@ export class Game {
 
     this.updateAoe(dt);
 
-    this.detonateCd = Math.max(0, this.detonateCd - dt);
-
     for (const card of this.hand) card.cd = Math.max(0, card.cd - dt);
 
     const occupied = this.store.occupiedStars();
@@ -274,8 +307,8 @@ export class Game {
 
   /** 自爆虫：对范围内的勇者造成伤害，自己已由调用方标记死亡。 */
   private explodeAt(slot: number, x: number, y: number, radius: number, damage: number): void {
-    this.statBoom += 1;    this.events.onEffect('boom', x, y, radius);
-    this.events.onDetonate(x, y, radius);
+    this.statBoom += 1;
+    this.events.onBlast(x, y, radius);
     const d = distance(x, y, this.hero.x, this.hero.y);
     if (d <= radius + HERO.radius) this.damageHero(damage, slot);
     else this.events.toast('自爆虫炸空了', 'info');
@@ -329,7 +362,7 @@ export class Game {
       aoe.delay -= dt;
       if (aoe.delay > 0) continue;
       this.pendingAoe.splice(i, 1);
-      this.events.onDetonate(aoe.x, aoe.y, aoe.radius);
+      this.events.onBlast(aoe.x, aoe.y, aoe.radius);
       const d = distance(aoe.x, aoe.y, this.hero.x, this.hero.y);
       if (d <= aoe.radius + HERO.radius) this.damageHero(aoe.damage, -1);
     }
@@ -422,6 +455,7 @@ export class Game {
       );
       if (slot < 0) break;
       this.applyStacks(slot);
+      this.placedTotal += 1;
       this.events.onSpawn(slot);
     }
 
@@ -436,39 +470,8 @@ export class Game {
     this.store.hp[slot] = this.store.maxHp[slot] ?? 0;
     this.store.atk[slot] = (this.store.atk[slot] ?? 0) * (1 + 0.14 * this.atkStack);
     this.store.atkInterval[slot] = (this.store.atkInterval[slot] ?? 1) / (1 + 0.1 * this.atkSpeedStack);
-  }
-
-  // ---------------------------------------------------------------- 引爆
-
-  public tryDetonate(worldX: number, worldY: number): boolean {
-    if (this.state !== 'playing') return false;
-    if (this.detonateCd > 0) {
-      this.events.toast('引爆还在冷却', 'bad');
-      return false;
-    }
-    const slot = this.store.pickAt(worldX, worldY, 34);
-    if (slot < 0) return false;
-
-    const star = this.store.star[slot] ?? 1;
-    const mx = this.store.x[slot] ?? 0;
-    const my = this.store.y[slot] ?? 0;
-    const damage = star * DETONATE.perStar;
-
-    // 爆炸范围直接砸在勇者身上：这是"止损"而不是"输出"
-    if (distance(mx, my, this.hero.x, this.hero.y) <= DETONATE.radius) {
-      this.hero.takeDamage(damage, this.heroHooks);
-    }
-
-    this.store.kill(slot);
-    this.store.refreshActive();
-    this.detonations += 1;
-    this.detonateCd = DETONATE.cd;
-    this.hero.hunger = Math.min(DETONATE.hungerMax, this.hero.hunger + 1);
-    this.events.onDetonate(mx, my, DETONATE.radius);
-    this.events.onDeath(slot);
-    // 代价必须说清楚：炸掉的那只不再给经验，而痛觉换来的是勇者的攻速
-    this.events.toast(`引爆 ★${star}：经验阻断 · 他的攻速 +${Math.round(this.hero.hunger * DETONATE.hungerPerUse * 100)}%`, 'good');
-    return true;
+    // 护甲是加法叠层：新召唤的怪也要吃到已经选过的权能
+    this.store.armor[slot] = (this.store.armor[slot] ?? 0) + 2 * this.armorStack;
   }
 
   // ---------------------------------------------------------------- 权能
@@ -514,6 +517,24 @@ export class Game {
         break;
       case 'star':
         this.upgradeRandomCard();
+        break;
+      case 'armor':
+        this.armorStack += 1;
+        for (let i = 0; i < this.store.activeCount; i += 1) {
+          const slot = this.store.active[i];
+          if (slot === undefined) continue;
+          this.store.armor[slot] = (this.store.armor[slot] ?? 0) + picked.value;
+        }
+        break;
+      case 'weak':
+        // 直接改他的攻击：这是唯一会"反向成长"的权能，玩家能明显感到他在变弱
+        this.hero.gainAtk(-picked.value);
+        break;
+      case 'slow':
+        this.hero.speed *= 1 - picked.value;
+        break;
+      case 'skillcd':
+        this.hero.skillCdMul *= 1 + picked.value;
         break;
     }
 
@@ -568,7 +589,7 @@ export class Game {
 
   private damageHero(amount: number, slot: number): void {
     const star = this.store.star[slot] ?? 1;
-    this.hero.takeDamage(amount * (1 + 0.05 * star), this.heroHooks);
+    this.hero.takeDamage(amount * (1 + 0.05 * star) * MONSTER_DMG_MUL, this.heroHooks);
   }
 
   private readonly heroHooks: HeroHooks = {
@@ -578,8 +599,29 @@ export class Game {
       this.store.flash[slot] = 1;
       if (hp <= 0) this.killMonster(slot, true);
     },
-    onQi: (x, y, dirX, dirY) => this.events.onQi(x, y, dirX, dirY),
-    onSwing: () => this.events.onSwing(),
+    onQi: (x, y, dirX, dirY) => {
+      this.statQi += 1;
+      this.events.onQi(x, y, dirX, dirY);
+    },
+    onShot: (x, y, dirX, dirY) => {
+      this.statShot += 1;
+      this.events.onShot(x, y, dirX, dirY);
+    },
+    onBomb: (x, y, radius, damage) => {
+      this.statBomb += 1;
+      // 落点有预警，到点才炸 —— 玩家有时间把怪散开
+      this.pendingAoe.push({ x, y, radius, damage, delay: SKILL_TUNING.bombDelay });
+      this.events.onTelegraph(x, y, radius, SKILL_TUNING.bombDelay);
+    },
+    onHealSelf: (x, y, amount) => {
+      this.statSelfHeal += 1;
+      this.events.onEffect('heal', x, y, 70);
+      this.events.toast(`锅巴吃了干粮，回了 ${Math.round(amount)} 血`, 'bad');
+    },
+    onRoll: (fromX, fromY, toX, toY) => {
+      this.statRoll += 1;
+      this.events.onRangedShot(-1, fromX, fromY, toX, toY);
+    },
     onLevelUp: (level, passive) => {
       this.events.onHeroLevel(level, passive);
       this.events.toast(`锅巴 Lv${level} · ${passive}`, 'bad');
@@ -587,14 +629,15 @@ export class Game {
     onHurt: (amount) => this.events.onHeroHurt(amount),
   };
 
-  /** `byHero` 为 false 表示被引爆的（不给经验）。 */
-  private killMonster(slot: number, byHero: boolean): void {
+  /** `grantXp` 为 false 表示这只不算战果（召唤物到期的骷髅兵）。 */
+  private killMonster(slot: number, grantXp: boolean): void {
     const star = this.store.star[slot] ?? 1;
     this.store.kill(slot);
     this.store.refreshActive();
     this.events.onDeath(slot);
-    if (!byHero) return;
+    if (!grantXp) return;
     this.kills += 1;
+    this.hero.onKill();
     this.hero.addXp(star * XP.perStar, this.heroHooks);
   }
 

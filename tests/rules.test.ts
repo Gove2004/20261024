@@ -9,6 +9,8 @@ import {
 } from '../src/content/cards';
 import { STAR_CAP, heroAtk, heroMaxHp, starCapAt, xpNeed } from '../src/content/config';
 import { AI } from '../src/content/heroAi';
+import { PASSIVE_POOL, SKILLS, SKILL_TUNING } from '../src/content/heroSkills';
+import { PASSIVE_COUNT, PASSIVE_POOL_COUNT } from '../src/gameplay/hero';
 import { angleDelta, clamp, inCone } from '../src/core/math';
 
 describe('星数与 CD 曲线', () => {
@@ -116,8 +118,31 @@ describe('AI 参数', () => {
     expect(AI.qiWindup).toBeGreaterThan(0.2);
   });
 
+  it('纯远程：射程 > 舒适距离 > 贴脸距离，三段必须拉开层次', () => {
+    expect(AI.shootRange).toBeGreaterThan(AI.keepRange);
+    expect(AI.keepRange).toBeGreaterThan(AI.panicRange);
+    // 射程要明显长于近战贴身距离，否则"远程"名不副实
+    expect(AI.shootRange).toBeGreaterThan(AI.panicRange * 2);
+  });
+
   it('迟滞系数 > 1，避免每帧换目标', () => {
     expect(AI.switchGain).toBeGreaterThan(1);
+  });
+
+  it('技能池 7 个主动，且每个都有前摇', () => {
+    expect(SKILLS.length).toBe(7);
+    for (const skill of SKILLS) {
+      expect(skill.windup).toBeGreaterThan(0);
+      expect(skill.name.length).toBeGreaterThan(0);
+    }
+    // 锅巴是纯远程：不许出现近战技能
+    expect(SKILLS.some((skill) => skill.id === 'shot')).toBe(true);
+  });
+
+  it('被动池 14 条，且文案表与效果表一一对应', () => {
+    expect(PASSIVE_POOL.length).toBe(14);
+    expect(PASSIVE_COUNT).toBe(PASSIVE_POOL_COUNT);
+    expect(new Set(PASSIVE_POOL.map((p) => p.name)).size).toBe(14);
   });
 
   it('撤退阈值低于狂化阈值之上，形成"先撤后狂"的层次', () => {

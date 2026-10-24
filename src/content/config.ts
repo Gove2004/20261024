@@ -82,8 +82,14 @@ export const POWERUP = { interval: 30, slowScale: 0.15 } as const;
 /** 经验：XP_need(L) = base + per × (L − 1)；击杀所得 = 星级 × perStar。 */
 export const XP = { base: 60, per: 45, perStar: 8 } as const;
 
-/** 引爆。 */
-export const DETONATE = { radius: 110, perStar: 30, cd: 2, hungerPerUse: 0.04, hungerMax: 10 } as const;
+/**
+ * 魔物对勇者的伤害总倍率。
+ *
+ * 锅巴改成"纯远程 + 会拉开距离"之后，只有贴身的那几只打得到他，
+ * 8 局模拟里他平均剩 81% 血结束 —— 玩家完全没有"快赢了"的紧张感。
+ * 这个倍率补的就是"看起来只围住 3 只，实际是整群在打"的差额。
+ */
+export const MONSTER_DMG_MUL = 2.2;
 
 /** 击杀奖励（评分用）。 */
 export const SCORE = { perSecondLeft: 12, perPeakStar: 50, perKill: 4 } as const;

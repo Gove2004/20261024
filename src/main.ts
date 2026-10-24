@@ -42,12 +42,17 @@ async function bootstrap(): Promise<void> {
     onHeroHurt: () => {
       audio.onHeroHurt();
     },
-    onHeroLevel: () => {
+    onHeroLevel: (level, passive) => {
       scene.fx.ring(game.hero.x, game.hero.y, 90, 0xffb347, 5);
       scene.fx.burst(game.hero.x, game.hero.y - 20, 0xffb347, 18, 50);
+      hud.levelUp(level, passive);
       audio.onHeroLevel();
     },
-    onSwing: () => {
+    onShot: (x, y, dirX, dirY) => {
+      // 弹丸：一小段发亮的短划 + 一点火星，朝射击方向飞出
+      scene.fx.slash(x + dirX * 22, y + dirY * 22 - 12, dirX, dirY, 34, 5);
+      scene.fx.burst(x + dirX * 26, y + dirY * 26 - 12, 0xffe1a8, 4, 10);
+      // 弹弓释放暂时复用挥击音（都是"快速空气声"），M5 再单独做弓弦
       audio.onSwing();
     },
     onQi: (x, y, dirX, dirY) => {
@@ -65,9 +70,10 @@ async function bootstrap(): Promise<void> {
       const start = len * 0.5;
       scene.fx.slash(fromX + ux * start, fromY + uy * start, ux, uy, Math.min(58, len * 0.4), 2);
     },
-    onDetonate: (x, y, radius) => {
-      scene.fx.ring(x, y, radius, 0xc06bd8, 6);
-      scene.fx.burst(x, y, 0xc06bd8, 22, radius);
+    onBlast: (x, y, radius) => {
+      scene.fx.ring(x, y, radius, 0xff7a3c, 6);
+      scene.fx.burst(x, y, 0xff7a3c, 22, radius);
+      // 语义一致：都是"范围爆炸"，直接沿用引爆音
       audio.onDetonate();
     },
     onTelegraph: (x, y, radius, duration) => {
@@ -142,56 +148,25 @@ async function bootstrap(): Promise<void> {
     };
   };
 
-  let lastClickAt = 0;
-  let lastClickX = 0;
-  let lastClickY = 0;
-
   canvas.addEventListener('pointerdown', (event) => {
     if (game.state !== 'playing') return;
+    if (game.selected < 0) return;
     const point = toWorld(event.clientX, event.clientY);
-
-    if (game.selected >= 0) {
-      game.place(point.x, point.y);
-      return;
-    }
-
-    const now = performance.now();
-    const isDouble =
-      now - lastClickAt < 300 && Math.hypot(event.clientX - lastClickX, event.clientY - lastClickY) < 30;
-    if (isDouble) {
-      game.tryDetonate(point.x, point.y);
-      lastClickAt = 0;
-      return;
-    }
-    lastClickAt = now;
-    lastClickX = event.clientX;
-    lastClickY = event.clientY;
+    game.place(point.x, point.y);
   });
 
   canvas.addEventListener('pointermove', (event) => {
-    if (game.state !== 'playing') {
+    if (game.state !== 'playing' || game.selected < 0) {
       scene.setPreview(null);
-      scene.setDetonateHint(null);
       return;
     }
 
     const point = toWorld(event.clientX, event.clientY);
-
-    // 没选卡时，指针悬在魔物上就给"可引爆"反馈 —— 不说玩家不会知道双击能炸
-    if (game.selected < 0) {
-      scene.setPreview(null);
-      const slot = game.store.pickAt(point.x, point.y, 34);
-      scene.setDetonateHint(slot >= 0 ? { x: game.store.x[slot] ?? 0, y: game.store.y[slot] ?? 0 } : null);
-      return;
-    }
-
-    scene.setDetonateHint(null);
     scene.setPreview({ x: point.x, y: point.y, ok: game.placementError(point.x, point.y) === null });
   });
 
   canvas.addEventListener('pointerleave', () => {
     scene.setPreview(null);
-    scene.setDetonateHint(null);
   });
 
   window.addEventListener('keydown', (event) => {

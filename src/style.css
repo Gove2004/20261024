@@ -267,17 +267,6 @@ body {
   white-space: nowrap;
 }
 
-.hero-hunger {
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  color: #ff9b6b;
-  background: rgba(255, 90, 50, 0.14);
-  border: 1px solid rgba(255, 120, 80, 0.4);
-  border-radius: 999px;
-  padding: 1px 7px;
-}
-
 /* 卡面贴图：占上半张卡，名字压在下沿 —— 玩家靠图认怪，不靠字认怪 */
 .card-art {
   position: absolute;
@@ -416,6 +405,70 @@ body {
   to {
     opacity: 1;
     transform: translateX(0);
+  }
+}
+
+/* 升级横幅：中屏偏上，避开顶部的血条与底部的卡牌 */
+.levelup {
+  position: absolute;
+  left: 50%;
+  /* 贴在手牌上方：顶部 130px 内是血条/倒计时/意图，压上去会和文字挤成一团（截图确认过两轮） */
+  bottom: 168px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 26px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(255, 179, 71, 0.2), rgba(11, 10, 20, 0.9));
+  border: 1px solid rgba(255, 179, 71, 0.55);
+  pointer-events: none;
+  opacity: 0;
+}
+
+/* 这条不能省：UA 的 [hidden] 是 display:none，被上面的 display:flex 覆盖掉了，
+   结果横幅"隐着形"但仍然每帧参与合成，软件渲染下直接吃掉 3/4 帧率（实测 34→10）。 */
+.levelup[hidden] {
+  display: none;
+}
+
+.levelup.is-in {
+  animation: levelup-in 1.9s ease-out;
+}
+
+.levelup b {
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: #ffd79a;
+  text-shadow: 0 2px 12px rgba(255, 150, 40, 0.5);
+}
+
+.levelup span {
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: #ffe9c8;
+}
+
+@keyframes levelup-in {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-10px) scale(0.94);
+  }
+  12% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1.04);
+  }
+  22% {
+    transform: translateX(-50%) scale(1);
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-6px);
   }
 }
 

@@ -1,6 +1,9 @@
 import { AI } from '../content/heroAi';
+import { PASSIVE_POOL, SKILL_BY_ID, SKILL_TUNING, type SkillId } from '../content/heroSkills';
+
+/** 技能 id 的固定顺序（热路径遍历冷却用，避免每帧 Object.keys） */
+const SKILL_IDS: readonly SkillId[] = ['shot', 'spread', 'qi', 'bomb', 'heavy', 'heal', 'roll'];
 import {
-  DETONATE,
   HALL_CENTER,
   HERO,
   PILLARS,
@@ -13,7 +16,7 @@ import {
   xpNeed,
 } from '../content/config';
 import type { MonsterStore } from '../ecs/store';
-import { clamp, damp, distance, inCone, normalize } from '../core/math';
+import { clamp, damp, distance, normalize } from '../core/math';
 import type { Rng } from '../core/rng';
 
 export type HeroState = 'idle' | 'patrol' | 'seek' | 'engage' | 'retreat' | 'enrage';
@@ -23,7 +26,14 @@ export type HeroIntent = 'chase' | 'charge' | 'retreat';
 export interface HeroHooks {
   hitMonster(slot: number, damage: number, crit: boolean): void;
   onQi(fromX: number, fromY: number, dirX: number, dirY: number): void;
-  onSwing(): void;
+  /** 远程射击（视觉表现：弹丸从弹弓飞向目标） */
+  onShot(fromX: number, fromY: number, dirX: number, dirY: number): void;
+  /** 抛射爆弹：落点由 game 排进"延迟结算"，预警是义务 */
+  onBomb(x: number, y: number, radius: number, damage: number): void;
+  /** 自己回血（干粮） */
+  onHealSelf(x: number, y: number, amount: number): void;
+  /** 翻滚位移 */
+  onRoll(fromX: number, fromY: number, toX: number, toY: number): void;
   onLevelUp(level: number, passive: string): void;
   onHurt(amount: number): void;
 }
@@ -33,14 +43,30 @@ interface Passive {
   apply(hero: Hero): void;
 }
 
+/**
+ * 14 个被动的实现。名字必须和 `heroSkills.PASSIVE_POOL` 一一对应 ——
+ * 那边是给玩家看的文案，这边是效果，单测会校验两边条数一致。
+ */
 const PASSIVES: readonly Passive[] = [
   { name: '力量 +8%', apply: (h) => h.gainAtk(0.08) },
   { name: '攻速 +12%', apply: (h) => void (h.atkSpeedMul += 0.12) },
   { name: '护甲 +3', apply: (h) => void (h.armor += 3) },
   { name: '暴击 +8%', apply: (h) => void (h.crit += 0.08) },
-  { name: '吸血 +5%', apply: (h) => void (h.lifesteal += 0.05) },
+  { name: '吸血 4%', apply: (h) => void (h.lifesteal += 0.04) },
+  { name: '移速 +10%', apply: (h) => void (h.moveMul += 0.1) },
+  { name: '减伤 8%', apply: (h) => void (h.damageReduction = Math.min(0.6, h.damageReduction + 0.08)) },
   { name: '生命 +8%', apply: (h) => h.gainMaxHp(0.08) },
+  { name: '剑气 +25%', apply: (h) => void (h.qiMul += 0.25) },
+  { name: '散射 +2 弹', apply: (h) => void (h.spreadExtra += 2) },
+  { name: '重击 +30%', apply: (h) => void (h.heavyMul += 0.3) },
+  { name: '技能冷却 −12%', apply: (h) => void (h.skillCdMul *= 0.88) },
+  { name: '击杀回血 2%', apply: (h) => void (h.killHeal += 0.02) },
+  { name: '弹弓穿透 +1', apply: (h) => void (h.shotPierce += 1) },
 ];
+
+/** 被动条数必须和文案表一致，否则玩家看到的升级选项和实际效果会错位。 */
+export const PASSIVE_COUNT = PASSIVES.length;
+export const PASSIVE_POOL_COUNT = PASSIVE_POOL.length;
 
 /**
  * 勇者「锅巴」。近战剑士 + 标志性剑气。
@@ -80,17 +106,41 @@ export class Hero {
   public windup = 0;
   public recover = 0;
 
-  public qiCd: number = AI.qiCd * 0.5;
-  public qiWindup = 0;
+  /** 正在蓄力的技能（null = 没在放技能） */
+  public pendingSkill: SkillId | null = null;
+  /** 每个主动技能的剩余冷却 */
+  public readonly cds: Record<SkillId, number> = {
+    shot: 0,
+    spread: 0,
+    qi: 0,
+    bomb: 0,
+    heavy: 0,
+    heal: 0,
+    roll: 0,
+  };
+  /** 爆弹落点（前摇期间 scene 会画预警圈） */
+  public bombX = 0;
+  public bombY = 0;
+  /** 剑气方向（scene 用来画蓄力线） */
   public qiDirX = 0;
   public qiDirY = 1;
+  /** 翻滚后的短暂无敌 */
+  public guardTimer = 0;
+
+  /** 被动堆出来的属性 */
+  public moveMul = 1;
+  public damageReduction = 0;
+  public qiMul = 1;
+  public heavyMul = 1;
+  public spreadExtra = 0;
+  public shotPierce = 0;
+  public killHeal = 0;
+  public skillCdMul = 1;
 
   public flash = 0;
   public hurtTimer = 0;
   public retreatLock = 0;
   public stateTimer = 0;
-  /** 引爆造成的「饥渴」层数：攻速 +4%/层 */
-  public hunger = 0;
 
   public intent: HeroIntent = 'chase';
 
@@ -144,13 +194,27 @@ export class Hero {
     this.attackTimer = 0;
     this.windup = 0;
     this.recover = 0;
-    this.qiCd = AI.qiCd * 0.5;
-    this.qiWindup = 0;
+    this.pendingSkill = null;
+    this.cds.shot = 0;
+    this.cds.spread = 0;
+    this.cds.qi = 0;
+    this.cds.bomb = 0;
+    this.cds.heavy = 0;
+    this.cds.heal = 0;
+    this.cds.roll = 0;
+    this.guardTimer = 0;
+    this.moveMul = 1;
+    this.damageReduction = 0;
+    this.qiMul = 1;
+    this.heavyMul = 1;
+    this.spreadExtra = 0;
+    this.shotPierce = 0;
+    this.killHeal = 0;
+    this.skillCdMul = 1;
     this.flash = 0;
     this.hurtTimer = 0;
     this.retreatLock = 0;
     this.stateTimer = 0;
-    this.hunger = 0;
     this.slowTimer = 0;
     this.slowFactor = 1;
     this.frozenTimer = 0;
@@ -176,12 +240,20 @@ export class Hero {
     this.hp *= 1 + mul;
   }
 
+  /** 击杀回血（被动「击杀回血」）。由 game 在结算击杀时调用。 */
+  public onKill(): void {
+    if (this.killHeal <= 0) return;
+    this.hp = Math.min(this.maxHp, this.hp + this.maxHp * this.killHeal);
+  }
+
   public takeDamage(amount: number, hooks: HeroHooks): void {
     if (!this.alive) return;
+    // 翻滚的无敌帧：玩家（摆怪的人）看到他要翻滚时，这一发就算白打
+    if (this.guardTimer > 0) return;
     // 护甲走百分比减免，不做减法：减法会让"小怪 vs 高护甲"直接塌成 1 点伤害，
     // 后期护甲一叠，杂兵就彻底打不动人（这是实测踩到的坑）。
     const reduction = this.armor / (this.armor + 60);
-    const real = Math.max(1, amount * (1 - reduction));
+    const real = Math.max(1, amount * (1 - reduction) * (1 - this.damageReduction));
     this.hp -= real;
     this.flash = 1;
     this.hurtTimer = 0.25;
@@ -201,7 +273,9 @@ export class Hero {
       this.xp -= need;
       this.level += 1;
       this.maxHp = heroMaxHp(this.level) * this.hpMul;
-      this.hp = Math.min(this.maxHp, this.hp + this.maxHp * 0.08);
+      // 升级只回 3%：原来回 8%，12 级就等于白送一整条血，
+      // 玩家打掉的伤害被"升级回血"全额抹平（模拟里他结束还剩 72% 血）。
+      this.hp = Math.min(this.maxHp, this.hp + this.maxHp * 0.03);
       this.atk = heroAtk(this.level) * this.atkMul;
       this.speed = heroSpeed(this.level);
       this.armor += HERO.armorPerLevel;
@@ -220,7 +294,11 @@ export class Hero {
     this.retreatLock = Math.max(0, this.retreatLock - dt);
     this.attackTimer = Math.max(0, this.attackTimer - dt);
     this.recover = Math.max(0, this.recover - dt);
-    this.qiCd = Math.max(0, this.qiCd - dt);
+    this.guardTimer = Math.max(0, this.guardTimer - dt);
+    for (const id of SKILL_IDS) {
+      const cd = this.cds[id];
+      if (cd > 0) this.cds[id] = Math.max(0, cd - dt);
+    }
 
     if (this.slowTimer > 0) {
       this.slowTimer = Math.max(0, this.slowTimer - dt);
@@ -244,7 +322,7 @@ export class Hero {
   }
 
   private atkSpeedNow(): number {
-    const hunger = 1 + this.hunger * DETONATE.hungerPerUse;
+    const hunger = 1;
     if (this.frozenTimer > 0) return 0.3;
     return Math.max(0.3, this.atkSpeedMul * (this.enraged ? AI.enrageAtkSpeed : 1) * hunger);
   }
@@ -377,80 +455,265 @@ export class Hero {
     }
 
     this.state = 'engage';
-    this.intent = this.windup > 0 || this.qiWindup > 0 ? 'charge' : 'chase';
+    this.intent = this.pendingSkill !== null ? 'charge' : 'chase';
   }
 
-  /** ---- 攻击与剑气 ---- */
+  /** ---- 技能调度 ---- */
   private updateAttack(dt: number, store: MonsterStore, hooks: HeroHooks): void {
     if (this.frozenTimer > 0) {
       this.windup = 0;
-      this.qiWindup = 0;
-      return;
-    }
-    if (this.qiWindup > 0) {
-      this.qiWindup -= dt;
-      if (this.qiWindup <= 0) this.resolveQi(store, hooks);
+      this.pendingSkill = null;
       return;
     }
 
-    if (this.windup > 0) {
+    if (this.pendingSkill !== null) {
       this.windup -= dt;
-      if (this.windup <= 0) this.resolveSwing(store, hooks);
+      if (this.windup > 0) return;
+      const skill = this.pendingSkill;
+      this.pendingSkill = null;
+      this.resolveSkill(skill, store, hooks);
       return;
     }
 
-    if (this.target < 0 || this.state === 'retreat') return;
+    if (this.attackTimer > 0 || this.recover > 0 || this.target < 0 || this.state === 'retreat') return;
 
-    // 剑气：能串到 ≥2 个目标时才放，避免浪费
-    if (this.qiCd <= 0 && this.countQiTargets(store) >= AI.qiMinTargets) {
-      const dir = normalize((store.x[this.target] ?? this.x) - this.x, (store.y[this.target] ?? this.y) - this.y);
+    // 优先级 = 生存 > 保命位移 > 大招 > 清群 > 补刀。
+    // 顺序写死而不是随机：玩家必须能学会"他什么时候会做什么"。
+    const tx = store.x[this.target] ?? this.x;
+    const ty = store.y[this.target] ?? this.y;
+    const dist = distance(this.x, this.y, tx, ty);
+    const dir = normalize(tx - this.x, ty - this.y);
+
+    if (this.hpRatio < SKILL_TUNING.healThreshold && this.canUse('heal')) {
+      this.beginSkill('heal', dir, hooks);
+      return;
+    }
+    if (dist < SKILL_TUNING.rollTrigger && this.canUse('roll')) {
+      this.beginSkill('roll', dir, hooks);
+      return;
+    }
+    if (this.canUse('heavy') && dist > 170 && dist <= SKILL_TUNING.heavyRange) {
+      this.beginSkill('heavy', dir, hooks);
+      return;
+    }
+    if (this.canUse('bomb') && this.countAround(store, tx, ty, SKILL_TUNING.bombRadius) >= 3) {
+      this.beginSkill('bomb', dir, hooks);
+      return;
+    }
+    if (this.canUse('spread') && this.countInCone(store, dir, SKILL_TUNING.spreadAngle, SKILL_TUNING.spreadRange) >= 2) {
+      this.beginSkill('spread', dir, hooks);
+      return;
+    }
+    if (this.canUse('qi') && this.countQiTargets(store) >= AI.qiMinTargets) {
       this.qiDirX = dir.x;
       this.qiDirY = dir.y;
-      this.facingX = dir.x;
-      this.facingY = dir.y;
-      this.qiWindup = AI.qiWindup;
-      this.qiCd = AI.qiCd;
-      this.intent = 'charge';
+      this.beginSkill('qi', dir, hooks);
       return;
     }
 
-    if (this.attackTimer > 0 || this.recover > 0) return;
-
-    const d = distance(this.x, this.y, store.x[this.target] ?? 0, store.y[this.target] ?? 0);
-    const reach = AI.engageRange + (store.radius[this.target] ?? 0);
-    if (d > reach) return;
-
-    const dir = normalize((store.x[this.target] ?? this.x) - this.x, (store.y[this.target] ?? this.y) - this.y);
-    this.facingX = dir.x;
-    this.facingY = dir.y;
-    this.windup = AI.windup;
-    this.intent = 'charge';
-    hooks.onSwing();
+    // 普攻：够得着才射，够不着就继续靠（靠近由 updateMovement 负责）
+    if (dist > AI.shootRange + (store.radius[this.target] ?? 0)) return;
+    this.beginSkill('shot', dir, hooks);
   }
 
-  private resolveSwing(store: MonsterStore, hooks: HeroHooks): void {
+  private canUse(id: SkillId): boolean {
+    return this.cds[id] <= 0;
+  }
+
+  private beginSkill(id: SkillId, dir: { x: number; y: number }, hooks: HeroHooks): void {
+    const def = SKILL_BY_ID[id];
+    this.facingX = dir.x;
+    this.facingY = dir.y;
+    this.pendingSkill = id;
+    this.windup = def.windup;
+    this.intent = 'charge';
+    if (id === 'bomb') {
+      this.bombX = this.x + dir.x * 220;
+      this.bombY = this.y + dir.y * 220;
+    }
+    if (id === 'roll') {
+      // 翻滚是唯一没有前摇缓冲的技能，落地就先画一道烟
+      hooks.onRoll(this.x, this.y, this.x - dir.x * SKILL_TUNING.rollDistance, this.y - dir.y * SKILL_TUNING.rollDistance);
+    }
+  }
+
+  private resolveSkill(id: SkillId, store: MonsterStore, hooks: HeroHooks): void {
+    const def = SKILL_BY_ID[id];
+    if (def.cd > 0) this.cds[id] = def.cd * this.skillCdMul;
+    switch (id) {
+      case 'shot':
+        this.resolveShot(store, hooks);
+        break;
+      case 'spread':
+        this.resolveSpread(store, hooks);
+        break;
+      case 'qi':
+        this.resolveQi(store, hooks);
+        break;
+      case 'bomb':
+        this.resolveBomb(hooks);
+        break;
+      case 'heavy':
+        this.resolveHeavy(store, hooks);
+        break;
+      case 'heal':
+        this.resolveHeal(hooks);
+        break;
+      case 'roll':
+        this.resolveRoll(store);
+        break;
+    }
+  }
+
+  /** 伤害结算的公共出口：暴击、百分比护甲、吸血都在这里，避免每个技能各写一遍。 */
+  private hit(slot: number, store: MonsterStore, hooks: HeroHooks, mul: number, canCrit: boolean): number {
+    const crit = canCrit && this.rng.chance(this.crit);
+    const raw = this.atk * this.damageMul() * mul * (crit ? 1.8 : 1);
+    // 百分比减伤而不是直接减法：他改成单体远程后每发伤害变小，
+    // 减法会让高护甲怪直接免疫（实测 4 点伤害），"堆数量"就变成唯一解。
+    const dmg = Math.max(1, raw * (60 / (60 + (store.armor[slot] ?? 0))));
+    hooks.hitMonster(slot, dmg, crit);
+    if (this.lifesteal > 0) this.hp = Math.min(this.maxHp, this.hp + dmg * this.lifesteal);
+    return dmg;
+  }
+
+  /**
+   * 射击结算：**单体**命中。他不再有近战挥砍，
+   * 所以"一堆小怪围上来"就有了意义 —— 一发只打死一只。
+   * 被动「弹弓穿透」能让它多穿几只。
+   */
+  private resolveShot(store: MonsterStore, hooks: HeroHooks): void {
     this.attackTimer = HERO.baseAtkInterval / this.atkSpeedNow();
     this.recover = AI.recover;
     this.windup = 0;
 
-    const reach = AI.engageRange + 26;
+    hooks.onShot(this.x, this.y, this.facingX, this.facingY);
+
     let hits = 0;
-    for (let i = 0; i < store.activeCount; i += 1) {
-      if (hits >= AI.maxSwingTargets) break;
+    const maxHits = 1 + this.shotPierce;
+    for (let i = 0; i < store.activeCount && hits < maxHits; i += 1) {
       const slot = store.active[i];
       if (slot === undefined) continue;
       const mx = store.x[slot] ?? 0;
       const my = store.y[slot] ?? 0;
-      const r = store.radius[slot] ?? 0;
-      if (!inCone(this.x, this.y, this.facingX, this.facingY, AI.halfArc, mx, my, reach + r)) continue;
+      const radius = store.radius[slot] ?? 0;
+      const dx = mx - this.x;
+      const dy = my - this.y;
+      const along = dx * this.facingX + dy * this.facingY;
+      if (along <= 0 || along > AI.shootRange + radius) continue;
+      // 弹丸要有"打偏"的可能：不在准星锥内就落空。
+      // 否则玩家永远无法靠走位/拉扯躲开他的输出。
+      const side = Math.abs(dx * this.facingY - dy * this.facingX);
+      if (side > radius + 14) continue;
+      this.hit(slot, store, hooks, 1, true);
       hits += 1;
-
-      const crit = this.rng.chance(this.crit);
-      const raw = this.atk * this.damageMul() * (crit ? 1.8 : 1);
-      const dmg = Math.max(1, raw - (store.armor[slot] ?? 0));
-      hooks.hitMonster(slot, dmg, crit);
-      if (this.lifesteal > 0) this.hp = Math.min(this.maxHp, this.hp + dmg * this.lifesteal);
     }
+  }
+
+  /** 散射：以准星为中心铺开一片弹丸，专治"杂兵堆成一片"。 */
+  private resolveSpread(store: MonsterStore, hooks: HeroHooks): void {
+    const pellets = SKILL_TUNING.spreadPellets + this.spreadExtra;
+    this.recover = AI.recover;
+    this.windup = 0;
+
+    const base = Math.atan2(this.facingY, this.facingX);
+    const hitSlots = new Set<number>();
+    for (let p = 0; p < pellets; p += 1) {
+      const t = pellets === 1 ? 0 : p / (pellets - 1) - 0.5;
+      const angle = base + t * SKILL_TUNING.spreadAngle * 2;
+      const dx = Math.cos(angle);
+      const dy = Math.sin(angle);
+      hooks.onShot(this.x, this.y, dx, dy);
+
+      // 每颗弹丸命中最靠近的那只，且不重复命中（否则一炮全灭）
+      let bestSlot = -1;
+      let bestAlong = Infinity;
+      for (let i = 0; i < store.activeCount; i += 1) {
+        const slot = store.active[i];
+        if (slot === undefined || hitSlots.has(slot)) continue;
+        const mx = (store.x[slot] ?? 0) - this.x;
+        const my = (store.y[slot] ?? 0) - this.y;
+        const along = mx * dx + my * dy;
+        if (along <= 0 || along > SKILL_TUNING.spreadRange) continue;
+        if (Math.abs(mx * dy - my * dx) > (store.radius[slot] ?? 0) + 12) continue;
+        if (along < bestAlong) {
+          bestAlong = along;
+          bestSlot = slot;
+        }
+      }
+      if (bestSlot >= 0) {
+        hitSlots.add(bestSlot);
+        this.hit(bestSlot, store, hooks, 0.7, true);
+      }
+    }
+  }
+
+  /** 爆弹：不立即结算，交给 game 走"预警 → 到点 → 伤害"的流程。 */
+  private resolveBomb(hooks: HeroHooks): void {
+    this.recover = 0.35;
+    this.windup = 0;
+    hooks.onBomb(this.bombX, this.bombY, SKILL_TUNING.bombRadius, this.atk * SKILL_TUNING.bombDamageMul);
+  }
+
+  /** 蓄力重击：长前摇换高伤害，专治高星肉盾。 */
+  private resolveHeavy(store: MonsterStore, hooks: HeroHooks): void {
+    this.recover = 0.4;
+    this.windup = 0;
+    hooks.onQi(this.x, this.y, this.facingX, this.facingY);
+    const slot = this.target;
+    if (slot < 0) return;
+    const d = distance(this.x, this.y, store.x[slot] ?? 0, store.y[slot] ?? 0);
+    if (d > SKILL_TUNING.heavyRange) return;
+    this.hit(slot, store, hooks, SKILL_TUNING.heavyDamageMul * this.heavyMul, true);
+  }
+
+  private resolveHeal(hooks: HeroHooks): void {
+    this.recover = 0.3;
+    this.windup = 0;
+    const amount = this.maxHp * SKILL_TUNING.healRatio;
+    this.hp = Math.min(this.maxHp, this.hp + amount);
+    hooks.onHealSelf(this.x, this.y, amount);
+  }
+
+  private resolveRoll(store: MonsterStore): void {
+    this.recover = 0.2;
+    this.windup = 0;
+    const dir = normalize(this.facingX, this.facingY);
+    this.x -= dir.x * SKILL_TUNING.rollDistance;
+    this.y -= dir.y * SKILL_TUNING.rollDistance;
+    this.confineToArena();
+    this.guardTimer = 0.35;
+    this.vx = 0;
+    this.vy = 0;
+    void store;
+  }
+
+  /** 以 (x,y) 为中心、半径 r 内有几只魔物（爆弹值不值得放）。 */
+  private countAround(store: MonsterStore, x: number, y: number, r: number): number {
+    let count = 0;
+    for (let i = 0; i < store.activeCount; i += 1) {
+      const slot = store.active[i];
+      if (slot === undefined) continue;
+      if (distance(x, y, store.x[slot] ?? 0, store.y[slot] ?? 0) <= r) count += 1;
+    }
+    return count;
+  }
+
+  /** 一个扇形里最多有几只（散射值不值得放）。 */
+  private countInCone(store: MonsterStore, dir: { x: number; y: number }, halfAngle: number, range: number): number {
+    const cosLimit = Math.cos(halfAngle);
+    let count = 0;
+    for (let i = 0; i < store.activeCount; i += 1) {
+      const slot = store.active[i];
+      if (slot === undefined) continue;
+      const dx = (store.x[slot] ?? 0) - this.x;
+      const dy = (store.y[slot] ?? 0) - this.y;
+      const d = Math.hypot(dx, dy);
+      if (d <= 1 || d > range) continue;
+      if ((dx * dir.x + dy * dir.y) / d < cosLimit) continue;
+      count += 1;
+    }
+    return count;
   }
 
   private countQiTargets(store: MonsterStore): number {
@@ -472,7 +735,6 @@ export class Hero {
   private resolveQi(store: MonsterStore, hooks: HeroHooks): void {
     hooks.onQi(this.x, this.y, this.qiDirX, this.qiDirY);
     this.recover = AI.qiRecover;
-    this.qiWindup = 0;
     this.intent = 'chase';
 
     for (let i = 0; i < store.activeCount; i += 1) {
@@ -484,9 +746,7 @@ export class Hero {
       if (along <= 0 || along > AI.qiLength) continue;
       if (Math.abs(mx * this.qiDirY - my * this.qiDirX) > AI.qiHalfWidth + (store.radius[slot] ?? 0)) continue;
 
-      const dmg = Math.max(1, this.atk * AI.qiDamageMul - (store.armor[slot] ?? 0));
-      hooks.hitMonster(slot, dmg, false);
-      if (this.lifesteal > 0) this.hp = Math.min(this.maxHp, this.hp + dmg * this.lifesteal);
+      this.hit(slot, store, hooks, AI.qiDamageMul * this.qiMul, false);
     }
   }
 
@@ -495,6 +755,18 @@ export class Hero {
     let dirX = 0;
     let dirY = 0;
     let wantMove = false;
+
+    // 蓄力时站定：这是玩家唯一能"贴上去"的窗口。
+    // 会边跑边射的远程单位在测试里几乎不掉血（8 局平均剩 87% 血），必须给他这个破绽。
+    if (this.pendingSkill !== null) {
+      this.vx = damp(this.vx, 0, AI.accelK * 2, dt);
+      this.vy = damp(this.vy, 0, AI.accelK * 2, dt);
+      this.x += this.vx * dt;
+      this.y += this.vy * dt;
+      this.moving = false;
+      this.confineToArena();
+      return;
+    }
 
     if (this.target >= 0) {
       const tx = store.x[this.target] ?? this.x;
@@ -506,12 +778,27 @@ export class Hero {
         dirX = -dir.x;
         dirY = -dir.y;
         wantMove = true;
-      } else if (d > AI.engageRange * AI.stopFactor) {
+      } else if (d < AI.panicRange) {
+        // 被贴脸：他是远程，这时候必须后撤而不是硬顶。
+        // 后撤是"侧向偏一点地退"，不是直线逃跑 —— 直线跑会被追着打死。
+        const side = this.dodgeSign >= 0 ? 1 : -1;
+        dirX = -dir.x * 0.78 - dir.y * 0.62 * side;
+        dirY = -dir.y * 0.78 + dir.x * 0.62 * side;
+        wantMove = true;
+        this.facingX = dir.x;
+        this.facingY = dir.y;
+      } else if (d > AI.keepRange) {
+        // 够不到就往里压，压到 keepRange 就停手站着射
         dirX = dir.x;
         dirY = dir.y;
         wantMove = true;
         this.facingX = dir.x;
         this.facingY = dir.y;
+      } else {
+        // 在舒适距离内：只做微调，保持脸朝着目标（射击方向）
+        this.facingX = dir.x;
+        this.facingY = dir.y;
+        wantMove = d > AI.keepRange * 1.12;
       }
     } else {
       const homeX = HALL_CENTER.x;
@@ -541,7 +828,12 @@ export class Hero {
       dirY = dirY * 0.35 + py;
     }
 
-    const speedMul = (this.enraged ? AI.enrageSpeed : 1) * (this.state === 'retreat' ? 1.1 : 1);
+    const speedMul =
+      (this.enraged ? AI.enrageSpeed : 1) *
+      (this.state === 'retreat' ? 1.1 : 1) *
+      (this.target >= 0 && distance(this.x, this.y, store.x[this.target] ?? this.x, store.y[this.target] ?? this.y) < AI.panicRange
+        ? AI.kiteSpeed
+        : 1);
     const targetVx = wantMove ? dirX * this.speed * speedMul * this.moveFactor() : 0;
     const targetVy = wantMove ? dirY * this.speed * speedMul * this.moveFactor() : 0;
 
