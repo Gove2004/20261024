@@ -37,3 +37,7 @@ npm-debug.log*
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# ── 本地指令覆盖（个人机器配置，不进仓库）──
+AGENTS.local.md
+CLAUDE.local.md
