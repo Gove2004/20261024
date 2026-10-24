@@ -1,0 +1,186 @@
+/* ── 全局调色板（与 docs/GAME_DESIGN.md §6.1 保持一致）────────────
+   深渊底色 #0B0A14 / #151226   祭坛石 #2E2740 / #43395C
+   魂光     #5FF2D0 / #2ED9B4   熔岩   #FF6B4A / #FFB347
+   锅巴金脆 #F5C24B / #FFE39A   焦黑   #4A3427 / #241A14        */
+
+:root {
+  --abyss-0: #0b0a14;
+  --abyss-1: #151226;
+  --stone-0: #2e2740;
+  --stone-1: #43395c;
+  --soul-0: #5ff2d0;
+  --soul-1: #2ed9b4;
+  --lava-0: #ff6b4a;
+  --lava-1: #ffb347;
+  --guoba-0: #f5c24b;
+  --guoba-1: #ffe39a;
+  --char-0: #4a3427;
+  --char-1: #241a14;
+  --blood: #ff3b5c;
+
+  --font-ui: 'PingFang SC', 'HarmonyOS Sans SC', 'Microsoft YaHei', 'Noto Sans SC',
+    system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--abyss-0);
+  color: #e8e4f5;
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#stage {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 45%, var(--abyss-1) 0%, var(--abyss-0) 70%);
+}
+
+#game-canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  touch-action: none;
+}
+
+/* UI 覆盖层：默认不吃指针事件，只有具体控件打开 */
+#ui {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── 标题页（骨架阶段的占位，M4 会换成正式主视觉）── */
+.title-screen {
+  pointer-events: auto;
+  text-align: center;
+  padding: 32px;
+  transition: opacity 0.45s ease, transform 0.45s ease;
+}
+
+.title-screen[hidden] {
+  display: none;
+}
+
+.title-screen.is-leaving {
+  opacity: 0;
+  transform: scale(1.04);
+}
+
+.title-kicker {
+  font-size: 13px;
+  letter-spacing: 0.42em;
+  text-transform: uppercase;
+  color: var(--soul-0);
+  opacity: 0.85;
+  margin-bottom: 18px;
+}
+
+.title-main {
+  font-size: clamp(42px, 7vw, 86px);
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  line-height: 1.05;
+  margin: 0;
+  background: linear-gradient(178deg, var(--guoba-1) 8%, var(--guoba-0) 46%, var(--lava-0) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 6px 24px rgba(245, 194, 75, 0.28));
+}
+
+.title-sub {
+  margin: 20px 0 6px;
+  font-size: clamp(15px, 2vw, 19px);
+  letter-spacing: 0.16em;
+  color: #b9b2d4;
+}
+
+.title-hook {
+  margin: 0 auto 30px;
+  max-width: 30em;
+  font-size: 14px;
+  line-height: 1.85;
+  color: #8a83a8;
+}
+
+.title-hook em {
+  font-style: normal;
+  color: var(--lava-1);
+}
+
+.btn-start {
+  pointer-events: auto;
+  appearance: none;
+  border: 1px solid rgba(95, 242, 208, 0.5);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(95, 242, 208, 0.16), rgba(95, 242, 208, 0.04));
+  color: var(--soul-0);
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  padding: 15px 52px 15px 58px;
+  cursor: pointer;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+}
+
+.btn-start:hover {
+  transform: translateY(-2px);
+  background: linear-gradient(180deg, rgba(95, 242, 208, 0.28), rgba(95, 242, 208, 0.08));
+  box-shadow: 0 10px 34px rgba(46, 217, 180, 0.24);
+}
+
+.btn-start:active {
+  transform: translateY(0);
+}
+
+.title-foot {
+  margin-top: 26px;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  color: #5d5875;
+}
+
+.title-foot kbd {
+  font-family: ui-monospace, 'Cascadia Code', monospace;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 5px;
+  padding: 1px 7px;
+  color: #9d96bb;
+}
+
+/* 调试角标（F3 开关）*/
+.debug-badge {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  font-family: ui-monospace, 'Cascadia Code', monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #6f6a88;
+  background: rgba(11, 10, 20, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  padding: 6px 9px;
+  white-space: pre;
+}
+
+.debug-badge[hidden] {
+  display: none;
+}

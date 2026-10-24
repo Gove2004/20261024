@@ -1,12 +1,239 @@
-<<<<<<< HEAD
-# 20261024
+# 锅巴必须死 · GUOBA MUST DIE
 
-测试仓库。
+> **反向肉鸽**：你是深渊，你把怪物摆上祭坛喂给来讨伐你的小勇者「锅巴」。他吃得越肥，你杀死他时拿的分越高 —— 但你也可能被他反杀。
+>
+> 2D 俯视角 · 单局 6 分钟 · 浏览器直接玩 · 全部美术与音频由生成式模型产出
 
-## 测试提交
+参赛作品：WaytoAGI 1024 切磋大会 · 游戏赛道
 
-- 克隆时间：2026-10-24
-- 用途：验证本地 Git 提交流程是否正常
-=======
-我是锅巴
->>>>>>> d7bf58511930d8a313c15d6c27712e8021e5d3a5
+---
+
+## 目录
+
+- [现在是什么状态](#现在是什么状态)
+- [这个游戏怎么玩](#这个游戏怎么玩)
+- [快速开始](#快速开始)
+- [配置生成式 API Key](#配置生成式-api-key)
+- [项目结构](#项目结构)
+- [协作约定](#协作约定)
+- [AI 资产管线](#ai-资产管线)
+- [进度与分工](#进度与分工)
+- [交付清单](#交付清单)
+
+---
+
+## 现在是什么状态
+
+| 模块 | 状态 |
+| --- | --- |
+| 策划案 | ✅ 完成 · [`docs/GAME_DESIGN.md`](docs/GAME_DESIGN.md) |
+| 技术选型 | ✅ 完成 · [`docs/TECH_STACK.md`](docs/TECH_STACK.md) |
+| 工程骨架 | ✅ 可运行（固定步长循环 + Pixi 渲染 + DOM UI + 冒烟测试通过） |
+| 战斗闭环 | ⬜ 待做 |
+| 卡牌 / 星级 / 双成长 | ⬜ 待做 |
+| 美术资产 | 🟡 已出首张候选立绘，待批量生成 |
+| 音效 / BGM | ⬜ 待做 |
+| 部署上线 | ⬜ 待做 |
+
+> 里程碑与时间点见下方[进度与分工](#进度与分工)。**先看策划案的 §3 核心循环，十分钟能读懂整个游戏。**
+
+---
+
+## 这个游戏怎么玩
+
+**你不是英雄，你是那个要被讨伐的深渊。**
+
+1. 场上有一个 AI 勇者「锅巴」，他会主动砍你的怪物。
+2. 你花「魂」把怪物卡放到祭坛上，怪物自动攻击锅巴。
+3. **锅巴每吃掉一只怪物就涨经验、升级、随机变强**（学会旋风斩、吸血、烈焰…）。
+4. 你也在变强：每 25 秒弹一次「育种强化」3 选 1，强化你的卡牌、星级上限、遗物。
+5. **场上存活怪物的星级总和有上限**，上限随时间提升。
+6. 6 分钟内把锅巴打死 = 胜利。打不死 = 他扬长而去。
+
+**核心张力**：分数按锅巴死亡时的等级结算 —— 所以你会想把他喂到最强，但那也是最可能翻车的时刻。
+
+**关键操作**：点卡 → 点地放置；双击怪物「献祭」可以饿住他（他不涨经验，但你少一个兵）。
+
+完整规则、数值表、卡池、强化池见 **[`docs/GAME_DESIGN.md`](docs/GAME_DESIGN.md)**。
+
+---
+
+## 快速开始
+
+环境要求：Node.js ≥ 20。
+
+```bash
+npm install
+npm run dev           # 本地开发 http://localhost:5173
+npm run build         # 类型检查 + 产出 dist/
+npm run preview       # 预览构建产物
+npm test              # 单元测试（Vitest）
+node tools/smoke.mjs  # 无头 Edge 冒烟测试：加载 dist、点开始、量帧率、出截图到 shots/
+npm run sim           # 无渲染跑 1000 局做数值校准（待实现）
+```
+
+**当前骨架已验证**：`npm run build` 通过（dist ≈ 150KB gzip），`node tools/smoke.mjs` → `SMOKE PASS`（WebGL2 上下文建立、标题层正常隐藏、无 console error、软件渲染下 40fps）。
+
+> **Node 不在 PATH 时（本机常见）**：先 `$env:PATH="D:\Nodejs;$env:PATH"`。
+> npm 缓存若遇到权限问题，加 `--cache "$PWD\.npm-cache"`。
+
+---
+
+## 配置生成式 API Key
+
+项目用 [OpenAI Next Credits](https://credits.openai-next.com/guide/handbook) 生成贴图、BGM、配音。
+
+1. **复制模板**
+   ```bash
+   cp .env.example .env.local
+   ```
+2. **填入你自己的 Key**（找 owner 要，或用自己的账号申请）
+   ```
+   CREDIT_MEDIA_API_KEY=sk-你的key
+   ```
+3. **确认被 git 忽略**
+   ```bash
+   git check-ignore -v .env.local     # 应该输出一条匹配规则
+   ```
+
+⚠️ **`src/` 里的前端代码永远不要直接调用生成式 API** —— Key 会随构建产物发布到公网。
+所有生成只走 `tools/media/*.mjs` 命令行脚本，产物落盘后再提交。
+
+`.env.local` 已被 `.gitignore` 忽略，**不会**进入仓库。
+
+---
+
+## 项目结构
+
+```
+20261024/
+├─ docs/
+│  ├─ GAME_DESIGN.md        # 完整策划案（先读这个）
+│  ├─ TECH_STACK.md         # 技术选型 + API 实测记录 + 资产管线
+│  └─ CHARACTER_CARD.md     # 参赛主角卡底稿与素材台账
+├─ public/assets/           # 构建产物：图集、音频、字体
+├─ art/raw/                 # AI 原始出图（不提交）
+├─ tools/
+│  ├─ media/
+│  │  ├─ client.mjs         # API 封装：重试、限流、下载、manifest
+│  │  ├─ gen-image.mjs      # 出图命令行
+│  │  └─ manifest.json      # 每个资产的 prompt / 模型 / 用量（提交，凭证）
+│  ├─ art/                  # 去背、裁边、图集打包（待实现）
+│  ├─ smoke.mjs             # 无头浏览器冒烟测试 + 截图
+│  └─ simulate.mjs          # 无渲染数值模拟（待实现）
+├─ src/
+│  ├─ main.ts               # 入口：装配骨架场景
+│  ├─ core/loop.ts          # 固定步长循环（已实现）
+│  ├─ render/stage.ts       # Pixi 初始化 + letterbox 适配（已实现）
+│  ├─ app/                  # 场景装配、加载流程（待实现）
+│  ├─ ecs/                  # 稀疏集合实体表（待实现）
+│  ├─ gameplay/             # 战斗、锅巴 AI、卡牌、魂、星级、强化、结算（待实现）
+│  ├─ content/              # 纯数据：卡池、强化池、台词、调色板（待实现）
+│  ├─ ui/                   # DOM 覆盖层（待实现）
+│  ├─ audio/                # WebAudio 封装 + 程序化音效（待实现）
+│  └─ save/                 # localStorage、每日种子（待实现）
+├─ tests/                   # Vitest 单元测试
+├─ .env.example             # API Key 模板（提交）
+├─ .env.local               # 真实 Key（不提交）
+└─ README.md
+```
+
+**分层依赖单向，不许反向引用**：
+
+```
+core  →  ecs / gameplay  →  render / ui  →  app
+```
+
+`core` 不认识 Pixi；`gameplay` 不认识 DOM；`render` 只读取 `gameplay` 的状态，不写回。
+
+---
+
+## 协作约定
+
+### 代码
+
+- TypeScript **strict**，`verbatimModuleSyntax`，**禁止 `any`**（用 `unknown` + 类型收窄）。
+- 组件用**相对路径**导入，不用路径别名（避免 Vite / Vitest / tsc 三处配置漂移）。
+- 热路径（`update` / 渲染循环）**零分配**：不 `new`、不闭包捕获、不用 `filter/map`。
+- 随机**必须**用注入的 `Rng`（种子化），禁止裸 `Math.random()` —— 否则「每日深渊」和数值模拟都失效。
+- 注释用中文 TSDoc，写**为什么**，不写**做了什么**。
+
+### 提交
+
+- 一个可验证的改动一次提交；提交信息 `feat|fix|chore|docs|art(范围): 中文简述`。
+- 提交前跑 `npm test`；改了战斗数值要跑 `npm run sim` 并把曲线贴到 `docs/GAME_DESIGN.md` §5.2。
+- **永远不要提交 `.env.local`、`node_modules`、`dist`、`art/raw`。**
+
+### 并行开发
+
+多人 / 多 Agent 同时干活时，**按目录切分写入范围**，不要两个人同时改同一个文件：
+
+| 线 | 目录 | 内容 |
+| --- | --- | --- |
+| A 核心战斗 | `src/gameplay/**`, `src/ecs/**` | 实体、碰撞、锅巴 AI、经验 |
+| B 卡牌成长 | `src/content/**`, `src/gameplay/cards/**` | 卡池、魂、星级、强化池、结算 |
+| C 表现 | `src/render/**`, `src/ui/**` | 渲染、粒子、镜头、动效、UI |
+| D 资产 | `tools/**`, `public/assets/**`, `art/**` | AI 生图、音乐、切图、图集 |
+
+共享的类型定义（`src/core/types.ts`）改动前先在群里说一声。
+
+---
+
+## AI 资产管线
+
+```
+提示词 → 生成 → art/raw → 去背 → 裁边 → 缩放 → 图集 → public/assets
+```
+
+命令（出图已可用，切图脚本待实现）：
+
+```bash
+# 出图：自动读取 .env.local 的 Key，失败重试，产物落盘并写入 manifest.json
+node tools/media/gen-image.mjs --model gpt-image-2 --prompt "..." --out art/raw/guoba_lv1.png
+node tools/media/gen-image.mjs --model gemini-3-pro-image --prompt-file tools/media/prompts/guoba.txt --out art/raw/guoba_lv2.png
+
+# 去背 + 裁边 + 缩放 + 打包图集（待实现）
+node tools/art/clean.py
+node tools/art/pack.py
+```
+
+- 每个资产的 prompt / 模型 / 生成时间 / token 用量记录在 `tools/media/manifest.json`（**提交进仓库**，这是"AI 生成"的凭证）。
+- 风格统一靠**一张风格锚点图** + 所有后续生成都带参考图。
+- 实测结论（2026-10-24）：
+  - `gpt-image-2` **✅ 可用，28.9 秒/张，1056 image tokens**（比 `gpt-image-1` 的 22s/4208 tokens 更划算）
+  - 音乐与配音端点存在，但当前 Key 权限受限（403/429），已准备程序化退路
+  - 详见 [`docs/TECH_STACK.md`](docs/TECH_STACK.md) §3
+
+---
+
+## 进度与分工
+
+| 时间 | 阶段 | 目标 |
+| --- | --- | --- |
+| 10/24 16:30–19:00 | M0 骨架 | 循环 + 场景 + 资源加载，60fps |
+| 10/24 19:00–23:00 | M1 战斗闭环 | **能玩一局** |
+| 10/24 23:00–02:00 | M2 卡牌星级 | 三幕结构成立 |
+| 10/25 02:00–05:00 | M3 双成长 | 每局构筑不同 |
+| 10/25 08:00–11:00 | M4 美术接入 | 截图能当宣传图 |
+| 10/25 11:00–13:30 | M5 音画收尾 | 手机能玩 |
+| 10/25 13:30–15:00 | M6 交付 | 主角卡 + 部署上线 |
+| 截止 | **10/25 16:00** | 提交作品 |
+
+---
+
+## 交付清单
+
+赛事要求（对照 [游戏赛道](https://1024.waytoagi.com/tracks/game)）：
+
+- [ ] **浏览器/手机可直接玩的链接**
+- [ ] **从开始到重开能完整玩一局**
+- [ ] **操作提示在游戏内**（不是文档里）
+- [ ] **主角卡 1 张**：一句话/草图 + 生成的角色 + 游戏里的样子
+- [ ] 角色与道具为 AI 生成（保留 `tools/media/manifest.json` 作为凭证）
+- [ ] 提交截止：**2026-10-25 16:00**
+
+---
+
+## 许可证
+
+本项目为参赛作品，未授权前请勿商用或二次分发美术资产。
