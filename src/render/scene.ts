@@ -1,4 +1,4 @@
-import { Container, Graphics, Sprite, Texture } from 'pixi.js';
+import { Container, Graphics, Sprite, Texture, TilingSprite } from 'pixi.js';
 import { HALL, HALL_CENTER, HALL_WALL, PILLARS, PLACE, THRONE, VIEW, WORLD } from '../content/config';
 import { CARDS, type CardShape } from '../content/cards';
 import { COLOR } from '../content/palette';
@@ -7,6 +7,7 @@ import { SKILL_BY_ID, SKILL_TUNING } from '../content/heroSkills';
 import type { Game } from '../gameplay/game';
 import type { Rng } from '../core/rng';
 import { FxLayer } from './fx';
+import { Ambient } from './ambient';
 import type { ArtMap } from './art';
 import type { Stage } from './stage';
 
@@ -81,25 +82,46 @@ export class Scene {
   private readonly monsterBase = new Map<number, number>();
   private art: ArtMap = new Map();
   private heroArt: Sprite | null = null;
+  private floorSprite: Sprite | null = null;
+  private readonly ambient: Ambient;
+  /** 环境贴图只在第一次拿到时铺一次 */
+  private envBuilt = false;
 
   constructor(
     private readonly stage: Stage,
-    rng: Rng,
+    private readonly rng: Rng,
   ) {
     const world = stage.world;
     world.removeChildren();
 
     const ground = new Graphics();
-    this.drawGround(ground);
+    this.drawGround(ground, rng);
     // 静态地面烘焙成一张贴图：否则每帧都要重绘几十个半透明大圆，
     // 软件渲染下直接掉到 10fps（这是实测过的，不是猜的）。
     const floorTexture = stage.app.renderer.generateTexture(ground);
     ground.destroy();
     const floor = new Sprite(floorTexture);
+    this.floorSprite = floor;
     world.addChild(floor);
 
     this.entityLayer.sortableChildren = true;
     world.addChild(this.entityLayer);
+
+    // 环境粒子：浮尘 + 火盆余烬。挂在 world 里跟着相机走，和实体同层之前，
+    // 这样它们永远在魔物/勇者下面，不会糊在角色脸上。
+    this.ambient = new Ambient(
+      world,
+      (color, radius) => {
+        const g = new Graphics();
+        g.circle(0, 0, radius).fill({ color });
+        const tex = stage.app.renderer.generateTexture(g);
+        g.destroy();
+        return tex;
+      },
+      rng,
+    );
+    const vignette = Ambient.buildVignette();
+    world.addChildAt(vignette, world.getChildIndex(this.entityLayer));
 
     this.buildHero();
     this.entityLayer.addChild(this.heroNode);
@@ -120,6 +142,7 @@ export class Scene {
    */
   public setArt(art: ArtMap): void {
     this.art = art;
+    this.buildEnv();
     const texture = art.get('guoba');
     if (!texture || this.heroArt) return;
 
@@ -132,6 +155,179 @@ export class Scene {
     this.heroSword.visible = false;
     this.heroNode.addChild(sprite);
     this.heroArt = sprite;
+  }
+
+  /**
+   * 环境贴图（M4）。方向已定稿：**保留深色大厅，只做质感升级**，
+   * 所以这里是把手绘石头贴图叠在原来的程序化烘焙地面上，而不是换配色。
+   *
+   * 性能教训（实测，不是猜）：第一版用 TilingSprite + Graphics 遮罩铺地面和墙体，
+   * 软件渲染直接从 40fps 掉到 13fps —— 遮罩会多一遍 stencil pass，
+   * 1640×1240 的平铺混合在 CPU 光栅化下极其昂贵。
+   * 现在改成：平铺贴图**只在启动时烤一次**成单张纹理，运行时就是一个 Sprite。
+   * 墙体和石柱保留程序化造型（形状本来就对，贴图带来的收益不抵一遍遮罩）。
+   */
+  private buildEnv(): void {
+    if (this.envBuilt) return;
+    const floorTex = this.art.get('env-floor');
+    if (!floorTex) return;
+    this.envBuilt = true;
+
+    const world = this.stage.world;
+    const w = HALL.right - HALL.left;
+    const h = HALL.bottom - HALL.top;
+    const insertAt = world.getChildIndex(this.entityLayer);
+
+    // 两层不同尺度的平铺叠在一起：单层 2×2 平铺的重复感是肉眼级的
+    // （评审两次都指出"像浴室瓷砖"），错开尺度 + 相位之后周期变成 2.7×2.9 倍，
+    // 屏幕上再也看不到同一个图案出现两次。启动时烤一次，运行时零成本。
+    const layerA = new TilingSprite({ texture: floorTex, width: w, height: h });
+    layerA.tileScale.set(1.6);
+    layerA.alpha = 0.3;
+    layerA.position.set(HALL.left, HALL.top);
+    const layerB = new TilingSprite({ texture: floorTex, width: w, height: h });
+    layerB.tileScale.set(2.7);
+    layerB.tilePosition.set(311, 197);
+    layerB.alpha = 0.22;
+    layerB.position.set(HALL.left, HALL.top);
+
+    const overlayBaked = this.stage.app.renderer.generateTexture(
+      (() => {
+        const stage = new Container();
+        stage.addChild(layerA, layerB);
+        return stage;
+      })(),
+    );
+    layerA.destroy();
+    layerB.destroy();
+
+    if (this.floorSprite) {
+      const compose = new Container();
+      const base = new Sprite(this.floorSprite.texture);
+      const over = new Sprite(overlayBaked);
+      over.position.set(HALL.left, HALL.top);
+      const wear = new Graphics();
+      this.drawWear(wear);
+      compose.addChild(base, over, wear);
+      const merged = this.stage.app.renderer.generateTexture(compose);
+      compose.destroy({ children: true });
+      this.floorSprite.texture = merged;
+      this.floorSprite.position.set(0, 0);
+    } else {
+      const floorOverlay = new Sprite(overlayBaked);
+      floorOverlay.position.set(HALL.left, HALL.top);
+      floorOverlay.alpha = 0.5;
+      world.addChildAt(floorOverlay, insertAt);
+    }
+
+    // 2) 石柱：孤立物体，直接用透明贴图，不用遮罩
+    const pillarTex = this.art.get('env-pillar');
+    if (pillarTex) {
+      for (const pillar of PILLARS) {
+        const sprite = new Sprite(pillarTex);
+        sprite.anchor.set(0.5);
+        const size = (pillar.r + 16) * 2;
+        sprite.width = size;
+        sprite.height = size;
+        sprite.position.set(pillar.x, pillar.y);
+        world.addChildAt(sprite, insertAt + 1);
+      }
+    }
+
+    // 3) 四角火盆：贴图 + 一层暖色光晕（光晕用程序化，比在贴图里烤更可控）
+    const brazierTex = this.art.get('env-brazier');
+    const warm = this.makeGlowTexture(0xffb066, 0xff7a2f);
+    const cool = this.makeGlowTexture(0x7d6bd0, 0x2a2048);
+    const corners: readonly (readonly [number, number])[] = [
+      [HALL.left + 90, HALL.top + 90],
+      [HALL.right - 90, HALL.top + 90],
+      [HALL.left + 90, HALL.bottom - 90],
+      [HALL.right - 90, HALL.bottom - 90],
+    ];
+
+    // 光池：加色混合的径向渐变。这是"平光"最便宜的解法 ——
+    // 一张预烤贴图 + 4 个 add 混合 Sprite，运行时只是 4 次 draw。
+    for (const [cx, cy] of corners) {
+      const pool = new Sprite(warm);
+      pool.anchor.set(0.5);
+      pool.width = 460;
+      pool.height = 460;
+      pool.position.set(cx, cy);
+      pool.alpha = 0.5;
+      pool.blendMode = 'add';
+      world.addChildAt(pool, insertAt + 1);
+    }
+
+    // 王座台一圈冷紫光：给大厅一个"光源中心"，别让光只从四个角落来
+    const throneGlow = new Sprite(cool);
+    throneGlow.anchor.set(0.5);
+    throneGlow.width = 760;
+    throneGlow.height = 760;
+    throneGlow.position.set(THRONE.x, THRONE.y);
+    throneGlow.alpha = 0.42;
+    throneGlow.blendMode = 'add';
+    world.addChildAt(throneGlow, insertAt + 1);
+
+    if (brazierTex) {
+      for (const [cx, cy] of corners) {
+        const sprite = new Sprite(brazierTex);
+        sprite.anchor.set(0.5);
+        sprite.width = 124;
+        sprite.height = 124;
+        sprite.position.set(cx, cy);
+        world.addChildAt(sprite, insertAt + 2);
+      }
+    }
+  }
+
+  /** 径向渐变光斑贴图：一圈圈递减的半透明圆叠出来，预烤一次反复用。 */
+  private makeGlowTexture(inner: number, outer: number): Texture {
+    const g = new Graphics();
+    const steps = 16;
+    for (let i = steps; i >= 1; i -= 1) {
+      const t = i / steps;
+      // 0.045 太客气了：叠 14 层之后在深底上几乎看不见（评审："还是平光"）。
+      // 现在外层就给到 0.1，中心累计到接近 0.5，才看得出"这里有个火盆在照"。
+      g.circle(0, 0, 128 * t).fill({
+        color: i > steps * 0.5 ? outer : inner,
+        alpha: 0.1 + (1 - t) * 0.16,
+      });
+    }
+    const tex = this.stage.app.renderer.generateTexture(g);
+    g.destroy();
+    return tex;
+  }
+
+  /**
+   * 磨损与污渍：地面贴图是 2×2 平铺，纯靠它一眼就能看出重复（评审原话："像浴室瓷砖"）。
+   * 不规则斑块 + 随机裂缝是打碎重复感最便宜的手段 —— 只在启动时烤一次，运行时零成本。
+   * 必须画在贴图**之上**，否则会被 0.42 的叠图压灰。
+   */
+  private drawWear(g: Graphics): void {
+    const rng = this.rng;
+    for (let i = 0; i < 54; i += 1) {
+      const x = HALL.left + rng.next() * (HALL.right - HALL.left);
+      const y = HALL.top + rng.next() * (HALL.bottom - HALL.top);
+      const r = 26 + rng.next() * 96;
+      const dark = rng.next() > 0.3;
+      g.circle(x, y, r).fill({
+        color: dark ? 0x07050d : 0x3c3350,
+        alpha: dark ? 0.06 + rng.next() * 0.06 : 0.03 + rng.next() * 0.035,
+      });
+    }
+
+    for (let i = 0; i < 8; i += 1) {
+      let x = HALL.left + rng.next() * (HALL.right - HALL.left);
+      let y = HALL.top + rng.next() * (HALL.bottom - HALL.top);
+      g.moveTo(x, y);
+      const steps = 5 + Math.floor(rng.next() * 4);
+      for (let s = 0; s < steps; s += 1) {
+        x += (rng.next() - 0.5) * 96;
+        y += (rng.next() - 0.5) * 96;
+        g.lineTo(x, y);
+      }
+      g.stroke({ color: 0x05040a, width: 1 + rng.next() * 1.6, alpha: 0.18 });
+    }
   }
 
   /** 召唤落点预览：绿=可放，红=不可放。 */
@@ -147,7 +343,7 @@ export class Scene {
 
   // ------------------------------------------------------------------ 静态
 
-  private drawGround(g: Graphics): void {
+  private drawGround(g: Graphics, rng: Rng): void {
     g.rect(0, 0, WORLD.w, WORLD.h).fill({ color: COLOR.void });
 
     // 方形大厅：外墙 → 地面 → 内墙描边。方形的边角给了玩家"这是房间"的直觉，
@@ -180,14 +376,16 @@ export class Scene {
       g.moveTo(HALL.left + 6, y);
       g.lineTo(HALL.right - 6, y);
     }
-    g.stroke({ color: COLOR.stone0, width: 2, alpha: 0.35 });
+    // 地砖网格：加了手绘贴图之后，这条硬网格线就成了"像瓷砖"的元凶
+    // （评审两次都点它）。留一点点当空间参照，把视觉重量交给贴图。
+    g.stroke({ color: COLOR.stone0, width: 2, alpha: 0.1 });
 
     // 中心到四角的斜线，视觉上把房间收成一个"仪轨场"
     g.moveTo(HALL.left + 40, HALL.top + 40);
     g.lineTo(HALL.right - 40, HALL.bottom - 40);
     g.moveTo(HALL.right - 40, HALL.top + 40);
     g.lineTo(HALL.left + 40, HALL.bottom - 40);
-    g.stroke({ color: COLOR.lava, width: 2, alpha: 0.07 });
+    g.stroke({ color: COLOR.lava, width: 2, alpha: 0.05 });
 
     // 四角火盆
     const corners: readonly (readonly [number, number])[] = [
@@ -302,6 +500,7 @@ export class Scene {
 
     this.drawTelegraphs(hero, time);
     this.fx.update(1 / 60);
+    this.ambient.update(1 / 60);
     void alpha;
   }
 

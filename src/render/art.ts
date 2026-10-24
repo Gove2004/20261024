@@ -23,6 +23,11 @@ export const ART_IDS = [
   'guoba',
   'guoba-rage',
   'throne',
+  // 环境贴图（M4）：地面是平铺用的整张图，石柱/火盆是抠好的透明图。
+  // 墙体那张也生成过，但最终没接进渲染（遮罩开销换来的收益不值），就不提交了。
+  'env-floor',
+  'env-pillar',
+  'env-brazier',
 ] as const;
 
 export type ArtId = (typeof ART_IDS)[number];

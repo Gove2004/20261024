@@ -1326,5 +1326,190 @@
       }
     },
     "createdAt": "2026-10-24T13:10:02.240Z"
+  },
+  {
+    "kind": "image",
+    "id": "env-pillar",
+    "model": "gpt-image-2",
+    "prompt": "Top-down view of a round stone pillar base occupying the center of the frame, viewed from directly above, dark purple-grey carved stone (#2e2740) with a lighter top cap and a ring of carved runes, thick hand-painted flat shading, soft cold rim light on the upper-left edge, warm ember glow on the lower-right edge, subtle ground shadow under it, isolated object on a pure white background, no ground, no characters, no text, cartoon-flat painted game asset, bold clean silhouette, readable at 60 pixels",
+    "size": "1024x1024",
+    "file": "art/raw/env-pillar.png",
+    "bytes": 1095132,
+    "sourceUrl": "https://imagefil.scdn.app/public/image/55667e77f17ce118ac697c47096245c20.png",
+    "usage": {
+      "prompt_tokens": 125,
+      "completion_tokens": 1056,
+      "total_tokens": 1181,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "reasoning_tokens": 0,
+        "text_tokens": 125
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "image_tokens": 1056
+      },
+      "input_tokens": 125,
+      "output_tokens": 1056,
+      "input_tokens_details": {
+        "text_tokens": 125,
+        "cached_tokens": 0
+      },
+      "output_tokens_details": {
+        "text_tokens": 0,
+        "reasoning_tokens": 0,
+        "image_tokens": 1056
+      }
+    },
+    "createdAt": "2026-10-24T14:19:42.866Z"
+  },
+  {
+    "kind": "image",
+    "id": "env-floor",
+    "model": "gpt-image-2",
+    "prompt": "Top-down seamless tileable texture of a dark fantasy dungeon stone floor, square flagstones in desaturated deep purple-grey (#2a2438, #332c44), thin darker grout lines, subtle hand-painted flat shading, a few faint cracks and small chips, extremely subtle warm candlelight sheen on some edges, very low contrast, no strong highlights, matte, no characters, no props, no text, no border, fills the entire frame edge to edge, flat even lighting, tileable repeating pattern, cartoon-flat painted game texture, clean and readable at small scale",
+    "size": "1024x1024",
+    "file": "art/raw/env-floor.png",
+    "bytes": 1194301,
+    "sourceUrl": "https://imagefil.scdn.app/public/image/3f4d33a3f17ce118b3697c476ba4af1d0.png",
+    "usage": {
+      "prompt_tokens": 135,
+      "completion_tokens": 1056,
+      "total_tokens": 1191,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "reasoning_tokens": 0,
+        "text_tokens": 135
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "image_tokens": 1056
+      },
+      "input_tokens": 135,
+      "output_tokens": 1056,
+      "input_tokens_details": {
+        "text_tokens": 135,
+        "cached_tokens": 0
+      },
+      "output_tokens_details": {
+        "text_tokens": 0,
+        "reasoning_tokens": 0,
+        "image_tokens": 1056
+      }
+    },
+    "createdAt": "2026-10-24T14:20:11.868Z"
+  },
+  {
+    "kind": "image",
+    "id": "env-wall",
+    "model": "gpt-image-2",
+    "prompt": "Top-down game texture of a thick dark dungeon wall block seen from directly above, wide masonry band of large rectangular stones in deep purple-grey (#241f33, #332c44), a slightly lighter top face strip and a darker shadowed outer edge, hand-painted flat shading, muted cold rim light along the inner edge, a little warm torch glow reflected on a couple of stones, no characters, no props, no text, no perspective, orthographic straight-on top view, fills the frame edge to edge, low contrast so foreground units stay readable, cartoon-flat painted game texture",
+    "size": "1024x1024",
+    "file": "art/raw/env-wall.png",
+    "bytes": 1497697,
+    "sourceUrl": "https://imagefil.scdn.app/public/image/4d04a495f17ce118b1697c47b89fb4f80.png",
+    "usage": {
+      "prompt_tokens": 140,
+      "completion_tokens": 1056,
+      "total_tokens": 1196,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "reasoning_tokens": 0,
+        "text_tokens": 140
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "image_tokens": 1056
+      },
+      "input_tokens": 140,
+      "output_tokens": 1056,
+      "input_tokens_details": {
+        "text_tokens": 140,
+        "cached_tokens": 0
+      },
+      "output_tokens_details": {
+        "text_tokens": 0,
+        "reasoning_tokens": 0,
+        "image_tokens": 1056
+      }
+    },
+    "createdAt": "2026-10-24T14:20:17.022Z"
+  },
+  {
+    "kind": "image",
+    "id": "env-brazier",
+    "model": "gpt-image-2",
+    "prompt": "Top-down view of a round iron brazier full of burning embers, viewed from directly above, dark bronze bowl (#3a2f2a) with rivets, glowing orange and yellow coals inside (#ff9b3c, #ffd27a), small flame tips, warm light spill on the bowl rim, thick hand-painted flat shading, isolated object on a pure white background, no ground, no characters, no text, cartoon-flat painted game asset, bold clean silhouette, readable at 40 pixels",
+    "size": "1024x1024",
+    "file": "art/raw/env-brazier.png",
+    "bytes": 1271981,
+    "sourceUrl": "https://imagefil.scdn.app/public/image/98b8bd76f17ce118ab697c47145ab05e0.png",
+    "usage": {
+      "prompt_tokens": 107,
+      "completion_tokens": 1056,
+      "total_tokens": 1163,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "reasoning_tokens": 0,
+        "text_tokens": 107
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "image_tokens": 1056
+      },
+      "input_tokens": 107,
+      "output_tokens": 1056,
+      "input_tokens_details": {
+        "text_tokens": 107,
+        "cached_tokens": 0
+      },
+      "output_tokens_details": {
+        "text_tokens": 0,
+        "reasoning_tokens": 0,
+        "image_tokens": 1056
+      }
+    },
+    "createdAt": "2026-10-24T14:20:34.038Z"
+  },
+  {
+    "kind": "image",
+    "id": "env-floor",
+    "model": "gpt-image-2",
+    "prompt": "Top-down seamless tileable texture of an ancient dark dungeon floor, LARGE IRREGULAR broken flagstones of many different sizes and offsets, joints that wander and never line up into a grid, chipped corners, wide dark cracks between slabs, a few slabs cracked in half, patches of dark moss and old dried stains, desaturated deep purple-grey (#2a2438, #332c44), hand-painted flat shading, very low contrast, matte, no regular grid, no repeating square pattern, no characters, no props, no text, no border, fills the entire frame edge to edge, orthographic top view, flat even lighting, tileable, cartoon-flat painted game texture, readable at small scale",
+    "size": "1024x1024",
+    "file": "art/raw/env-floor.png",
+    "bytes": 1533951,
+    "sourceUrl": "https://imagefil.scdn.app/public/image/693bf5faad7de1182c777c4765b98f800.png",
+    "usage": {
+      "prompt_tokens": 163,
+      "completion_tokens": 1056,
+      "total_tokens": 1219,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "reasoning_tokens": 0,
+        "text_tokens": 163
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "image_tokens": 1056
+      },
+      "input_tokens": 163,
+      "output_tokens": 1056,
+      "input_tokens_details": {
+        "text_tokens": 163,
+        "cached_tokens": 0
+      },
+      "output_tokens_details": {
+        "text_tokens": 0,
+        "reasoning_tokens": 0,
+        "image_tokens": 1056
+      }
+    },
+    "createdAt": "2026-10-24T14:33:58.181Z"
   }
 ]

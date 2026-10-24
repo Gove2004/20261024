@@ -1,0 +1,197 @@
+/**
+ * 移动端适配（M5）。
+ *
+ * 原则：**不改结构，只压尺寸**。游戏的输入是"点卡 → 点地面"，
+ * 手机上真正会坏的只有三件事：
+ *   1. 6 张 86px 的卡 + gap 放不进 360px 的屏（横向溢出 → 出现横向滚动条）
+ *   2. 顶部血条 + 倒计时 + 意图挤在一起，把战场压得很小
+ *   3. 双击缩放 / 橡皮筋滚动把手势吃掉
+ *
+ * 所以这里只做：卡牌缩尺寸并可横向滑动、顶部信息压扁、锁定手势。
+ * 所有值都用 vw/px 混算，保证 360px 与 430px 都不溢出。
+ */
+
+/* ---- 手势与滚动：游戏是固定视口，不允许页面级滚动 ---- */
+html,
+body {
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+  touch-action: manipulation;
+}
+
+#stage,
+#ui {
+  touch-action: manipulation;
+}
+
+/* ---- 竖屏手机 ---- */
+@media (max-width: 560px) {
+  .hud {
+    padding: 8px 8px 10px;
+  }
+
+  .hud-top {
+    gap: 0;
+  }
+
+  .timer {
+    font-size: 30px;
+  }
+
+  .phase {
+    font-size: 10px;
+    letter-spacing: 0.18em;
+  }
+
+  .hero-hp-bar {
+    min-width: 0;
+    width: 78vw;
+  }
+
+  .hint-bar {
+    font-size: 10px;
+    letter-spacing: 0.02em;
+  }
+
+  /* 手牌：能放下的放，放不下的横向滑动。
+     overflow-x 必须配 pointer-events: auto，否则滑不动（HUD 整体是 none） */
+  .hand {
+    gap: 6px;
+    max-width: 96vw;
+    padding: 2px 4px 6px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    pointer-events: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .hand::-webkit-scrollbar {
+    display: none;
+  }
+
+  .card {
+    flex: 0 0 auto;
+    width: 62px;
+    height: 78px;
+    padding: 6px 3px;
+    border-radius: 8px;
+  }
+
+  .card-art {
+    width: 54px;
+    height: 48px;
+  }
+
+  .card-name {
+    font-size: 10px;
+  }
+
+  .card-star {
+    font-size: 10px;
+  }
+
+  /* 卡面 CD 数字在小卡上会顶到边框，缩一号 */
+  .card-cd {
+    font-size: 13px;
+  }
+
+  .star-budget {
+    font-size: 11px;
+    gap: 6px;
+  }
+
+  .levelup {
+    bottom: 118px;
+    padding: 7px 16px;
+  }
+
+  .levelup b {
+    font-size: 17px;
+  }
+
+  .levelup span {
+    font-size: 10px;
+  }
+
+  .toasts {
+    right: 8px;
+    top: 84px;
+    max-width: 62vw;
+  }
+
+  .toast {
+    font-size: 10px;
+    padding: 5px 8px;
+  }
+
+  .btn-pause {
+    right: 8px;
+    top: 8px;
+    width: 32px;
+    height: 32px;
+    font-size: 12px;
+  }
+
+  /* 覆盖层（标题/权能/结算）在窄屏容易顶出去 */
+  .overlay {
+    padding: 12px;
+  }
+
+  .overlay-title {
+    font-size: 26px;
+  }
+
+  .powerup-row {
+    flex-direction: column;
+    gap: 8px;
+    width: 92vw;
+  }
+
+  .powerup-card {
+    width: 100%;
+    min-height: 0;
+    padding: 10px 12px;
+  }
+}
+
+/* ---- 横屏手机 / 小屏平板：垂直空间是稀缺资源 ---- */
+@media (max-height: 520px) and (orientation: landscape) {
+  .hud {
+    padding: 4px 12px 6px;
+  }
+
+  .timer {
+    font-size: 24px;
+  }
+
+  .phase {
+    display: none;
+  }
+
+  .hud-top {
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .card {
+    width: 58px;
+    height: 68px;
+    padding: 4px 3px;
+  }
+
+  .card-art {
+    width: 50px;
+    height: 42px;
+  }
+
+  .hint-bar {
+    display: none;
+  }
+
+  .levelup {
+    bottom: 92px;
+    padding: 6px 14px;
+  }
+}

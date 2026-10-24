@@ -1,4 +1,9 @@
 import './style.css';
+// 移动端覆盖层必须在 style.css 之后导入：它整段都是媒体查询，
+// 靠"后出现"压过基础规则（同优先级下后者胜）。
+// 走 JS 导入而不是 index.html 里的 <link>：Vite 构建时会把 html 里指向
+// /src/*.css 的 link 直接丢掉，样式表就静默消失了（踩过）。
+import './style-mobile.css';
 import { audio, updateAudio } from './audio';
 import { FixedStepLoop } from './core/loop';
 import { createRng } from './core/rng';
@@ -14,6 +19,9 @@ async function bootstrap(): Promise<void> {
   const canvas = document.querySelector<HTMLCanvasElement>('#game-canvas');
   const uiRoot = document.querySelector<HTMLElement>('#ui');
   if (!canvas || !uiRoot) throw new Error('缺少 #game-canvas 或 #ui');
+
+  /** 静音是纯 UI 状态，不需要进 Game 的确定性状态里 */
+  let muted = false;
 
   const stage = await createStage(canvas);
   const scene = new Scene(stage, createRng(0x5eed1));
@@ -129,6 +137,11 @@ async function bootstrap(): Promise<void> {
       game.togglePause();
       audio.setPaused(game.state === 'paused');
     },
+    onToggleMute: () => {
+      muted = !muted;
+      audio.setMuted(muted);
+      hud.setMuted(muted);
+    },
   });
 
   game = new Game(events);
@@ -175,6 +188,11 @@ async function bootstrap(): Promise<void> {
       if (game.state === 'playing' || game.state === 'paused') game.togglePause();
     }
     if (event.code === 'Escape') game.selected = -1;
+    if (event.code === 'KeyM') {
+      muted = !muted;
+      audio.setMuted(muted);
+      hud.setMuted(muted);
+    }
     if (event.code === 'F3') {
       document.body.classList.toggle('debug');
     }

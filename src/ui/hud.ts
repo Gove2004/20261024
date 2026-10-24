@@ -8,6 +8,7 @@ export interface HudHandlers {
   onCard(index: number): void;
   onPowerup(id: string): void;
   onPause(): void;
+  onToggleMute(): void;
 }
 
 interface CardNode {
@@ -47,6 +48,8 @@ export class Hud {
   private readonly levelupLevelEl: HTMLElement;
   private readonly levelupPassiveEl: HTMLElement;
   private levelupTimer = 0;
+  private muteEl!: HTMLButtonElement;
+  private lastToast: { text: string; at: number; el: HTMLElement } | null = null;
   /** 上一帧写进 DOM 的值：一样就不写，避免软件渲染下整块 HUD 每帧重新合成 */
   private lastTimer = '';
   private lastPhase = '';
@@ -92,6 +95,7 @@ export class Hud {
         <div class="hand" data-hand></div>
       </div>
       <button class="btn-pause" data-pause title="暂停 (Space)">❚❚</button>
+      <button class="btn-mute" data-mute title="静音 (M)">🔊</button>
       <div class="levelup" data-levelup hidden>
         <b data-levelup-level>锅巴 Lv.2</b>
         <span data-levelup-passive>获得：力量 +8%</span>
@@ -117,6 +121,15 @@ export class Hud {
     this.overlayEl = this.must('[data-overlay]');
 
     this.must('[data-pause]').addEventListener('click', () => this.handlers.onPause());
+    this.muteEl = this.must('[data-mute]');
+    this.muteEl.addEventListener('click', () => this.handlers.onToggleMute());
+  }
+
+  /** 静音按钮的图标由这里翻，避免"点了没反应"的观感。 */
+  public setMuted(muted: boolean): void {
+    this.muteEl.textContent = muted ? '🔇' : '🔊';
+    this.muteEl.classList.toggle('is-off', muted);
+    this.muteEl.title = muted ? '已静音 (M)' : '静音 (M)';
   }
 
   private must<T extends HTMLElement>(selector: string): T {
@@ -295,12 +308,26 @@ export class Hud {
   // ---------------------------------------------------------------- 提示
 
   public toast(text: string, kind: 'info' | 'good' | 'bad' = 'info'): void {
+    // 同一句话 1.2 秒内重复就只刷新旧的那条：右侧一列"锅巴吃了干粮 ×5"
+    // 会把战场糊住（评审明确点了"右侧战斗日志杂乱"）。
+    const last = this.lastToast;
+    if (last && last.text === text && Date.now() - last.at < 1200 && last.el.isConnected) {
+      last.at = Date.now();
+      last.el.classList.remove('is-bump');
+      void last.el.offsetWidth;
+      last.el.classList.add('is-bump');
+      return;
+    }
+    if (last?.el.isConnected) last.el.classList.remove('is-bump');
+
     const el = document.createElement('div');
     el.className = `toast toast-${kind}`;
     el.textContent = text;
     this.toastEl.appendChild(el);
-    window.setTimeout(() => el.remove(), 1700);
-    if (this.toastEl.childElementCount > 5) this.toastEl.firstElementChild?.remove();
+    this.lastToast = { text, at: Date.now(), el };
+    window.setTimeout(() => el.remove(), 1500);
+    // 三条就够了：超出的是噪音，不是信息
+    if (this.toastEl.childElementCount > 3) this.toastEl.firstElementChild?.remove();
   }
 
   /**
