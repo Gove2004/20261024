@@ -1,4 +1,4 @@
-﻿/* ── 全局调色板（与 docs/GAME_DESIGN.md §8.1 保持一致）────────────
+/* ── 全局调色板（与 docs/GAME_DESIGN.md §8.1 保持一致）────────────
    深渊底色 #0B0A14 / #151226   大厅石 #2E2740 / #43395C
    熔岩     #FF6B4A / #FFB347   血色   #FF3B5C
    锅巴皮甲 #8A6A4A / #D8C8B0   钢刃   #9AA3AD                */
@@ -395,6 +395,18 @@ body {
   transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
 }
 
+/* 卡框贴图：盖在最上层但不吃点击。用 ::after 而不是 border-image，
+   因为卡面里还要放立绘和角标，border-image 会把内容挤进边框内边距。
+   贴图缺失时这一层就是空的，下面的渐变底照样能看 —— 不依赖美术资源也能跑。 */
+.card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: url('/art/ui/card-frame.png') center / 100% 100% no-repeat;
+  pointer-events: none;
+  z-index: 2;
+}
+
 .card.ready {
   border-color: rgba(155, 107, 255, 0.7);
   box-shadow: 0 0 0 1px rgba(155, 107, 255, 0.2), 0 6px 18px rgba(0, 0, 0, 0.5);
@@ -449,6 +461,38 @@ body {
   position: relative;
   z-index: 1;
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
+}
+
+/* 通量角标：这张牌还能连放几次（3/3 → 0/3）。
+   底图用圆形角标贴图，数字本身就是它"还剩几张"的唯一读数。 */
+.card-stack {
+  position: absolute;
+  right: 4px;
+  top: 4px;
+  z-index: 3;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: url('/art/ui/badge-round.png') center / 100% 100% no-repeat,
+    radial-gradient(circle at 50% 30%, rgba(80, 66, 120, 0.95), rgba(18, 14, 30, 0.98));
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0;
+  color: #ffe4bd;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+
+/* 通量耗尽：整张牌压暗，明确"现在放不出来"（比只灰掉一个角标更难误判） */
+.card.spent {
+  filter: saturate(0.45) brightness(0.62);
+}
+
+.card.spent .card-stack {
+  color: #ff9a8a;
 }
 
 /* ── 提示 ───────────────────────────────────────────────── */
@@ -642,6 +686,7 @@ body {
 }
 
 .panel {
+  position: relative;
   width: min(680px, 90vw);
   padding: 30px 34px 28px;
   border-radius: 16px;
@@ -649,6 +694,22 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: 0 30px 90px rgba(0, 0, 0, 0.75);
   text-align: center;
+}
+
+/* 面板外框贴图：四边等宽、中心镂空，所以必须铺满整个 panel 而不是九宫格拉伸 */
+.panel::after {
+  content: '';
+  position: absolute;
+  inset: -10px;
+  background: url('/art/ui/panel-frame.png') center / 100% 100% no-repeat;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.92;
+}
+
+.panel > * {
+  position: relative;
+  z-index: 1;
 }
 
 /* 标题页立绘：没有主角的标题页会被当成"未完成的网页"（评审连着说了两次背景单调） */
@@ -763,20 +824,25 @@ body {
   appearance: none;
   border: 1px solid rgba(255, 179, 71, 0.55);
   border-radius: 999px;
-  background: linear-gradient(180deg, rgba(255, 179, 71, 0.22), rgba(255, 107, 74, 0.1));
+  /* 按钮底贴图铺满（512×172，按 100% 100% 拉伸到任意按钮尺寸）。
+     渐变底留在下面当降级：贴图没加载出来时按钮依然有颜色、能看清文字。 */
+  background:
+    url('/art/ui/button-primary.png') center / 100% 100% no-repeat,
+    linear-gradient(180deg, rgba(255, 179, 71, 0.22), rgba(255, 107, 74, 0.1));
   color: #ffe4bd;
   font-family: inherit;
   font-size: 16px;
   font-weight: 800;
   letter-spacing: 0.24em;
   padding: 13px 44px 13px 48px;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
   cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
 }
 
 .btn-primary:hover {
   transform: translateY(-2px);
-  background: linear-gradient(180deg, rgba(255, 179, 71, 0.36), rgba(255, 107, 74, 0.16));
+  filter: brightness(1.12);
   box-shadow: 0 12px 34px rgba(255, 107, 74, 0.28);
 }
 

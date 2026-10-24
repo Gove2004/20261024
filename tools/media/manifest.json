@@ -1659,5 +1659,79 @@
       }
     },
     "createdAt": "2026-10-24T16:55:07.529Z"
+  },
+  {
+    "kind": "image",
+    "id": "card-frame",
+    "model": "gpt-image-2",
+    "prompt": "可爱 Q 版卡通风格，扁平化（flat）2D 游戏 UI 贴图，圆润简洁的造型，粗深的深棕金色描边，深紫 #2A2140 底色配暗金 #D9A94E 点缀，2–3 阶平涂、无写实材质纹理，物件居中完整、无落地阴影、无场景，背景是纯白色 #FFFFFF 无渐变，无文字无数字无字母无符号。一张竖版手牌卡片的空心外框：只有一个圆角矩形边框环；边框环的外轮廓严格是 3:4 的竖版圆角矩形，高度撑满画布，左右各留出一条约 12% 画布宽的纯白空边；边框环的四条边宽度完全一致（很细，约为外轮廓短边的 1/7），内外两侧边界都是干净锐利的直线；四角各有一枚小巧的金色卷草角饰；深紫边框环上有内外两道细暗金描边，顶部边沿有一点点柔和的暖金高光；边框环内部约 65% 的中央区域是完全空白、与背景同色的纯白，没有内衬、没有图案、没有栅线。",
+    "size": "1024x1536",
+    "file": "art/raw/ui/card-frame.png",
+    "bytes": 961379,
+    "sourceUrl": "https://imagefil.scdn.app/public/image/2db9f5888d85e11808047d47626d654c0.png",
+    "usage": {
+      "prompt_tokens": 181,
+      "completion_tokens": 1584,
+      "total_tokens": 1765,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "reasoning_tokens": 0,
+        "text_tokens": 181
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "image_tokens": 1584
+      },
+      "input_tokens": 181,
+      "output_tokens": 1584,
+      "input_tokens_details": {
+        "text_tokens": 181,
+        "cached_tokens": 0
+      },
+      "output_tokens_details": {
+        "text_tokens": 0,
+        "reasoning_tokens": 0,
+        "image_tokens": 1584
+      }
+    },
+    "createdAt": "2026-10-24T16:56:35.686Z"
+  },
+  {
+    "kind": "image",
+    "id": "panel-frame",
+    "model": "gpt-image-2",
+    "prompt": "可爱 Q 版卡通风格，扁平化（flat）2D 游戏 UI 贴图，圆润简洁的造型，粗深的深棕金色描边，深紫 #2A2140 底色配暗金 #D9A94E 点缀，2–3 阶平涂、无写实材质纹理，物件居中完整、无落地阴影、无场景，背景是纯白色 #FFFFFF 无渐变，无文字无数字无字母无符号。一张横版大面板的无字外框：只有一个圆角矩形边框环；边框环的外轮廓严格是 4:3 的横版圆角矩形，宽度撑满画布，上下各留出一条约 12% 画布高的纯白空边；四条边窄而等宽（约为外轮廓短边的 1/16），内外边界锐利干净；四角各有一枚对称的金色卷草角饰；边框环内侧边缘贴着几段极简的暗金魔法阵弧线和三枚小菱形，纹样只占用边框环本身，不进入中央；深紫边框环配双道细金描边，顶部边沿一点暖金高光；边框环内部约 70% 的中央是完全空白、与背景同色的纯白，没有文字没有图案。",
+    "size": "1536x1024",
+    "file": "art/raw/ui/panel-frame.png",
+    "bytes": 1112728,
+    "sourceUrl": "https://imagefil.scdn.app/public/image/01ea15898d85e11809047d47e1c806430.png",
+    "usage": {
+      "prompt_tokens": 187,
+      "completion_tokens": 1584,
+      "total_tokens": 1771,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "reasoning_tokens": 0,
+        "text_tokens": 187
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "image_tokens": 1584
+      },
+      "input_tokens": 187,
+      "output_tokens": 1584,
+      "input_tokens_details": {
+        "text_tokens": 187,
+        "cached_tokens": 0
+      },
+      "output_tokens_details": {
+        "text_tokens": 0,
+        "reasoning_tokens": 0,
+        "image_tokens": 1584
+      }
+    },
+    "createdAt": "2026-10-24T16:56:37.902Z"
   }
 ]
