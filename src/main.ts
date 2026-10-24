@@ -55,9 +55,19 @@ async function bootstrap(): Promise<void> {
       }
       audio.onDeath();
     },
-    onHeroHurt: () => {
+    onHeroHurt: (amount) => {
       scene.shake(2.2);
+      // 锅巴掉血必须有数字：上帝视角下"我以为我的怪在打他"和"他真的在掉血"是两件事
+      scene.fx.heroDamage(game.hero.x, game.hero.y, amount);
       audio.onHeroHurt();
+    },
+    onMonsterHit: (x, y, amount, crit) => {
+      scene.fx.damage(x, y, amount, crit);
+    },
+    onSkillLabel: (text, kind) => {
+      const color =
+        kind === 'qi' ? 0xa9e7ff : kind === 'bomb' ? 0xffc46b : kind === 'roll' ? 0xc7b6ff : 0x9be07a;
+      scene.fx.label(game.hero.x, game.hero.y, text, color);
     },
     onHeroLevel: (level, passive) => {
       scene.fx.ring(game.hero.x, game.hero.y, 90, 0xffb347, 5);

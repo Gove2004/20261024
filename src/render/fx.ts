@@ -76,6 +76,52 @@ export class FxLayer {
     fx.maxLife = fx.life;
   }
 
+  /**
+   * 锅巴被打的伤害飘字：红色、更大、往下沉一点。
+   *
+   * 和"打怪"的数字必须一眼分得清 —— 玩家在上帝视角看整场，
+   * 分不清"谁在掉血"的飘字等于没做（用户原话「不然都不知道为啥」）。
+   */
+  public heroDamage(x: number, y: number, amount: number): void {
+    const fx = this.numbers[this.numberCursor];
+    this.numberCursor = (this.numberCursor + 1) % NUMBER_POOL;
+    if (!fx) return;
+    fx.text.text = `-${Math.round(amount)}`;
+    fx.text.style.fontSize = 24;
+    fx.text.style.fill = 0xff6b7a;
+    fx.text.position.set(x + this.rng.range(-8, 8), y - 34);
+    fx.text.alpha = 1;
+    fx.text.scale.set(1.25);
+    fx.text.visible = true;
+    fx.vx = this.rng.range(-26, 26);
+    fx.vy = -78;
+    fx.life = 0.8;
+    fx.maxLife = fx.life;
+  }
+
+  /**
+   * 技能名飘字：「剑气」「落雷」「翻滚」这类。
+   *
+   * 光有特效不够 —— 玩家不知道那一道白光是什么技能、为什么怪死了。
+   * 技能名只在施放瞬间飘一次，频率远低于伤害数字，不会糊屏。
+   */
+  public label(x: number, y: number, text: string, color: number): void {
+    const fx = this.numbers[this.numberCursor];
+    this.numberCursor = (this.numberCursor + 1) % NUMBER_POOL;
+    if (!fx) return;
+    fx.text.text = text;
+    fx.text.style.fontSize = 22;
+    fx.text.style.fill = color;
+    fx.text.position.set(x, y - 58);
+    fx.text.alpha = 1;
+    fx.text.scale.set(1);
+    fx.text.visible = true;
+    fx.vx = 0;
+    fx.vy = -34;
+    fx.life = 0.9;
+    fx.maxLife = 0.9;
+  }
+
   /** 粒子爆发：一次画完所有碎屑，之后只做缩放与淡出。 */
   public burst(x: number, y: number, color: number, count: number, radius = 26): void {
     const fx = this.bursts[this.burstCursor];

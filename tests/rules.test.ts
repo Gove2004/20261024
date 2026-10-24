@@ -48,7 +48,8 @@ describe('星数与 CD 曲线', () => {
 describe('勇者成长', () => {
   it('等级公式', () => {
     expect(heroMaxHp(1)).toBe(12000);
-    expect(heroMaxHp(11)).toBe(18000);
+    // hpPerLevel 从 600 降到 420：他太肉了，玩家铺满场也打不死（见 §7 平衡曲线）
+    expect(heroMaxHp(11)).toBe(16200);
     expect(heroAtk(1)).toBe(26);
     expect(heroAtk(11)).toBe(96);
   });

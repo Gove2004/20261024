@@ -32,7 +32,7 @@ export interface HandCard {
   cd: number;
   /** 剩余可召唤次数。就是"这张牌堆了几张"（见 CARD_STACK） */
   charges: number;
-  readonly maxCharges: number;
+  maxCharges: number;
 }
 
 export type PowerupKind =
@@ -46,7 +46,8 @@ export type PowerupKind =
   | 'armor'
   | 'weak'
   | 'slow'
-  | 'skillcd';
+  | 'skillcd'
+  | 'charge';
 
 export interface PowerupOption {
   readonly id: string;
@@ -70,11 +71,12 @@ const HAND_MAX_EXTRA = 2;
  * 后者才是"我在跟一个具体的对手博弈"的感觉来源。
  */
 const POWERUPS: readonly PowerupOption[] = [
-  { id: 'atk', title: '尖牙', desc: '全魔物攻击 +14%', kind: 'atk', value: 0.14 },
+  { id: 'atk', title: '尖牙', desc: '全魔物攻击 +18%', kind: 'atk', value: 0.18 },
   { id: 'hp', title: '厚壳', desc: '全魔物生命 +18%', kind: 'hp', value: 0.18 },
   { id: 'atkspeed', title: '躁动', desc: '全魔物攻速 +10%', kind: 'atkspeed', value: 0.1 },
-  { id: 'cd', title: '冷却缩减', desc: '全卡 CD −8%', kind: 'cd', value: 0.08 },
-  { id: 'starcap', title: '星域扩张', desc: '星数上限 +5', kind: 'starcap', value: 5 },
+  { id: 'cd', title: '冷却缩减', desc: '全卡回充 −10%', kind: 'cd', value: 0.1 },
+  { id: 'charge', title: '通量扩容', desc: '所有手牌通量 +1（能连放的次数更多）', kind: 'charge', value: 1 },
+  { id: 'starcap', title: '星域扩张', desc: '星数上限 +8', kind: 'starcap', value: 8 },
   { id: 'hand', title: '更多手牌', desc: '手牌位 +1（最多 8）', kind: 'hand', value: 1 },
   { id: 'armor', title: '硬皮', desc: '全魔物护甲 +2', kind: 'armor', value: 2 },
   { id: 'weak', title: '诅咒', desc: '锅巴攻击 −6%', kind: 'weak', value: 0.06 },
@@ -96,6 +98,10 @@ export interface GameEvents {
   onSpawn(slot: number): void;
   onDeath(slot: number): void;
   onHeroHurt(amount: number): void;
+  /** 打中魔物的伤害数字（上帝视角里"谁在掉血"必须一眼看得出来） */
+  onMonsterHit(x: number, y: number, amount: number, crit: boolean): void;
+  /** 技能名飘字：剑气 / 落雷 / 翻滚 / 干粮 */
+  onSkillLabel(text: string, kind: 'qi' | 'bomb' | 'roll' | 'heal'): void;
   onHeroLevel(level: number, passive: string): void;
   /** 锅巴开弓射击（视觉：弹丸从弹弓飞出去） */
   onShot(x: number, y: number, dirX: number, dirY: number): void;
@@ -394,6 +400,11 @@ export class Game {
     return this.store.occupiedStars();
   }
 
+  /** 冷却缩减百分比（0-92）。HUD 左上角要显示，别让 UI 去碰私有叠层数。 */
+  public get cdReductionPercent(): number {
+    return Math.round((1 - Math.pow(1 - 0.08, this.cdStack)) * 100);
+  }
+
   public selectCard(index: number): void {
     if (index < 0 || index >= this.hand.length) return;
     this.selected = this.selected === index ? -1 : index;
@@ -518,6 +529,13 @@ export class Game {
       case 'cd':
         this.cdStack += 1;
         break;
+      case 'charge':
+        // 通量扩容：直接让每张牌能连放的次数变多，手感变化比数值更直观
+        for (const card of this.hand) {
+          card.maxCharges += 1;
+          card.charges += 1;
+        }
+        break;
       case 'starcap':
         this.starBonus += picked.value;
         break;
@@ -602,6 +620,14 @@ export class Game {
   private damageHero(amount: number, slot: number): void {
     const star = this.store.star[slot] ?? 1;
     this.hero.takeDamage(amount * (1 + 0.05 * star) * MONSTER_DMG_MUL, this.heroHooks);
+    // 反伤：天赋给的"回敬"。放在这里是因为只有 game 知道打他的是哪一只。
+    if (this.hero.thorns > 0 && slot >= 0 && this.store.alive[slot] === 1) {
+      const back = amount * this.hero.thorns;
+      const hp = (this.store.hp[slot] ?? 0) - back;
+      this.store.hp[slot] = hp;
+      this.store.flash[slot] = 1;
+      if (hp <= 0) this.killMonster(slot, true);
+    }
   }
 
   private readonly heroHooks: HeroHooks = {
@@ -609,11 +635,13 @@ export class Game {
       const hp = (this.store.hp[slot] ?? 0) - damage;
       this.store.hp[slot] = hp;
       this.store.flash[slot] = 1;
+      this.events.onMonsterHit(this.store.x[slot] ?? 0, this.store.y[slot] ?? 0, damage, crit);
       if (hp <= 0) this.killMonster(slot, true);
     },
     onQi: (x, y, dirX, dirY) => {
       this.statQi += 1;
       this.events.onQi(x, y, dirX, dirY);
+      this.events.onSkillLabel('剑气', 'qi');
     },
     onShot: (x, y, dirX, dirY) => {
       this.statShot += 1;
@@ -624,15 +652,18 @@ export class Game {
       // 落点有预警，到点才炸 —— 玩家有时间把怪散开
       this.pendingAoe.push({ x, y, radius, damage, delay: SKILL_TUNING.bombDelay });
       this.events.onTelegraph(x, y, radius, SKILL_TUNING.bombDelay);
+      this.events.onSkillLabel('落雷', 'bomb');
     },
     onHealSelf: (x, y, amount) => {
       this.statSelfHeal += 1;
       this.events.onEffect('heal', x, y, 70);
+      this.events.onSkillLabel('干粮', 'heal');
       this.events.toast(`锅巴吃了干粮，回了 ${Math.round(amount)} 血`, 'bad');
     },
     onRoll: (fromX, fromY, toX, toY) => {
       this.statRoll += 1;
       this.events.onRangedShot(-1, fromX, fromY, toX, toY);
+      this.events.onSkillLabel('翻滚', 'roll');
     },
     onLevelUp: (level, passive) => {
       this.events.onHeroLevel(level, passive);

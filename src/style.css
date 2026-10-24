@@ -1,4 +1,4 @@
-﻿/* ── 全局调色板（与 docs/GAME_DESIGN.md §8.1 保持一致）────────────
+/* ── 全局调色板（与 docs/GAME_DESIGN.md §8.1 保持一致）────────────
    深渊底色 #0B0A14 / #151226   大厅石 #2E2740 / #43395C
    熔岩     #FF6B4A / #FFB347   血色   #FF3B5C
    锅巴皮甲 #8A6A4A / #D8C8B0   钢刃   #9AA3AD                */
@@ -210,6 +210,82 @@ body {
   letter-spacing: 0.08em;
   color: #fff;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+}
+
+/* ── 经验条 + 基础属性 + 权能面板 ───────────────────────── */
+
+/* 经验条贴在血条下面：玩家要能预判"他还有多久升级" —— 升级 = 回血 + 新天赋 */
+.hero-xp {
+  position: relative;
+  height: 8px;
+  margin-top: 3px;
+  border-radius: 4px;
+  background: rgba(7, 6, 12, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.hero-xp-fill {
+  position: absolute;
+  inset: 1px auto 1px 1px;
+  width: 0%;
+  min-width: 2px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #bdefff, #4a9bff);
+  box-shadow: 0 0 6px rgba(120, 200, 255, 0.65);
+  transition: width 0.2s linear;
+}
+
+.hero-xp-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.9);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95);
+}
+
+.hero-stats {
+  margin-top: 4px;
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  color: rgba(206, 199, 234, 0.72);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 左下角权能面板：把"上限 / 减 CD / 召唤数 / 击杀"摊开给玩家看 */
+.power-panel {
+  display: grid;
+  grid-template-columns: repeat(4, auto);
+  gap: 2px 14px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: rgba(10, 8, 18, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.power-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.3;
+}
+
+.power-row i {
+  font-style: normal;
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  color: #8a83a8;
+}
+
+.power-row b {
+  font-size: 13px;
+  color: #e6dfff;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ── 底部：星数 + 手牌 ──────────────────────────────────── */

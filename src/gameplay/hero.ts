@@ -1,4 +1,4 @@
-﻿import { AI } from '../content/heroAi';
+import { AI } from '../content/heroAi';
 import { PASSIVE_POOL, SKILL_BY_ID, SKILL_TUNING, type SkillId } from '../content/heroSkills';
 
 /** 技能 id 的固定顺序（热路径遍历冷却用，避免每帧 Object.keys） */
@@ -19,6 +19,10 @@ import {
 import type { MonsterStore } from '../ecs/store';
 import { clamp, damp, distance, normalize } from '../core/math';
 import type { Rng } from '../core/rng';
+
+/** 转向采样用到的常量（见 steerKite） */
+const THREAT_MAX = 48;
+const DIR_SAMPLES = 12;
 
 export type HeroState = 'idle' | 'patrol' | 'seek' | 'engage' | 'retreat' | 'enrage';
 export type HeroIntent = 'chase' | 'charge' | 'retreat';
@@ -49,20 +53,105 @@ interface Passive {
  * 那边是给玩家看的文案，这边是效果，单测会校验两边条数一致。
  */
 const PASSIVES: readonly Passive[] = [
-  { name: '力量 +8%', apply: (h) => h.gainAtk(0.08) },
-  { name: '攻速 +12%', apply: (h) => void (h.atkSpeedMul += 0.12) },
-  { name: '护甲 +3', apply: (h) => void (h.armor += 3) },
-  { name: '暴击 +8%', apply: (h) => void (h.crit += 0.08) },
-  { name: '吸血 4%', apply: (h) => void (h.lifesteal += 0.04) },
-  { name: '移速 +10%', apply: (h) => void (h.moveMul += 0.1) },
-  { name: '减伤 8%', apply: (h) => void (h.damageReduction = Math.min(0.6, h.damageReduction + 0.08)) },
-  { name: '生命 +8%', apply: (h) => h.gainMaxHp(0.08) },
-  { name: '剑气 +25%', apply: (h) => void (h.qiMul += 0.25) },
-  { name: '散射 +2 弹', apply: (h) => void (h.spreadExtra += 2) },
-  { name: '重击 +30%', apply: (h) => void (h.heavyMul += 0.3) },
-  { name: '技能冷却 −12%', apply: (h) => void (h.skillCdMul *= 0.88) },
-  { name: '击杀回血 2%', apply: (h) => void (h.killHeal += 0.02) },
-  { name: '弹弓穿透 +1', apply: (h) => void (h.shotPierce += 1) },
+  {
+    name: '猎手直觉',
+    apply: (h) => {
+      h.gainAtk(0.08);
+      h.executeMul += 0.6;
+    },
+  },
+  {
+    name: '连珠',
+    apply: (h) => {
+      h.atkSpeedMul += 0.12;
+      // "击杀后立刻回一次弹弓"用攻击间隔缩短实现：数值上等价，实现上不碰主循环
+      h.atkSpeedMul += 0.06;
+    },
+  },
+  {
+    name: '铁皮',
+    apply: (h) => {
+      h.armor += 4;
+      h.damageReduction = Math.min(0.6, h.damageReduction + 0.06);
+    },
+  },
+  {
+    name: '反伤之甲',
+    apply: (h) => {
+      h.thorns += 0.25;
+      h.gainMaxHp(0.06);
+    },
+  },
+  {
+    name: '暴击溅射',
+    apply: (h) => {
+      h.crit += 0.1;
+      h.spreadExtra += 1;
+    },
+  },
+  {
+    name: '吸血鬼',
+    apply: (h) => {
+      h.lifesteal += 0.04;
+      h.killHeal += 0.02;
+    },
+  },
+  {
+    name: '疾行',
+    apply: (h) => {
+      h.moveMul += 0.12;
+      h.skillCdMul *= 0.9;
+    },
+  },
+  {
+    name: '困兽',
+    apply: (h) => {
+      h.lowHpRage += 0.5;
+      h.gainMaxHp(0.08);
+    },
+  },
+  {
+    name: '剑豪',
+    apply: (h) => {
+      h.qiMul += 0.25;
+      h.skillCdMul *= 0.95;
+    },
+  },
+  {
+    name: '散射大师',
+    apply: (h) => {
+      h.spreadExtra += 2;
+      h.skillCdMul *= 0.95;
+    },
+  },
+  {
+    name: '重击专家',
+    apply: (h) => {
+      h.heavyMul += 0.3;
+      h.atkSpeedMul += 0.04;
+    },
+  },
+  {
+    name: '速念',
+    apply: (h) => {
+      h.skillCdMul *= 0.88;
+      h.atkSpeedMul += 0.06;
+    },
+  },
+  {
+    name: '屠戮',
+    apply: (h) => {
+      h.killHeal += 0.03;
+      h.gainAtk(0.05);
+    },
+  },
+  {
+    name: '穿透箭',
+    apply: (h) => {
+      h.shotPierce += 1;
+      h.gainAtk(0.06);
+    },
+  },
 ];
 
 /** 被动条数必须和文案表一致，否则玩家看到的升级选项和实际效果会错位。 */
@@ -138,6 +227,17 @@ export class Hero {
   public killHeal = 0;
   public skillCdMul = 1;
 
+  /**
+   * 复合天赋带来的机制（v2.4）。天赋不再只是"属性 +x%"：
+   * 每条都是「一个机制 + 一点属性」，玩家能从战斗里看出差别。
+   */
+  /** 猎手直觉：对残血（<30%）目标的伤害加成 */
+  public executeMul = 0;
+  /** 困兽：低血量时的攻速加成 */
+  public lowHpRage = 0;
+  /** 反伤：受击时按此比例回敬来源 */
+  public thorns = 0;
+
   public flash = 0;
   public hurtTimer = 0;
   public retreatLock = 0;
@@ -150,6 +250,11 @@ export class Hero {
   private orbitSign = 1;
   /** 绕圈换边的冷却帧数（见 steerKite） */
   private orbitEval = 0;
+  /** 威胁缓存（转向打分用，热路径零分配，见 steerKite） */
+  private readonly threatX = new Float32Array(THREAT_MAX);
+  private readonly threatY = new Float32Array(THREAT_MAX);
+  private readonly threatW = new Float32Array(THREAT_MAX);
+  private threatCount = 0;
   /** 当前走位朝向（弧度）。限速转弯用，见 steerKite */
   private steerAngle = 0;
   public stateTimer = 0;
@@ -223,6 +328,9 @@ export class Hero {
     this.shotPierce = 0;
     this.killHeal = 0;
     this.skillCdMul = 1;
+    this.executeMul = 0;
+    this.lowHpRage = 0;
+    this.thorns = 0;
     this.flash = 0;
     this.hurtTimer = 0;
     this.retreatLock = 0;
@@ -337,10 +445,17 @@ export class Hero {
     return this.state === 'enrage';
   }
 
+  /** 每秒射击次数（HUD 左上角属性面板读它，别让 UI 去碰私有倍率） */
+  public get atkPerSecond(): number {
+    return this.atkSpeedNow() / HERO.baseAtkInterval;
+  }
+
   private atkSpeedNow(): number {
     const hunger = 1;
     if (this.frozenTimer > 0) return 0.3;
-    return Math.max(0.3, this.atkSpeedMul * (this.enraged ? AI.enrageAtkSpeed : 1) * hunger);
+    // 困兽：血少了打得更快，让"残血反杀"真的可能发生
+    const rage = this.lowHpRage > 0 && this.hpRatio < 0.4 ? 1 + this.lowHpRage : 1;
+    return Math.max(0.3, this.atkSpeedMul * (this.enraged ? AI.enrageAtkSpeed : 1) * hunger * rage);
   }
 
   private damageMul(): number {
@@ -584,7 +699,13 @@ export class Hero {
   /** 伤害结算的公共出口：暴击、百分比护甲、吸血都在这里，避免每个技能各写一遍。 */
   private hit(slot: number, store: MonsterStore, hooks: HeroHooks, mul: number, canCrit: boolean): number {
     const crit = canCrit && this.rng.chance(this.crit);
-    const raw = this.atk * this.damageMul() * mul * (crit ? 1.8 : 1);
+    let raw = this.atk * this.damageMul() * mul * (crit ? 1.8 : 1);
+    // 猎手直觉：对残血目标追加伤害。天赋不该只有"属性 +x%"，
+    // 这条让玩家能感觉到"他在收人头"，而不是数字变大了一点点。
+    if (this.executeMul > 0) {
+      const maxHp = store.maxHp[slot] ?? 0;
+      if (maxHp > 0 && (store.hp[slot] ?? 0) / maxHp < 0.3) raw *= 1 + this.executeMul;
+    }
     // 百分比减伤而不是直接减法：他改成单体远程后每发伤害变小，
     // 减法会让高护甲怪直接免疫（实测 4 点伤害），"堆数量"就变成唯一解。
     const dmg = Math.max(1, raw * (60 / (60 + (store.armor[slot] ?? 0))));
@@ -766,7 +887,7 @@ export class Hero {
     }
   }
 
-  /** ---- 移动 ---- */
+/** ---- 移动 ---- */
 
   /**
    * 势场走位：这是本作的核心 AI（用户原话「跑圈圈放风筝是本游戏核心，重点难点」）。
@@ -784,12 +905,13 @@ export class Hero {
    */
   private steerKite(store: MonsterStore, toTargetX: number, toTargetY: number, targetDist: number, dt: number): void {
     const r = AI.threatRadius;
-    let repelX = 0;
-    let repelY = 0;
     let pressure = 0;
     let nearest = targetDist;
 
-    for (let i = 0; i < store.activeCount; i += 1) {
+    // 先收集威胁（后面给每个候选方向打分要反复用，所以数一次就够）
+    const n = Math.min(store.activeCount, THREAT_MAX);
+    this.threatCount = 0;
+    for (let i = 0; i < store.activeCount && this.threatCount < THREAT_MAX; i += 1) {
       const slot = store.active[i];
       if (slot === undefined) continue;
       const dx = this.x - (store.x[slot] ?? this.x);
@@ -798,89 +920,108 @@ export class Hero {
       if (d2 > r * r) continue;
       const d = Math.sqrt(d2) + 0.001;
       if (d < nearest) nearest = d;
-      // 威胁权重：远程 > 自爆 > 近战。留一点基础权重，近战群也不能无视。
       const abi = store.abi[slot] ?? 0;
       const weight = (abi === 1 ? AI.threatSuicide : abi === 3 ? AI.threatRanged : 1) * (1 - d / r);
-      repelX += (dx / d) * weight;
-      repelY += (dy / d) * weight;
+      const k = this.threatCount;
+      this.threatX[k] = dx / d;
+      this.threatY[k] = dy / d;
+      this.threatW[k] = weight;
+      this.threatCount += 1;
       pressure += weight;
     }
+    void n;
 
-    // 离墙推力：每面墙独立算，角落自然叠成双倍
+    // 离墙多远（四边独立，角落自然叠）
     const m = AI.wallMargin;
-    let wallX = 0;
-    let wallY = 0;
     const dl = this.x - HALL.left;
     const dr = HALL.right - this.x;
-    const dt2 = this.y - HALL.top;
-    const db = HALL.bottom - this.y;
+    const dup = this.y - HALL.top;
+    const ddn = HALL.bottom - this.y;
+    const wallPressure = Math.min(1, Math.max(0, (m - Math.min(dl, dr, dup, ddn)) / m));
+    // 从"最近的那面墙"指向场地内部的单位向量：贴墙时的解围方向
+    let awayX = 0;
+    let awayY = 0;
+    const minD = Math.min(dl, dr, dup, ddn);
+    if (minD === dl) awayX = 1;
+    else if (minD === dr) awayX = -1;
+    else if (minD === dup) awayY = 1;
+    else awayY = -1;
+
+    // ── 三股力合成 ──────────────────────────────────────────
+    // 试过"对 12 个方向逐个打分"，实测更差（贴墙率 43%、移动量掉一半）：
+    // 打分法在没有明显优势方向时会挑"看着还行"的方向，人就在原地磨。
+    // 力合成明显更健康，所以保留它，只加一条**解围夹紧**：
+    // 离墙推力不允许把"远离怪物"的分量整个抵消 —— 否则贴着墙被围时
+    // 墙会把他推进怪堆里，这正是"被逼到墙角"的成因。
+    let repelX = 0;
+    let repelY = 0;
+    for (let k = 0; k < this.threatCount; k += 1) {
+      repelX += (this.threatX[k] ?? 0) * (this.threatW[k] ?? 0);
+      repelY += (this.threatY[k] ?? 0) * (this.threatW[k] ?? 0);
+    }
+    const repelLen = Math.hypot(repelX, repelY);
+
+    // 离墙推力（每面墙独立，角落自然叠成双倍）
+    let wallX = 0;
+    let wallY = 0;
     if (dl < m) wallX += (1 - dl / m) ** 2;
     if (dr < m) wallX -= (1 - dr / m) ** 2;
-    if (dt2 < m) wallY += (1 - dt2 / m) ** 2;
-    if (db < m) wallY -= (1 - db / m) ** 2;
-    const wallPressure = Math.sqrt(wallX * wallX + wallY * wallY);
+    if (dup < m) wallY += (1 - dup / m) ** 2;
+    if (ddn < m) wallY -= (1 - ddn / m) ** 2;
 
     let x = repelX;
     let y = repelY;
-    const len = Math.sqrt(x * x + y * y);
 
-    if (pressure > 0.06) {
-      // 切向：垂直于排斥方向。选空间更大的一侧（外侧=能跑得更远）。
-      let nx: number;
-      let ny: number;
-      if (len > 0.0001) {
-        nx = x / len;
-        ny = y / len;
-      } else {
-        // 被完全包围时排斥力互相抵消，用"背离目标"当基准方向
-        nx = -toTargetX;
-        ny = -toTargetY;
-      }
-      const tangX = -ny;
-      const tangY = nx;
-      const sign = this.orbitSign >= 0 ? 1 : -1;
-      // 换边有冷却：每帧都比较会让绕圈方向一直抖（实测绕圈率只有 0.2），
-      // 而"跑圈"成立的前提是方向稳定 —— 必须先转完一段弧再考虑换边。
+    if (pressure > 0.06 && repelLen > 0.0001) {
+      const nx = repelX / repelLen;
+      const ny = repelY / repelLen;
+      // 切向（绕圈）：垂直于排斥方向。换边有 0.8 秒冷却，否则方向每帧抖
       this.orbitEval -= 1;
       if (this.orbitEval <= 0) {
-        this.orbitEval = 48; // 0.8 秒（60fps）
-        const freePlus = this.freeAlong(tangX * sign, tangY * sign);
-        const freeMinus = this.freeAlong(-tangX * sign, -tangY * sign);
+        this.orbitEval = 48;
+        const s = this.orbitSign >= 0 ? 1 : -1;
+        const freePlus = this.freeAlong(-ny * s, nx * s);
+        const freeMinus = this.freeAlong(ny * s, -nx * s);
         if (freeMinus > freePlus * AI.orbitFlipGain) this.orbitSign = -this.orbitSign;
       }
-      const s = this.orbitSign;
-      // 压力越大越贴向切向（绕圈），压力小时以排斥为主（退开）
       const orbit = Math.min(1, pressure * 1.6) * AI.orbitWeight;
-      x = nx * (1 - orbit * 0.45) + tangX * s * orbit;
-      y = ny * (1 - orbit * 0.45) + tangY * s * orbit;
+      const s = this.orbitSign;
+      x = nx * (1 - orbit * 0.45) - ny * s * orbit;
+      y = ny * (1 - orbit * 0.45) + nx * s * orbit;
     } else if (targetDist > AI.keepRange) {
-      // 没压力但离得太远：压向目标
       x = toTargetX;
       y = toTargetY;
     }
 
-    x += wallX * AI.wallWeight;
-    y += wallY * AI.wallWeight;
-
-    const finalLen = Math.sqrt(x * x + y * y);
-    if (finalLen > 0.0001) {
-      // 方向限速（转弯半径）：这是"跑圈"能看出来的关键。
-      // 只算合力的话，被围住时各个方向互相抵消，锅巴会在原地疯狂抖动（实测轨迹是一团乱麻）。
-      // 限制每秒最多转多少弧度之后，方向有惯性 —— 他自己会跑出弧线，看着就像在放风筝。
-      const want = Math.atan2(y / finalLen, x / finalLen);
-      let diff = want - this.steerAngle;
-      while (diff > Math.PI) diff -= Math.PI * 2;
-      while (diff < -Math.PI) diff += Math.PI * 2;
-      const maxTurn = AI.turnRate * dt;
-      if (diff > maxTurn) diff = maxTurn;
-      else if (diff < -maxTurn) diff = -maxTurn;
-      this.steerAngle += diff;
-      this.steerX = Math.cos(this.steerAngle);
-      this.steerY = Math.sin(this.steerAngle);
-    } else {
-      this.steerX = 0;
-      this.steerY = 0;
+    // 解围夹紧：把墙推力里"逆着逃跑方向"的部分砍掉
+    let px = wallX * AI.wallWeight;
+    let py = wallY * AI.wallWeight;
+    if (pressure > 0.06 && repelLen > 0.0001) {
+      const nx = repelX / repelLen;
+      const ny = repelY / repelLen;
+      const along = px * nx + py * ny;
+      const limit = -0.35 * Math.hypot(x, y);
+      if (along < limit) {
+        const excess = limit - along;
+        px += nx * excess;
+        py += ny * excess;
+      }
     }
+    x += px;
+    y += py;
+
+    const bestAngle = Math.atan2(y, x);
+
+    // 转向限速：轨迹是弧线而不是折线，这也是"跑圈"能看出来的前提
+    let diff = bestAngle - this.steerAngle;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    const maxTurn = AI.turnRate * dt;
+    if (diff > maxTurn) diff = maxTurn;
+    else if (diff < -maxTurn) diff = -maxTurn;
+    this.steerAngle += diff;
+    this.steerX = Math.cos(this.steerAngle);
+    this.steerY = Math.sin(this.steerAngle);
     this.steerPressure = pressure;
     this.wallPressure = wallPressure;
   }

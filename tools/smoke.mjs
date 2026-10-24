@@ -144,19 +144,46 @@ const placed = await page.evaluate(() => {
 });
 check('选卡 + 召唤成功', placed.ok === true && placed.after > placed.before, `active=${placed.after}`);
 
-// 再放两只，制造"被围攻"的场面
+// 再放两只史莱姆（速度 92 < 他的 108），制造"被追"的场面。
+// 这里刻意不放幽灵：幽灵 178 速，比他还快，贴上来是设计里的必然，
+// 用它去断言"不贴脸"只会测出"他跑不过幽灵"，测不到走位意图。
 await page.evaluate(() => {
   const g = window.__game;
   if (!g) return;
-  g.selectCard(2);
+  g.debugRefill();
+  g.selectCard(0);
   g.place(g.hero.x + 130, g.hero.y + 60);
+  g.selected = -1;
+  g.debugRefill();
+  g.selectCard(0);
+  g.place(g.hero.x + 60, g.hero.y - 150);
+  g.selected = -1;
+  g.debugRefill();
+  g.selectCard(0);
+  g.place(g.hero.x - 170, g.hero.y + 120);
+  g.selected = -1;
+  g.debugRefill();
+  g.selectCard(0);
+  g.place(g.hero.x + 180, g.hero.y - 130);
+  g.selected = -1;
   g.store.refreshActive();
 });
-// 手动推进 3 秒：不依赖真实帧率，断言才稳定（headless 下 RAF 会被节流）
-// 5 秒：开局手牌只有 3 张低星怪，他蓄力 0.22s，两发命中才够杀一只
-await page.evaluate(() => {
+// 手动推进 5.5 秒：不依赖真实帧率，断言才稳定（headless 下 RAF 会被节流）
+// 顺便量两件本作核心的行为：他真的在跑（拉扯），以及没被逼进墙角。
+const combatWalk = await page.evaluate(() => {
   const g = window.__game;
-  for (let i = 0; i < 300; i += 1) g.update(1 / 60);
+  let travel = 0;
+  let minWall = 1e9;
+  let px = g.hero.x;
+  let py = g.hero.y;
+  for (let i = 0; i < 330; i += 1) {
+    g.update(1 / 60);
+    travel += Math.hypot(g.hero.x - px, g.hero.y - py);
+    px = g.hero.x;
+    py = g.hero.y;
+    minWall = Math.min(minWall, px - 200, 1400 - px, py - 200, 1400 - py);
+  }
+  return { travel: Math.round(travel), minWall: Math.round(minWall) };
 });
 
 const combat = await page.evaluate(() => {
@@ -192,10 +219,17 @@ const combat = await page.evaluate(() => {
 });
 check('魔物存活并被追击', combat.active > 0, `active=${combat.active} 状态=${combat.heroState} game=${combat.gameState}`);
 check('他在输出（已击杀魔物）', combat.kills > 0, `击杀 ${combat.kills}`);
+// 四面被围时"最近距离"必然很小（贴上来打才是近战的本分），
+// 所以这里测的是**意图**：他该跑的时候跑了，而且没往墙角缩。
 check(
-  '他会拉开距离（不贴脸硬顶）',
-  combat.heroDist > 60 || combat.active === 0,
-  `与最近的怪 ${combat.heroDist}px`,
+  '他会拉扯（被围时持续跑位）',
+  combatWalk.travel > 220,
+  `5.5s 走了 ${combatWalk.travel}px`,
+);
+check(
+  '他不进墙角（离墙始终有余量）',
+  combatWalk.minWall > 90,
+  `离墙最近 ${combatWalk.minWall}px`,
 );
 // 再推进 10 秒：他是远程、会边打边退，所以先摆一圈怪把他围住 —— 他必须真的会挨打
 const late = await page.evaluate(() => {

@@ -1,5 +1,5 @@
 import { CARDS, cardCdSeconds } from '../content/cards';
-import { RUN, VIEW } from '../content/config';
+import { RUN, VIEW, xpNeed } from '../content/config';
 import type { Game, PowerupOption } from '../gameplay/game';
 
 export interface HudHandlers {
@@ -44,6 +44,13 @@ export class Hud {
   private readonly intentEl: HTMLSpanElement;
   private readonly starText: HTMLSpanElement;
   private readonly starDots: HTMLDivElement;
+  private readonly xpFill: HTMLDivElement;
+  private readonly xpText: HTMLSpanElement;
+  private readonly heroStats: HTMLDivElement;
+  private readonly pStar: HTMLElement;
+  private readonly pCd: HTMLElement;
+  private readonly pPlaced: HTMLElement;
+  private readonly pKills: HTMLElement;
   private readonly handEl: HTMLDivElement;
   private readonly toastEl: HTMLDivElement;
   private readonly levelupEl: HTMLDivElement;
@@ -59,6 +66,10 @@ export class Hud {
   private lastHpPct = '';
   private lastHpText = '';
   private lastLv = '';
+  private lastXpPct = '';
+  private lastXpText = '';
+  private lastHeroStats = '';
+  private lastPower = '';
   private lastIntent = '';
   private lastStarText = '';
   private lastStarRatio = '';
@@ -85,6 +96,11 @@ export class Hud {
             <span class="hero-intent" data-intent>追击</span>
           </div>
           <div class="hero-hp"><div class="hero-hp-fill" data-hp></div><span class="hero-hp-text" data-hp-text>12000 / 12000</span></div>
+          <div class="hero-xp" title="他杀怪升级：经验条满了就 Lv+1，回一点血、天赋更强">
+            <div class="hero-xp-fill" data-xp></div>
+            <span class="hero-xp-text" data-xp-text>Lv.1 · 0%</span>
+          </div>
+          <div class="hero-stats" data-hero-stats></div>
         </div>
         <div class="timer-sub">打不死他，5 分钟就到</div>
       </div>
@@ -93,6 +109,12 @@ export class Hud {
           <span class="star-label">星数</span>
           <span class="star-text" data-star>0 / 10</span>
           <div class="star-dots" data-dots></div>
+        </div>
+        <div class="power-panel" data-power>
+          <span class="power-row"><i>星数上限</i><b data-p-star>10</b></span>
+          <span class="power-row"><i>冷却缩减</i><b data-p-cd>0%</b></span>
+          <span class="power-row"><i>已召唤</i><b data-p-placed>0</b></span>
+          <span class="power-row"><i>击杀</i><b data-p-kills>0</b></span>
         </div>
         <div class="hint-bar" data-hint>点卡 → 点地面召唤 · 他能远程射你摆的怪</div>
         <div class="hand" data-hand></div>
@@ -116,6 +138,13 @@ export class Hud {
     this.intentEl = this.must('[data-intent]');
     this.starText = this.must('[data-star]');
     this.starDots = this.must('[data-dots]');
+    this.xpFill = this.must('[data-xp]');
+    this.xpText = this.must('[data-xp-text]');
+    this.heroStats = this.must('[data-hero-stats]');
+    this.pStar = this.must('[data-p-star]');
+    this.pCd = this.must('[data-p-cd]');
+    this.pPlaced = this.must('[data-p-placed]');
+    this.pKills = this.must('[data-p-kills]');
     this.handEl = this.must('[data-hand]');
     this.toastEl = this.must('[data-toasts]');
     this.levelupEl = this.must('[data-levelup]');
@@ -194,6 +223,36 @@ export class Hud {
     if (lvText !== this.lastLv) {
       this.lastLv = lvText;
       this.lvEl.textContent = lvText;
+    }
+
+    // 经验条：血条下面这一条回答"他还要多久变强"。
+    // 玩家最需要预判的就是这个 —— 他升级会回血、会多一个天赋。
+    const xpRatio = Math.max(0, Math.min(1, hero.xp / Math.max(1, xpNeed(hero.level))));
+    const xpPct = (xpRatio * 100).toFixed(1);
+    if (xpPct !== this.lastXpPct) {
+      this.lastXpPct = xpPct;
+      this.xpFill.style.width = `${xpPct}%`;
+    }
+    const xpText = `Lv.${hero.level} · ${Math.floor(xpRatio * 100)}%`;
+    if (xpText !== this.lastXpText) {
+      this.lastXpText = xpText;
+      this.xpText.textContent = xpText;
+    }
+
+    // 基础属性：势均力敌的对抗里，玩家必须能读到"上限"和"减 CD"的变化
+    const statsText = `攻速 ${hero.atkPerSecond.toFixed(2)}/s · 移速 ${Math.round(hero.speed)} · 护甲 ${Math.round(hero.armor)}`;
+    if (statsText !== this.lastHeroStats) {
+      this.lastHeroStats = statsText;
+      this.heroStats.textContent = statsText;
+    }
+    const powerText = `${game.starCap}|${game.cdReductionPercent}|${game.placedTotal}|${game.kills}`;
+    if (powerText !== this.lastPower) {
+      this.lastPower = powerText;
+      const [cap, cd, placed, kills] = powerText.split('|');
+      this.pStar.textContent = cap ?? '';
+      this.pCd.textContent = `${cd}%`;
+      this.pPlaced.textContent = placed ?? '';
+      this.pKills.textContent = kills ?? '';
     }
     const intentText = hero.intent === 'retreat' ? '撤退' : hero.intent === 'charge' ? '蓄力' : '追击';
     if (intentText !== this.lastIntent) {
