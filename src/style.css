@@ -128,11 +128,17 @@ body {
 .timer-sub {
   font-size: 11px;
   letter-spacing: 0.16em;
-  /* 这句话压在魔法阵上（中间那圈发光纹样正好在它下面），
-     11px 的暗紫灰直接叠上去读不清 —— 加描边 + 微亮，比调字号更省布局空间 */
+  /* 这行字正好压在"战场正上方"这条通道上：剑气、技能名、飘字都会从这儿穿过去。
+     与其挪位置（挪哪都在弹道上），不如给它一个实底药丸 —— 文字永远读得清。 */
+  display: block;
+  width: fit-content;
+  margin: 6px auto 0;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: rgba(8, 7, 16, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   color: #8b84a8;
-  margin-top: 6px;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95), 0 0 10px rgba(0, 0, 0, 0.8);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95);
 }
 
 /* ── 勇者面板 ───────────────────────────────────────────── */
@@ -258,6 +264,90 @@ body {
   letter-spacing: 0.02em;
   color: rgba(206, 199, 234, 0.72);
   font-variant-numeric: tabular-nums;
+}
+
+/* 「他正在用什么技能」：技能名 + 一条读条，固定在勇者面板里。
+   玩家反馈"看不出来他在用什么技能"—— 飘字在战场中央，视线却在左上角。 */
+.hero-cast {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 5px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(155, 107, 255, 0.18);
+  border: 1px solid rgba(155, 107, 255, 0.45);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #e4d7ff;
+  overflow: hidden;
+}
+
+.hero-cast.is-anim {
+  animation: cast-pop 0.25s ease-out;
+}
+
+@keyframes cast-pop {
+  from {
+    transform: scale(0.9);
+    opacity: 0.4;
+  }
+}
+
+.hero-cast-bar {
+  position: relative;
+  flex: 1;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  overflow: hidden;
+}
+
+.hero-cast-bar i {
+  position: absolute;
+  inset: 0;
+  transform-origin: left center;
+  background: linear-gradient(90deg, #9b6bff, #ffb347);
+}
+
+.hero-cast.is-anim .hero-cast-bar i {
+  animation: cast-fill 1.2s linear forwards;
+}
+
+@keyframes cast-fill {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
+/* 他当前的天赋：3 个 chip，最新一个是亮的 —— 回答"他升级获得了什么" */
+.hero-perks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: 4px;
+}
+
+.hero-perk {
+  padding: 0 5px;
+  border-radius: 5px;
+  background: rgba(255, 179, 71, 0.12);
+  border: 1px solid rgba(255, 179, 71, 0.28);
+  color: #cbbfa8;
+  font-size: 9.5px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.hero-perk.is-new {
+  background: rgba(255, 179, 71, 0.3);
+  border-color: rgba(255, 179, 71, 0.75);
+  color: #ffe4bd;
+  box-shadow: 0 0 10px rgba(255, 179, 71, 0.35);
 }
 
 /* 左下角权能面板：把"上限 / 减 CD / 召唤数 / 击杀"摊开给玩家看 */
@@ -458,6 +548,117 @@ body {
   font-size: 12px;
   color: var(--lava-1);
   letter-spacing: 0;
+}
+
+/* 卡牌等级：放得越多这张卡越强，所以等级要能一眼看到（只在 >1 级时出现） */
+.card-lv {
+  position: absolute;
+  left: 8px;
+  bottom: 30px;
+  z-index: 3;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0;
+  color: #ffe4bd;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95), 0 0 8px rgba(255, 179, 71, 0.6);
+}
+
+/* ── 卡牌悬浮说明 ───────────────────────────────────────── */
+/* 玩家根本不知道这些卡是干嘛的 —— 卡面只有图 + 名字 + 星级，
+   所以提示里必须把「怎么打 / 多强 / 什么时候拿」三件事说全。 */
+.card-tip {
+  position: fixed;
+  z-index: 90;
+  width: min(300px, 76vw);
+  padding: 12px 14px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 179, 71, 0.45);
+  background: linear-gradient(180deg, rgba(38, 30, 58, 0.985), rgba(12, 10, 22, 0.99));
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(0, 0, 0, 0.5) inset;
+  color: #ded7f2;
+  font-size: 12px;
+  line-height: 1.55;
+  pointer-events: none;
+  animation: tip-in 0.12s ease-out;
+}
+
+@keyframes tip-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+.tip-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.tip-head b {
+  font-size: 15px;
+  letter-spacing: 0.06em;
+  color: #ffe4bd;
+}
+
+.tip-star {
+  color: var(--lava-1);
+  font-weight: 900;
+}
+
+.tip-lv {
+  padding: 0 5px;
+  border-radius: 6px;
+  background: rgba(255, 179, 71, 0.2);
+  color: #ffd08a;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.tip-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 7px;
+}
+
+.tip-tags i {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(155, 107, 255, 0.22);
+  border: 1px solid rgba(155, 107, 255, 0.4);
+  color: #d9c8ff;
+  font-size: 10px;
+  font-style: normal;
+  letter-spacing: 0.04em;
+}
+
+.tip-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px 10px;
+  margin-bottom: 7px;
+  color: #9d95b8;
+  font-size: 11px;
+}
+
+.tip-stats b {
+  color: #f0e9ff;
+  font-size: 12px;
+}
+
+.tip-note {
+  color: #c9c1e0;
+  margin-bottom: 6px;
+}
+
+.tip-foot {
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  color: #8b84a8;
+  font-size: 10.5px;
+  letter-spacing: 0.03em;
 }
 
 .card-name {

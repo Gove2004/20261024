@@ -52,104 +52,63 @@ interface Passive {
  * 14 个被动的实现。名字必须和 `heroSkills.PASSIVE_POOL` 一一对应 ——
  * 那边是给玩家看的文案，这边是效果，单测会校验两边条数一致。
  */
+/**
+ * 14 → 7 条（v2.5）。合并规则见 heroSkills.PASSIVE_POOL 注释：
+ * 同一处机制只留一条，把原来分散的小加成并进主机制。
+ * 每条都比以前更强 —— 条目少了，单条的"质变感"必须更明显。
+ */
 const PASSIVES: readonly Passive[] = [
   {
     name: '猎手直觉',
     apply: (h) => {
-      h.gainAtk(0.08);
+      h.gainAtk(0.1);
       h.executeMul += 0.6;
     },
   },
   {
-    name: '连珠',
+    name: '铁壁回响',
     apply: (h) => {
-      h.atkSpeedMul += 0.12;
-      // "击杀后立刻回一次弹弓"用攻击间隔缩短实现：数值上等价，实现上不碰主循环
-      h.atkSpeedMul += 0.06;
-    },
-  },
-  {
-    name: '铁皮',
-    apply: (h) => {
-      h.armor += 4;
-      h.damageReduction = Math.min(0.6, h.damageReduction + 0.06);
-    },
-  },
-  {
-    name: '反伤之甲',
-    apply: (h) => {
+      h.armor += 5;
+      h.damageReduction = Math.min(0.6, h.damageReduction + 0.08);
       h.thorns += 0.25;
-      h.gainMaxHp(0.06);
     },
   },
   {
-    name: '暴击溅射',
-    apply: (h) => {
-      h.crit += 0.1;
-      h.spreadExtra += 1;
-    },
-  },
-  {
-    name: '吸血鬼',
+    name: '嗜血',
     apply: (h) => {
       h.lifesteal += 0.04;
-      h.killHeal += 0.02;
+      h.killHeal += 0.03;
     },
   },
   {
-    name: '疾行',
+    name: '疾风连珠',
     apply: (h) => {
       h.moveMul += 0.12;
-      h.skillCdMul *= 0.9;
+      // "击杀后立刻回一次弹弓"用攻速实现：数值等价，实现上不碰主循环
+      h.atkSpeedMul += 0.18;
     },
   },
   {
-    name: '困兽',
+    name: '困兽之斗',
     apply: (h) => {
       h.lowHpRage += 0.5;
       h.gainMaxHp(0.08);
+      h.gainAtk(0.15);
     },
   },
   {
     name: '剑豪',
     apply: (h) => {
-      h.qiMul += 0.25;
-      h.skillCdMul *= 0.95;
-    },
-  },
-  {
-    name: '散射大师',
-    apply: (h) => {
-      h.spreadExtra += 2;
-      h.skillCdMul *= 0.95;
-    },
-  },
-  {
-    name: '重击专家',
-    apply: (h) => {
-      h.heavyMul += 0.3;
-      h.atkSpeedMul += 0.04;
-    },
-  },
-  {
-    name: '速念',
-    apply: (h) => {
-      h.skillCdMul *= 0.88;
-      h.atkSpeedMul += 0.06;
-    },
-  },
-  {
-    name: '屠戮',
-    apply: (h) => {
-      h.killHeal += 0.03;
-      h.gainAtk(0.05);
-    },
-  },
-  {
-    name: '穿透箭',
-    apply: (h) => {
+      h.qiMul += 0.3;
+      h.skillCdMul *= 0.85;
       h.shotPierce += 1;
-      h.gainAtk(0.06);
+    },
+  },
+  {
+    name: '暴击狂徒',
+    apply: (h) => {
+      h.crit += 0.12;
+      h.spreadExtra += 1;
     },
   },
 ];
@@ -921,7 +880,9 @@ export class Hero {
       const d = Math.sqrt(d2) + 0.001;
       if (d < nearest) nearest = d;
       const abi = store.abi[slot] ?? 0;
-      const weight = (abi === 1 ? AI.threatSuicide : abi === 3 ? AI.threatRanged : 1) * (1 - d / r);
+      // 威胁权重：1=自爆、3=远程、4=精英（巨大蜘蛛）。精英权重最高 ——
+      // 它同时会远程吐丝、近身咬、还能源源不断生小蜘蛛，不打掉他会越打越多。
+      const weight = (abi === 1 ? AI.threatSuicide : abi === 3 ? AI.threatRanged : abi === 4 ? AI.threatRanged * 1.3 : 1) * (1 - d / r);
       const k = this.threatCount;
       this.threatX[k] = dx / d;
       this.threatY[k] = dy / d;

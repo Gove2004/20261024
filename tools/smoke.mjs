@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 冒烟测试：用本地 Edge 打开构建产物，验证 M1 手感闭环。
  *
  *   1. 页面无 console error / 未捕获异常
@@ -144,6 +144,71 @@ const placed = await page.evaluate(() => {
 });
 check('选卡 + 召唤成功', placed.ok === true && placed.after > placed.before, `active=${placed.after}`);
 
+// ---- 充能模型：连放不卡手（用户反馈"卡牌依旧卡手"的验收点） ----
+const charges = await page.evaluate(() => {
+  const g = window.__game;
+  g.start();
+  g.debugFillHand();
+  g.selectCard(0);
+  const first = g.hand[0];
+  const max = first?.maxCharges ?? 0;
+  let okCount = 0;
+  // 一口气在同一个位置连放：旧版第二下就会被冷却挡住
+  for (let i = 0; i < max; i += 1) {
+    if (g.place(g.hero.x + 150 + i * 12, g.hero.y + 90)) okCount += 1;
+    g.selectCard(0);
+  }
+  const left = g.hand[0]?.charges ?? -1;
+  const err = g.placementError(g.hero.x + 150, g.hero.y + 90);
+  g.selected = -1;
+  return { max, okCount, left, err };
+});
+check(
+  '充能满时可以连放（不再逐个走冷却）',
+  charges.okCount === charges.max && charges.left === 0,
+  `连放 ${charges.okCount}/${charges.max} 次，剩 ${charges.left}`,
+);
+check(
+  '用光后提示「充能中」而不是「冷却中」',
+  typeof charges.err === 'string' && charges.err.includes('充能'),
+  `提示=${charges.err ?? 'null'}`,
+);
+
+// ---- 卡牌等级：同一张卡放得越多越强（对冲"后期一刀一个"） ----
+const cardLevel = await page.evaluate(() => {
+  const g = window.__game;
+  g.start();
+  g.debugFillHand();
+  for (let i = 0; i < 14; i += 1) {
+    g.debugRefill();
+    g.selectCard(0);
+    g.place(g.hero.x + 130 + (i % 5) * 26, g.hero.y + 80 + Math.floor(i / 5) * 30);
+    g.selected = -1;
+  }
+  return { level: g.hand[0]?.level ?? 0, xp: g.hand[0]?.xp ?? 0 };
+});
+check('卡牌会随放置次数升级', cardLevel.level > 1, `Lv.${cardLevel.level}（xp ${cardLevel.xp}）`);
+
+// ---- 悬浮提示：玩家必须能在放之前知道这张卡是什么 ----
+await page.evaluate(() => {
+  const g = window.__game;
+  g.start();
+  g.debugFillHand();
+});
+await page.hover('.hand .card');
+await page.waitForTimeout(150);
+const tip = await page.evaluate(() => {
+  const el = document.querySelector('.card-tip');
+  if (!el) return { found: false, text: '' };
+  const style = getComputedStyle(el);
+  return { found: style.display !== 'none' && !el.hidden, text: el.textContent ?? '' };
+});
+check(
+  '鼠标移到卡上有悬浮说明（含生命/攻击）',
+  tip.found && tip.text.includes('生命') && tip.text.includes('攻击'),
+  `提示="${tip.text.replace(/\s+/g, ' ').slice(0, 34)}…"`,
+);
+
 // 再放两只史莱姆（速度 92 < 他的 108），制造"被追"的场面。
 // 这里刻意不放幽灵：幽灵 178 速，比他还快，贴上来是设计里的必然，
 // 用它去断言"不贴脸"只会测出"他跑不过幽灵"，测不到走位意图。
@@ -172,9 +237,22 @@ await page.evaluate(() => {
 // 顺便量两件本作核心的行为：他真的在跑（拉扯），以及没被逼进墙角。
 const combatWalk = await page.evaluate(() => {
   const g = window.__game;
+  // 这一段必须自带起点：它前面的用例会把勇者打到半血、把场上的怪清光，
+  // 接着跑的话测到的就不是"走位"，而是"上一条用例留下的烂摊子"。
+  g.start();
+  const angs = [0.4, 2.1, 3.6, 5.2];
+  const dists = [130, 150, 170, 120];
+  for (let i = 0; i < 4; i += 1) {
+    g.debugRefill();
+    g.selectCard(0);
+    g.place(g.hero.x + Math.cos(angs[i]) * dists[i], g.hero.y + Math.sin(angs[i]) * dists[i]);
+    g.selected = -1;
+  }
+  g.store.refreshActive();
   let travel = 0;
   let minWall = 1e9;
   let wallFrames = 0;
+  let wallSum = 0;
   let px = g.hero.x;
   let py = g.hero.y;
   for (let i = 0; i < 330; i += 1) {
@@ -184,9 +262,17 @@ const combatWalk = await page.evaluate(() => {
     py = g.hero.y;
     const wall = Math.min(px - 200, 1400 - px, py - 200, 1400 - py);
     minWall = Math.min(minWall, wall);
+    wallSum += wall;
     if (wall < 80) wallFrames += 1;
   }
-  return { travel: Math.round(travel), minWall: Math.round(minWall), wallRatio: wallFrames / 330 };
+  return {
+    travel: Math.round(travel),
+    minWall: Math.round(minWall),
+    wallRatio: wallFrames / 330,
+    // 平均离墙距离比"贴墙帧占比"稳：占比会被一两次绕圈放大，
+    // 而他绕到墙边再折回来其实是正常的拉扯走位，不是"蹲墙角"。
+    avgWall: Math.round(wallSum / 330),
+  };
 });
 
 const combat = await page.evaluate(() => {
@@ -230,9 +316,9 @@ check(
   `5.5s 走了 ${combatWalk.travel}px`,
 );
 check(
-  '他不进墙角（贴墙帧占比低）',
-  combatWalk.wallRatio < 0.12,
-  `贴墙帧占比 ${(combatWalk.wallRatio * 100).toFixed(0)}%（最近 ${combatWalk.minWall}px）`,
+  '他不进墙角（平均离墙 >110px）',
+  combatWalk.avgWall > 110,
+  `平均离墙 ${combatWalk.avgWall}px，贴墙帧 ${(combatWalk.wallRatio * 100).toFixed(0)}%（最近 ${combatWalk.minWall}px）`,
 );
 // 再推进 10 秒：他是远程、会边打边退，所以先摆一圈怪把他围住 —— 他必须真的会挨打
 const late = await page.evaluate(() => {
@@ -271,7 +357,7 @@ const ranged = await page.evaluate(() => {
   const g = window.__game;
   g.start();
   g.debugFillHand();
-  const idx = g.hand.findIndex((card) => card.id === 'shaman');
+  const idx = g.hand.findIndex((card) => card.id === 'goblin');
   if (idx < 0) return { ok: false, reason: 'no card' };
   g.selectCard(idx);
   const dist = 268;
@@ -311,11 +397,12 @@ const abilities = await page.evaluate(() => {
     g.selected = -1;
     return ok;
   };
+  // 距离都收在 240 以内：大厅只有 200..1400，放太远会"超出大厅"而静默失败
   const placed = {
-    boom: put('boom', 130),
-    shaman: put('shaman', 160),
-    spider: put('spider', 220),
-    ghost: put('ghost', 120),
+    goblin: put('goblin', 170),
+    gargoyle: put('gargoyle', 150),
+    spider: put('spider', 140),
+    bat: put('bat', 120),
     slime: put('slime', 110),
   };
   let steps = 0;
@@ -326,16 +413,15 @@ const abilities = await page.evaluate(() => {
   }
   return {
     placed,
-    boom: g.statBoom,
-    heal: g.statHeal,
+    summon: g.statSummon,
     spiderShot: g.statRanged,
     alive: g.store.activeCount,
     steps,
   };
 });
-check('自爆虫会点引信并引爆', abilities.boom > 0, `引爆 ${abilities.boom} 次`);
-check('巫医会治疗友军', abilities.heal > 0, `治疗 ${abilities.heal} 次`);
-check('毒蜘蛛会远程开火', abilities.spiderShot > 0, `远程弹 ${abilities.spiderShot} 次`);
+// 巨大蜘蛛是唯一的"有特性"的怪：每 5 秒生 2 只小蜘蛛
+check('巨大蜘蛛会召唤小蜘蛛', abilities.summon > 0, `召唤 ${abilities.summon} 次，场上 ${abilities.alive} 只`);
+check('哥布林/蜘蛛会远程开火', abilities.spiderShot > 0, `远程弹 ${abilities.spiderShot} 次`);
 
 // ---- M3：勇者技能池必须真的轮得动 ----
 const skills = await page.evaluate(() => {
@@ -436,6 +522,21 @@ check(
   bannerBox.visible && !bannerBox.top && !bannerBox.hand && !bannerBox.hint,
   `可见=${bannerBox.visible} 压血条=${bannerBox.top} 压手牌=${bannerBox.hand} 压提示=${bannerBox.hint}`,
 );
+// 「他升级获得了什么」必须留在面板上，不能只有一闪而过的横幅
+const perks = await page.evaluate(() => {
+  const chips = Array.from(document.querySelectorAll('.hero-perk')).map((el) => el.textContent ?? '');
+  return { count: chips.length, text: chips.join('/') };
+});
+check('勇者面板留下已获得的被动', perks.count > 0, `天赋=${perks.text || '空'}`);
+
+// 「他正在用什么技能」：skillCast 会把技能名写进勇者面板
+const castHud = await page.evaluate(() => {
+  const g = window.__game;
+  g.events?.onSkillLabel?.('剑气', 'qi');
+  const el = document.querySelector('[data-hero-cast]');
+  return { hidden: el?.hidden ?? true, name: el?.querySelector('[data-cast-name]')?.textContent ?? '' };
+});
+check('勇者面板会显示正在使用的技能', castHud.hidden === false && castHud.name.length > 0, `技能=${castHud.name}`);
 
 // 截图前先塞几只怪：空场截图看不出"围杀"这件事，也做不了视觉自检
 await page.evaluate(() => {

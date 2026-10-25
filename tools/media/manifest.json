@@ -1770,5 +1770,153 @@
       }
     },
     "createdAt": "2026-10-24T17:00:49.788Z"
+  },
+  {
+    "kind": "image",
+    "id": "spider-giant",
+    "model": "gpt-image-2",
+    "prompt": "可爱 Q 版卡通风格，扁平化（flat）2D 游戏角色，圆润简洁造型，粗深色 2px 描边，平涂明亮饱和、无写实材质、无渐变高光，单一角色居中、全身完整、八条腿全部完整不被画布裁切、近圆形构图、无阴影无地面，背景纯白 #FFFFFF 无渐变，无文字无边框。一只体型巨大的深紫黑色精英蜘蛛（明显比小蜘蛛更大更有压迫感，但仍圆润可爱、不要写实恐怖）：胖圆的大腹部上有三道发光的暗红色纹路，八条粗壮的长腿呈放射状张开并带关节弯折，腿上有土黄色环纹，头胸部排着六颗发亮的小眼睛，嘴角露出两颗小尖牙。",
+    "size": "1024x1024",
+    "file": "art/raw/spider-giant.png",
+    "bytes": 1056938,
+    "sourceUrl": "https://imagefil.scdn.app/public/image/e2201cc00da1e11872ff7d472146a3630.png",
+    "usage": {
+      "prompt_tokens": 122,
+      "completion_tokens": 1056,
+      "total_tokens": 1178,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "reasoning_tokens": 0,
+        "text_tokens": 122
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "image_tokens": 1056
+      },
+      "input_tokens": 122,
+      "output_tokens": 1056,
+      "input_tokens_details": {
+        "text_tokens": 122,
+        "cached_tokens": 0
+      },
+      "output_tokens_details": {
+        "text_tokens": 0,
+        "reasoning_tokens": 0,
+        "image_tokens": 1056
+      }
+    },
+    "createdAt": "2026-10-25T01:20:28.373Z"
+  },
+  {
+    "kind": "image",
+    "id": "goblin",
+    "model": "gpt-image-2",
+    "prompt": "可爱 Q 版卡通风格，扁平化（flat）2D 游戏角色，圆润简洁造型，粗深色 2px 描边，平涂明亮饱和、无写实材质、无渐变高光，Q 版 2.5 头身、头大身子小，单一角色居中、全身完整、剪影封闭无破洞、无阴影无地面，近圆形构图、弓与箭袋都完整不被画布裁切，背景纯白 #FFFFFF 无渐变，无文字无边框。一只绿色小个子哥布林弓箭手：明亮的黄绿色皮肤、两颗大黑豆眼、尖耳朵，戴土黄色皮革小帽，正面偏 3/4 侧朝观众，双手在身前握着一把简陋的木短弓（弓身弯曲清楚可见），背后斜挎一个暗红色皮革箭袋、袋口露出三支带土黄羽毛的箭，穿暗紫色短上衣和土黄色小皮靴。",
+    "size": "1024x1024",
+    "file": "art/raw/goblin.png",
+    "bytes": 927697,
+    "sourceUrl": "https://imagefil.scdn.app/public/image/65c0d2bc0da1e11871ff7d47161766a30.png",
+    "usage": {
+      "prompt_tokens": 139,
+      "completion_tokens": 1056,
+      "total_tokens": 1195,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "reasoning_tokens": 0,
+        "text_tokens": 139
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "image_tokens": 1056
+      },
+      "input_tokens": 139,
+      "output_tokens": 1056,
+      "input_tokens_details": {
+        "text_tokens": 139,
+        "cached_tokens": 0
+      },
+      "output_tokens_details": {
+        "text_tokens": 0,
+        "reasoning_tokens": 0,
+        "image_tokens": 1056
+      }
+    },
+    "createdAt": "2026-10-25T01:20:52.302Z"
+  },
+  {
+    "kind": "image",
+    "id": "spider-giant",
+    "model": "gpt-image-2",
+    "prompt": "可爱 Q 版卡通风格，扁平化（flat）2D 游戏角色，圆润简洁造型，粗深色 2px 描边，纯平涂 2–3 阶色块、不要渐变不要光泽不要立体球状眼睛、无写实材质，单一角色居中、全身完整、八条腿全部完整不被画布裁切、近圆形构图、无阴影无地面，背景纯白 #FFFFFF 无渐变，无文字无边框。一只体型巨大的深紫黑色精英蜘蛛（比小蜘蛛更大更有压迫感，但仍是圆胖可爱的抱枕比例，不要写实恐怖、不要尖锐细长的腿）：胖圆的大腹部上有三道暗红色扁平发光纹路（色块平涂、带一点点亮芯），八条圆润粗短的节段腿放射状张开、腿上有土黄色环纹，头胸部横排六颗扁平的黑色豆豆眼（每颗一个白色小圆点高光），嘴角两颗圆圆的小短牙。",
+    "size": "1024x1024",
+    "file": "art/raw/spider-giant.png",
+    "bytes": 934984,
+    "sourceUrl": "https://imagefil.scdn.app/public/image/ed7a40d130a1e11809017e47e57cbea30.png",
+    "usage": {
+      "prompt_tokens": 150,
+      "completion_tokens": 1056,
+      "total_tokens": 1206,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "reasoning_tokens": 0,
+        "text_tokens": 150
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "image_tokens": 1056
+      },
+      "input_tokens": 150,
+      "output_tokens": 1056,
+      "input_tokens_details": {
+        "text_tokens": 150,
+        "cached_tokens": 0
+      },
+      "output_tokens_details": {
+        "text_tokens": 0,
+        "reasoning_tokens": 0,
+        "image_tokens": 1056
+      }
+    },
+    "createdAt": "2026-10-25T01:23:02.449Z"
+  },
+  {
+    "kind": "image",
+    "id": "goblin",
+    "model": "gpt-image-2",
+    "prompt": "可爱 Q 版卡通风格，扁平化（flat）2D 游戏角色，圆润简洁造型，粗深色 2px 描边，平涂明亮饱和、无写实材质、无渐变高光，Q 版 2.5 头身、头大身子小，单一角色居中、全身完整、剪影封闭无破洞、无阴影无地面，近圆形构图、弓与箭袋都完整不被画布裁切，背景纯白 #FFFFFF 无渐变，无文字无边框。一只绿色小个子哥布林弓箭手：明亮的黄绿色皮肤、两颗大黑豆眼、尖耳朵，戴土黄色皮革小帽，正面偏 3/4 侧朝观众站姿，手臂只有两条、拳头只有两个：左手在身体左侧握着木短弓的中段，右手捏着一支箭搭在弓弦上，画面上不能出现第三只手；背面斜挎一个暗红色皮革箭袋，袋口露出三支带土黄羽毛的箭，穿暗紫色短上衣和土黄色小皮靴。",
+    "size": "1024x1024",
+    "file": "art/raw/goblin.png",
+    "bytes": 988196,
+    "sourceUrl": "https://imagefil.scdn.app/public/image/59f4337659a1e11801037e473c8765360.png",
+    "usage": {
+      "prompt_tokens": 154,
+      "completion_tokens": 1056,
+      "total_tokens": 1210,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "reasoning_tokens": 0,
+        "text_tokens": 154
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "image_tokens": 1056
+      },
+      "input_tokens": 154,
+      "output_tokens": 1056,
+      "input_tokens_details": {
+        "text_tokens": 154,
+        "cached_tokens": 0
+      },
+      "output_tokens_details": {
+        "text_tokens": 0,
+        "reasoning_tokens": 0,
+        "image_tokens": 1056
+      }
+    },
+    "createdAt": "2026-10-25T01:25:57.510Z"
   }
 ]

@@ -14,6 +14,8 @@ export interface MonsterHooks {
   onWarn(x: number, y: number, radius: number, duration: number): void;
   /** 巫医治疗周围友军 */
   onHeal(slot: number, x: number, y: number): void;
+  /** 精英召唤小怪（巨大蜘蛛） */
+  onSummon(slot: number, x: number, y: number): void;
   /** 召唤物寿命到期 */
   onExpire(slot: number): void;
 }
@@ -22,9 +24,13 @@ export interface MonsterHooks {
 const ABI_SUICIDE = 1;
 const ABI_HEAL = 2;
 const ABI_SLOW_SHOT = 3;
+const ABI_SUMMON = 4;
 
 const FUSE_TIME = 0.6;
 const HEAL_INTERVAL = 2;
+const SUMMON_INTERVAL = 5;
+/** 巨大蜘蛛的"近战形态"判定距离：进到这个距离就改咬，不再吐丝 */
+const ELITE_MELEE_RANGE = 110;
 
 /**
  * 魔物行为：朝勇者靠拢 → 进入射程 → 按攻速攻击。
@@ -89,13 +95,19 @@ export function updateMonsters(store: MonsterStore, hero: Hero, dt: number, hook
       }
     }
 
-    // 特性计时。卡池裁到 5 种之后只剩「自爆（引信，上面已处理）」和「巫医回血」，
-    // 嘲讽 / 火球 / 召唤随卡池一起删掉了 —— 留着没人调用的分支只是负担。
+    // 特性计时。卡池 5 种之后只有两个周期型特性：巫医回血、精英召唤。
+    // 嘲讽 / 火球 随卡池一起删掉了 —— 留着没人调用的分支只是负担。
     if (abi === ABI_HEAL) {
       store.abT[slot] = (store.abT[slot] ?? 0) - dt;
       if ((store.abT[slot] ?? 0) <= 0) {
         store.abT[slot] = HEAL_INTERVAL;
         hooks.onHeal(slot, x, y);
+      }
+    } else if (abi === ABI_SUMMON) {
+      store.abT[slot] = (store.abT[slot] ?? 0) - dt;
+      if ((store.abT[slot] ?? 0) <= 0) {
+        store.abT[slot] = SUMMON_INTERVAL;
+        hooks.onSummon(slot, x, y);
       }
     }
 
@@ -161,10 +173,17 @@ export function updateMonsters(store: MonsterStore, hero: Hero, dt: number, hook
 
     if (inRange && (store.atkTimer[slot] ?? 0) <= 0) {
       store.atkTimer[slot] = store.atkInterval[slot] ?? 1;
-      if (range > 120) hooks.onRangedShot(slot, x, y, hero.x, hero.y);
-      hooks.hitHero(store.atk[slot] ?? 1, slot);
-      // 毒蜘蛛的远程弹会给勇者叠减速层：这是"必须换位置"的压力来源
-      if (abi === ABI_SLOW_SHOT) store.slowFactor[slot] = 1;
+      // 巨大蜘蛛：多形态。贴脸时改"咬"（更疼、不出弹道），中远距离才吐丝。
+      // 这是本卡"精英"的地方 —— 他不能靠"站远一点"躲开，也不能靠"贴上去"压制。
+      if (abi === ABI_SUMMON && dist < ELITE_MELEE_RANGE) {
+        hooks.hitHero((store.atk[slot] ?? 1) * 1.7, slot);
+        hooks.onWarn(store.x[slot] ?? x, store.y[slot] ?? y, ELITE_MELEE_RANGE * 0.7, 0.25);
+      } else {
+        if (range > 120) hooks.onRangedShot(slot, x, y, hero.x, hero.y);
+        hooks.hitHero(store.atk[slot] ?? 1, slot);
+        // 远程弹附带减速层：这是"必须换位置"的压力来源
+        if (abi === ABI_SLOW_SHOT || abi === ABI_SUMMON) store.slowFactor[slot] = 1;
+      }
     }
   }
 

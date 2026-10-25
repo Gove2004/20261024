@@ -565,7 +565,7 @@ export class Scene {
       let gfx = this.monsters.get(slot);
       if (!gfx || this.monsterDef.get(slot) !== defIdx) {
         if (gfx) gfx.destroy();
-        const texture: Texture | undefined = this.art.get(def.id);
+        const texture: Texture | undefined = this.art.get(def.art ?? def.id);
         if (texture) {
           // 贴图是 256 见方、主体已撑满画布，按半径换算显示尺寸；
           // anchor 压在脚底，这样 y 排序（zIndex = y）和分离力才对得上。

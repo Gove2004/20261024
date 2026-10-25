@@ -16,7 +16,7 @@
   inHall,
   starCapAt,
 } from '../content/config';
-import { CARDS, CARD_STACK, STARTER_HAND, cardCdSeconds, findCard, summonCount } from '../content/cards';
+import { CARDS, CARD_LEVEL, CARD_STACK, STARTER_HAND, cardCdSeconds, cardLevelMul, findCard, summonCount, unitStar } from '../content/cards';
 import { SKILL_TUNING } from '../content/heroSkills';
 import { MonsterStore } from '../ecs/store';
 import { Hero, type HeroHooks } from './hero';
@@ -30,25 +30,17 @@ export interface HandCard {
   readonly id: string;
   readonly defIdx: number;
   star: number;
+  /** 距离下一层充能还要多久（秒）。**不再阻止放置**，只决定回充速度 */
   cd: number;
-  /** 剩余可召唤次数。就是"这张牌堆了几张"（见 CARD_STACK） */
+  /** 剩余可召唤次数（= 充能层数） */
   charges: number;
   maxCharges: number;
+  /** 这张卡的等级：放得越多越强（见 CARD_LEVEL） */
+  level: number;
+  xp: number;
 }
 
-export type PowerupKind =
-  | 'atk'
-  | 'hp'
-  | 'atkspeed'
-  | 'cd'
-  | 'starcap'
-  | 'hand'
-  | 'star'
-  | 'armor'
-  | 'weak'
-  | 'slow'
-  | 'skillcd'
-  | 'charge';
+export type PowerupKind = 'atk' | 'hp' | 'starcap' | 'armor' | 'weak' | 'charge' | 'star';
 
 export interface PowerupOption {
   readonly id: string;
@@ -59,37 +51,38 @@ export interface PowerupOption {
 }
 
 /**
- * 手牌从 4 提到 6：12 张卡池里 4 个格子意味着"这局我能玩到什么"太随机，
- * 6 格才够组出一个流派（坦克 + 输出 + 功能），也让新解锁的卡真的能被用上。
+ * 手牌从 4 提到 6：卡池 5 张时 4 个格子意味着"这局我能玩到什么"太随机，
+ * 6 格才够组出一个流派（坦克 + 输出 + 功能）。
  * 再往上给 2 格权能，上限 8 —— 再多人就只看手牌不看战场了。
  */
 const HAND_BASE = 6;
 const HAND_MAX_EXTRA = 2;
 
 /**
- * 权能池（M3 补全）。每轮三选一，全部是"给玩家（魔王）自己用的增益"：
- * 前六条改魔物数值，后四条直接改勇者的数值 ——
- * 后者才是"我在跟一个具体的对手博弈"的感觉来源。
+ * 权能池。v2.5 按反馈**大幅合并**（11 → 6 条）：条目越多，玩家每次三选一
+ * 都要重新理解一遍，决策成本超过信息量。现在每条要么直接改魔物数值，
+ * 要么改"你能放多少"，没有重复的小加成。
  */
 const POWERUPS: readonly PowerupOption[] = [
-  { id: 'atk', title: '尖牙', desc: '全魔物攻击 +18%', kind: 'atk', value: 0.18 },
-  { id: 'hp', title: '厚壳', desc: '全魔物生命 +18%', kind: 'hp', value: 0.18 },
-  { id: 'atkspeed', title: '躁动', desc: '全魔物攻速 +10%', kind: 'atkspeed', value: 0.1 },
-  { id: 'cd', title: '冷却缩减', desc: '全卡回充 −10%', kind: 'cd', value: 0.1 },
-  { id: 'charge', title: '通量扩容', desc: '所有手牌通量 +1（能连放的次数更多）', kind: 'charge', value: 1 },
-  { id: 'starcap', title: '星域扩张', desc: '星数上限 +8', kind: 'starcap', value: 8 },
-  { id: 'hand', title: '更多手牌', desc: '手牌位 +1（最多 8）', kind: 'hand', value: 1 },
-  { id: 'armor', title: '硬皮', desc: '全魔物护甲 +2', kind: 'armor', value: 2 },
-  { id: 'weak', title: '诅咒', desc: '锅巴攻击 −6%', kind: 'weak', value: 0.06 },
-  { id: 'slow', title: '泥泞', desc: '锅巴移速 −7%', kind: 'slow', value: 0.07 },
-  { id: 'skillcd', title: '封印', desc: '锅巴技能冷却 +12%', kind: 'skillcd', value: 0.12 },
+  { id: 'atk', title: '尖牙', desc: '所有魔物攻击 +22%', kind: 'atk', value: 0.22 },
+  { id: 'hp', title: '厚壳', desc: '所有魔物生命 +22%', kind: 'hp', value: 0.22 },
+  { id: 'charge', title: '充能扩容', desc: '每张手牌 +2 层充能（能一口气放更多）', kind: 'charge', value: 2 },
+  { id: 'starcap', title: '星域扩张', desc: '星数上限 +10（能同时站更多魔物）', kind: 'starcap', value: 10 },
+  { id: 'armor', title: '硬皮', desc: '所有魔物护甲 +3（对他的每发伤害都减）', kind: 'armor', value: 3 },
+  { id: 'weak', title: '诅咒', desc: '锅巴攻击 −8%（他打得更慢更轻）', kind: 'weak', value: 0.08 },
 ];
 
-/** 升星永远出现在每轮三选一里：它是玩家"养大自己的东西"的唯一通道。 */
+/**
+ * 升星永远出现在每轮三选一里：它是玩家"养大自己的东西"的唯一通道。
+ *
+ * 文案改过：旧版写「随机一张手牌 +1 星（最高 10★）」，玩家反馈"描述全是负面，
+ * 根本不知道有啥用"—— 因为星数是"消耗"（占星数上限）却看不出收益。
+ * 现在把**收益**写在最前面，并明确它会立刻作用于已放置的同类魔物。
+ */
 const STAR_UPGRADE: PowerupOption = {
   id: 'star',
   title: '卡牌升星',
-  desc: '随机一张手牌 +1 星（最高 10★）',
+  desc: '选一张手牌 +1 星：属性 ×星级大幅提升，之后召唤的都是更强的版本',
   kind: 'star',
   value: 1,
 };
@@ -113,7 +106,7 @@ export interface GameEvents {
   /** 地面预警圈（火球/自爆），duration 秒后结算 */
   onTelegraph(x: number, y: number, radius: number, duration: number): void;
   /** 治疗/冰冻等即时表现 */
-  onEffect(kind: 'heal' | 'freeze' | 'taunt' | 'boom', x: number, y: number, radius: number): void;
+  onEffect(kind: 'heal' | 'freeze' | 'taunt' | 'boom' | 'summon', x: number, y: number, radius: number): void;
   toast(text: string, kind?: 'info' | 'good' | 'bad'): void;
   onPowerup(options: readonly PowerupOption[]): void;
   /** 权能预告（面板弹出前的前摇），HUD 用它出倒计时 */
@@ -152,6 +145,8 @@ export class Game {
   public score = 0;
   /** 特性触发计数：给冒烟测试断言用，也方便调平衡时看"这些卡到底有没有参与" */
   public statBoom = 0;
+  /** 精英召唤次数（巨大蜘蛛） */
+  public statSummon = 0;
   public statHeal = 0;
   /** 远程开火次数（毒蜘蛛），冒烟测试用 */
   public statRanged = 0;
@@ -197,6 +192,7 @@ export class Game {
     this.hero.reset();
     this.pendingAoe.length = 0;
     this.statBoom = 0;
+    this.statSummon = 0;
     this.statHeal = 0;
     this.statRanged = 0;
     this.statQi = 0;
@@ -211,6 +207,8 @@ export class Game {
       cd: 0,
       charges: CARD_STACK.charges,
       maxCharges: CARD_STACK.charges,
+      level: 1,
+      xp: 0,
     }));
     this.selected = -1;
     this.peakStars = 0;
@@ -245,6 +243,8 @@ export class Game {
       cd: 0,
       charges: CARD_STACK.charges,
       maxCharges: CARD_STACK.charges,
+      level: 1,
+      xp: 0,
     }));
     this.handBonus = 6;
     this.starBonus = 60;
@@ -288,6 +288,7 @@ export class Game {
       onExplode: (slot, x, y, radius, damage) => this.explodeAt(slot, x, y, radius, damage),
       onWarn: (x, y, radius, duration) => this.events.onTelegraph(x, y, radius, duration),
       onHeal: (slot, x, y) => this.healAround(slot, x, y),
+      onSummon: (slot) => this.spawnMinions(slot),
       onExpire: (slot) => this.killMonster(slot, false),
     });
 
@@ -340,6 +341,42 @@ export class Game {
   }
 
   /** 巫医：治疗周围最多 3 只，按最大生命的 18%。 */
+  /**
+   * 巨大蜘蛛的召唤：在自身周围生 2 只小蜘蛛（1 星史莱姆的量级）。
+   *
+   * 小蜘蛛用的是 slime 的数值但贴蜘蛛的图 —— 它们不是"卡"，只是这个精英的持续压力，
+   * 所以不记击杀奖励以外的任何东西，也不出现在手牌里。
+   */
+  private spawnMinions(slot: number): void {
+    const store = this.store;
+    const defIdx = CARDS.findIndex((card) => card.id === 'slime');
+    const def = CARDS[defIdx];
+    if (!def) return;
+    const x = store.x[slot] ?? 0;
+    const y = store.y[slot] ?? 0;
+    for (let i = 0; i < 2; i += 1) {
+      const angle = this.rng.next() * Math.PI * 2;
+      const child = store.spawn(
+        def,
+        defIdx,
+        1,
+        x + Math.cos(angle) * 46,
+        y + Math.sin(angle) * 46,
+        this.rng.next() * Math.PI * 2,
+      );
+      if (child < 0) break;
+      // 小蜘蛛：血量只有一半，但会立刻扑上去
+      store.maxHp[child] = (store.maxHp[child] ?? 0) * 0.5;
+      store.hp[child] = store.maxHp[child] ?? 0;
+      store.speed[child] = (store.speed[child] ?? 90) * 1.35;
+      this.applyStacks(child);
+      this.placedTotal += 1;
+      this.events.onSpawn(child);
+    }
+    this.statSummon += 1;
+    this.events.onEffect('summon', x, y, 120);
+  }
+
   private healAround(slot: number, x: number, y: number): void {
     const store = this.store;
     let healed = 0;    for (let i = 0; i < store.activeCount && healed < 3; i += 1) {
@@ -423,8 +460,9 @@ export class Game {
   }
 
   public cardReady(index: number): boolean {
+    // 只看「还有没有充能」：冷却不再拦住放置（见 CARD_STACK 注释）
     const card = this.hand[index];
-    return card !== undefined && card.cd <= 0;
+    return card !== undefined && card.charges > 0;
   }
 
   /** 返回不可召唤的原因；可以放则返回 null。 */
@@ -432,12 +470,12 @@ export class Game {
     if (this.state !== 'playing') return '现在不能召唤';
     const card = this.hand[this.selected];
     if (!card) return '先选一张卡';
-    if (card.charges <= 0) return `回充中 ${card.cd.toFixed(1)}s`;
+    if (card.charges <= 0) return `充能中 ${card.cd.toFixed(1)}s`;
 
     const def = CARDS[card.defIdx];
     if (!def) return '未知卡牌';
 
-    const cost = card.star * summonCount(def, card.star);
+    const cost = card.star * summonCount(def);
     if (this.occupiedStars + cost > this.starCap) {
       return `星数已满 ${this.occupiedStars}/${this.starCap}`;
     }
@@ -471,31 +509,54 @@ export class Game {
     const def = CARDS[card.defIdx];
     if (!def) return false;
 
-    const count = summonCount(def, card.star);
+    const count = summonCount(def);
     const spread = count > 1 ? 26 : 0;
+    const starForUnit = unitStar(def, card.star);
+    const levelMul = cardLevelMul(card.level);
     for (let i = 0; i < count; i += 1) {
       const angle = (i / count) * Math.PI * 2;
       const slot = this.store.spawn(
         def,
         card.defIdx,
-        card.star,
+        starForUnit,
         worldX + Math.cos(angle) * spread,
         worldY + Math.sin(angle) * spread,
         this.rng.next() * Math.PI * 2,
       );
       if (slot < 0) break;
+      // 卡牌等级：同一张卡放得越多，召唤出来的基础属性越高。
+      // 这是"前期两刀一只、后期一刀一只"的对冲项（见 cards.ts CARD_LEVEL）。
+      this.store.maxHp[slot] = (this.store.maxHp[slot] ?? 0) * levelMul;
+      this.store.hp[slot] = this.store.maxHp[slot] ?? 0;
+      this.store.atk[slot] = (this.store.atk[slot] ?? 0) * levelMul;
       this.applyStacks(slot);
       this.placedTotal += 1;
       this.events.onSpawn(slot);
     }
 
-    // 堆叠：扣一层。手里还有余量就不用换牌，可以连着放（用户反馈「卡牌卡手」）。
-    // 冷却只在没满时走，所以持续召唤速度和单张卡完全一样 —— 多出来的只是爆发。
+    // 充能：放一次扣一层，**不进入冷却**。用光之前可以连着放同一张卡。
+    // 回充在 step() 里独立走，所以持续召唤速率仍然等于旧冷却 —— 只多了爆发窗口。
     card.charges = Math.max(0, card.charges - 1);
     if (card.cd <= 0) card.cd = this.cardCd(card.star);
+    this.gainCardXp(card, count);
     this.selected = -1;
     this.store.refreshActive();
     return true;
+  }
+
+  /**
+   * 卡牌经验：每放一只 +1。累计到阈值就升级，基础属性 +12%。
+   *
+   * 刻意做得"慢而稳"：一局大约能把常用的那张卡养到 4–5 级（+36%~+48%），
+   * 足以让杂兵在后半程不再是纸片，但不会翻盘。
+   */
+  private gainCardXp(card: HandCard, count: number): void {
+    card.xp += CARD_LEVEL.xpPerPlace * count;
+    while (card.level < CARD_LEVEL.maxLevel && card.xp >= card.level * CARD_LEVEL.xpPerLevel) {
+      card.level += 1;
+      const def = CARDS[card.defIdx];
+      this.events.toast(`${def?.name ?? card.id} 强化到 Lv.${card.level}`, 'good');
+    }
   }
 
   private applyStacks(slot: number): void {
@@ -547,25 +608,15 @@ export class Game {
       case 'hp':
         this.hpStack += 1;
         break;
-      case 'atkspeed':
-        this.atkSpeedStack += 1;
-        break;
-      case 'cd':
-        this.cdStack += 1;
-        break;
       case 'charge':
-        // 通量扩容：直接让每张牌能连放的次数变多，手感变化比数值更直观
+        // 充能扩容：直接让每张牌能连放的次数变多，手感变化比数值更直观
         for (const card of this.hand) {
-          card.maxCharges += 1;
-          card.charges += 1;
+          card.maxCharges += picked.value;
+          card.charges += picked.value;
         }
         break;
       case 'starcap':
         this.starBonus += picked.value;
-        break;
-      case 'hand':
-        this.handBonus = Math.min(HAND_MAX_EXTRA, this.handBonus + 1);
-        this.grantExtraCard();
         break;
       case 'star':
         this.upgradeRandomCard();
@@ -581,12 +632,6 @@ export class Game {
       case 'weak':
         // 直接改他的攻击：这是唯一会"反向成长"的权能，玩家能明显感到他在变弱
         this.hero.gainAtk(-picked.value);
-        break;
-      case 'slow':
-        this.hero.speed *= 1 - picked.value;
-        break;
-      case 'skillcd':
-        this.hero.skillCdMul *= 1 + picked.value;
         break;
     }
 
@@ -624,6 +669,8 @@ export class Game {
       cd: 0,
       charges: CARD_STACK.charges,
       maxCharges: CARD_STACK.charges,
+      level: 1,
+      xp: 0,
     });
   }
 

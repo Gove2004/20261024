@@ -37,10 +37,13 @@ export class FxLayer {
   ) {
     const style = new TextStyle({
       fontFamily: 'ui-monospace, Consolas, monospace',
-      fontSize: 20,
-      fontWeight: '700',
+      fontSize: 26,
+      fontWeight: '900',
       fill: 0xffffff,
-      stroke: { color: 0x0b0a14, width: 4 },
+      // 描边加粗 + 投影：飘字要压在明暗不定的战场上，
+      // 细描边 + 深色底会让数字直接消失（用户反馈「飘字不够明显」）
+      stroke: { color: 0x0b0a14, width: 7 },
+      dropShadow: { color: 0x000000, alpha: 0.85, blur: 6, distance: 3, angle: Math.PI / 2 },
     });
 
     for (let i = 0; i < NUMBER_POOL; i += 1) {
@@ -64,15 +67,15 @@ export class FxLayer {
     this.numberCursor = (this.numberCursor + 1) % NUMBER_POOL;
     if (!fx) return;
     fx.text.text = String(Math.round(amount));
-    fx.text.style.fontSize = crit ? 26 : 18;
+    fx.text.style.fontSize = crit ? 38 : 26;
     fx.text.style.fill = crit ? 0xffb347 : 0xffd9d9;
-    fx.text.position.set(x + this.rng.range(-6, 6), y - 16);
+    fx.text.position.set(x + this.rng.range(-6, 6), y - 22);
     fx.text.alpha = 1;
-    fx.text.scale.set(crit ? 1.2 : 1);
+    fx.text.scale.set(crit ? 1.15 : 1);
     fx.text.visible = true;
     fx.vx = this.rng.range(-18, 18);
-    fx.vy = -52;
-    fx.life = crit ? 0.7 : 0.55;
+    fx.vy = -66;
+    fx.life = crit ? 1.05 : 0.8;
     fx.maxLife = fx.life;
   }
 
@@ -87,9 +90,9 @@ export class FxLayer {
     this.numberCursor = (this.numberCursor + 1) % NUMBER_POOL;
     if (!fx) return;
     fx.text.text = `-${Math.round(amount)}`;
-    fx.text.style.fontSize = 24;
+    fx.text.style.fontSize = 32;
     fx.text.style.fill = 0xff6b7a;
-    fx.text.position.set(x + this.rng.range(-8, 8), y - 34);
+    fx.text.position.set(x + this.rng.range(-8, 8), y - 40);
     fx.text.alpha = 1;
     fx.text.scale.set(1.25);
     fx.text.visible = true;
@@ -110,9 +113,11 @@ export class FxLayer {
     this.numberCursor = (this.numberCursor + 1) % NUMBER_POOL;
     if (!fx) return;
     fx.text.text = text;
-    fx.text.style.fontSize = 22;
+    fx.text.style.fontSize = 28;
     fx.text.style.fill = color;
-    fx.text.position.set(x, y - 58);
+    // 技能名放在他**脚下**而不是头顶：头顶正是顶部 HUD（倒计时 + 副标题）的位置，
+    // 叠在一起会被读成"UI 坏了"（vision 复核原话：与副标题视觉重叠、不易辨认）
+    fx.text.position.set(x, y + 54);
     fx.text.alpha = 1;
     fx.text.scale.set(1);
     fx.text.visible = true;
@@ -154,7 +159,9 @@ export class FxLayer {
       const dist = directed
         ? this.rng.range(radius * 0.45, radius)
         : this.rng.range(radius * 0.2, radius);
-      const size = this.rng.range(1.6, 4.2);
+      // 粒子整体调大一档：软件渲染下列表里的碎屑本来就小，
+      // 太小会读成"噪点"而不是"打击"（用户反馈「特效有点散」）
+      const size = this.rng.range(2.4, 5.6);
       const px = Math.cos(angle) * dist;
       const py = Math.sin(angle) * dist;
       if (directed) {
@@ -172,8 +179,8 @@ export class FxLayer {
     g.scale.set(0.7);
     g.alpha = 1;
     g.visible = true;
-    fx.life = 0.45;
-    fx.maxLife = 0.45;
+    fx.life = 0.52;
+    fx.maxLife = 0.52;
     fx.startScale = 1;
   }
 

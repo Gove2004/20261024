@@ -81,8 +81,8 @@ export const PLACE = { minDistHero: 90, screenEdge: 36 } as const;
 
 /** 勇者基础属性与成长。 */
 export const HERO = {
-  baseHp: 12000,
-  hpPerLevel: 420,
+  baseHp: 18000,
+  hpPerLevel: 900,
   /** 每级自然增长的护甲（%减伤，见 Hero.takeDamage） */
   armorPerLevel: 1,
   baseAtk: 26,
@@ -102,7 +102,7 @@ export const POWERUP_WINDUP = 1.1;
 export const POWERUP = { interval: 30, slowScale: 0.15 } as const;
 
 /** 经验：XP_need(L) = base + per × (L − 1)；击杀所得 = 星级 × perStar。 */
-export const XP = { base: 60, per: 45, perStar: 8 } as const;
+export const XP = { base: 60, per: 62, perStar: 8 } as const;
 
 /**
  * 魔物对勇者的伤害总倍率。
@@ -111,7 +111,7 @@ export const XP = { base: 60, per: 45, perStar: 8 } as const;
  * 8 局模拟里他平均剩 81% 血结束 —— 玩家完全没有"快赢了"的紧张感。
  * 这个倍率补的就是"看起来只围住 3 只，实际是整群在打"的差额。
  */
-export const MONSTER_DMG_MUL = 3.8;
+export const MONSTER_DMG_MUL = 1.7;
 
 /** 击杀奖励（评分用）。 */
 export const SCORE = { perSecondLeft: 12, perPeakStar: 50, perKill: 4 } as const;

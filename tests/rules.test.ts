@@ -47,16 +47,19 @@ describe('星数与 CD 曲线', () => {
 
 describe('勇者成长', () => {
   it('等级公式', () => {
-    expect(heroMaxHp(1)).toBe(12000);
-    // hpPerLevel 从 600 降到 420：他太肉了，玩家铺满场也打不死（见 §7 平衡曲线）
-    expect(heroMaxHp(11)).toBe(16200);
+    expect(heroMaxHp(1)).toBe(18000);
+    // v2.5：baseHp 12000→18000、hpPerLevel 420→900。
+    // 新卡池单只更强（石像鬼 14 攻 / 精英近身咬 1.7×），血量不跟上的话，
+    // 他 60 秒就暴毙，一局还没热身就结束（见 GAME_DESIGN §7.2 的 v2.5 模拟）。
+    expect(heroMaxHp(11)).toBe(27000);
     expect(heroAtk(1)).toBe(26);
     expect(heroAtk(11)).toBe(96);
   });
 
   it('升级所需经验递增', () => {
     expect(xpNeed(1)).toBe(60);
-    expect(xpNeed(10)).toBe(465);
+    // v2.5：per 45→62，压住「他靠击杀滚雪球到 Lv10」的问题
+    expect(xpNeed(10)).toBe(618);
     expect(xpNeed(10)).toBeGreaterThan(xpNeed(9));
   });
 });
@@ -84,14 +87,19 @@ describe('卡池', () => {
     // 12 种的时候玩家记不住谁是谁（用户反馈）。5 种是刻意的上限，
     // 这条断言就是"以后别再往里加"的闸门。
     expect(CARDS.length).toBe(5);
+    // v2.5 卡池：1★ 史莱姆 / 2★ 蝙蝠群 / 3★ 哥布林弓箭手 / 4★ 石像鬼 / 5★ 巨大蜘蛛
+    // 只有 5★ 精英带特性（召唤），其余靠体型与射程区分 —— 特性越少越好读
+    expect(CARDS.map((card) => card.id)).toEqual(['slime', 'bat', 'goblin', 'gargoyle', 'spider']);
     const withAbility = CARDS.filter((card) => card.ability !== undefined).map((card) => card.id);
-    expect(withAbility.sort()).toEqual(['boom', 'shaman', 'spider']);
-    // 五种魔物必须覆盖「近战 / 远程 / 支援」三类骨架（kind 允许重合，
-    // 但少任何一类，战场就只剩一种打法）
+    expect(withAbility).toEqual(['spider']);
+    // 星级必须是 1..5 的阶梯：玩家看到星级就知道"这是几档的怪"
+    expect(CARDS.map((card) => card.startStar)).toEqual([1, 2, 3, 4, 5]);
+    // 五张卡必须覆盖「近战 / 远程 / 坦克 / 召唤」四条骨架（少一条战场就只剩一种打法）
     const kinds = new Set(CARDS.map((card) => card.kind));
     expect(kinds.has('melee')).toBe(true);
     expect(kinds.has('ranged')).toBe(true);
-    expect(kinds.has('support')).toBe(true);
+    expect(kinds.has('tank')).toBe(true);
+    expect(kinds.has('summoner')).toBe(true);
     expect(new Set(CARDS.map((card) => card.id)).size).toBe(5);
   });
 
@@ -149,10 +157,11 @@ describe('AI 参数', () => {
     expect(SKILLS.some((skill) => skill.id === 'shot')).toBe(true);
   });
 
-  it('被动池 14 条，且文案表与效果表一一对应', () => {
-    expect(PASSIVE_POOL.length).toBe(14);
+  it('被动池 7 条（v2.5 合并后），且文案表与效果表一一对应', () => {
+    // 14 → 7：条目多的代价是每次升级都要重新理解一遍，玩家反馈"降低理解成本"
+    expect(PASSIVE_POOL.length).toBe(7);
     expect(PASSIVE_COUNT).toBe(PASSIVE_POOL_COUNT);
-    expect(new Set(PASSIVE_POOL.map((p) => p.name)).size).toBe(14);
+    expect(new Set(PASSIVE_POOL.map((p) => p.name)).size).toBe(7);
   });
 
   it('撤退阈值低于狂化阈值之上，形成"先撤后狂"的层次', () => {

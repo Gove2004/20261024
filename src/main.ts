@@ -1,4 +1,4 @@
-﻿import './style.css';
+import './style.css';
 // 移动端覆盖层必须在 style.css 之后导入：它整段都是媒体查询，
 // 靠"后出现"压过基础规则（同优先级下后者胜）。
 // 走 JS 导入而不是 index.html 里的 <link>：Vite 构建时会把 html 里指向
@@ -36,6 +36,8 @@ async function bootstrap(): Promise<void> {
   let game!: Game;
   /** 顿帧剩余帧数（见主循环） */
   let hitStop = 0;
+/** 普通命中的飘字节流：每 4 下发 3 个，暴击永远发（防糊屏，见 onMonsterHit） */
+let hitTick = 0;
   /** 星级里程碑去重（见渲染回调） */
   let lastStarTier = 0;
   /** 跑动尘土的锚点（见渲染回调） */
@@ -45,7 +47,11 @@ async function bootstrap(): Promise<void> {
   const events: GameEvents = {
     onSpawn: (slot) => {
       const def = game.store;
-      scene.fx.burst(def.x[slot] ?? 0, def.y[slot] ?? 0, 0x9b6bff, 10, 34);
+      const sx = def.x[slot] ?? 0;
+      const sy = def.y[slot] ?? 0;
+      // 召唤落地：一圈紫环 + 向上溅的碎屑，"从地里冒出来"比凭空出现好读
+      scene.fx.ring(sx, sy, 26, 0x9b6bff, 3);
+      scene.fx.burst(sx, sy, 0x9b6bff, 10, 30);
       audio.onSpawn(def.star[slot] ?? 1);
     },
     onDeath: (slot) => {
@@ -67,7 +73,14 @@ async function bootstrap(): Promise<void> {
       audio.onHeroHurt();
     },
     onMonsterHit: (x, y, amount, crit) => {
-      scene.fx.damage(x, y, amount, crit);
+      // 普通命中只抖一半的数字：屏幕上有 20 只怪时，每一下都飘一个数字
+      // 会糊成一片（用户反馈「特效有点散」）。暴击永远显示。
+      if (crit || (hitTick = (hitTick + 1) & 3) !== 3) scene.fx.damage(x, y, amount, crit);
+      // 普通命中每 3 次给一次小火星（方向 = 他→目标）：
+      // 不加火星，多只怪互殴时屏幕上完全没有"命中"的反馈；全都加又糊屏。
+      if (!crit && (hitTick & 1) === 0) {
+        scene.fx.burst(x, y, 0xfff0d0, 3, 12, x - game.hero.x, y - game.hero.y);
+      }
       // 打击感：只有暴击才给火花 + 顿帧。每一下都炸火花会糊屏，也会拖死软件渲染
       // （爆发池只有 20 个），所以把"重"留给稀有的那一下。
       if (crit) {
@@ -82,6 +95,9 @@ async function bootstrap(): Promise<void> {
       const color =
         kind === 'qi' ? 0xa9e7ff : kind === 'bomb' ? 0xffc46b : kind === 'roll' ? 0xc7b6ff : 0x9be07a;
       scene.fx.label(game.hero.x, game.hero.y, text, color);
+      // 同一条信息也给 HUD 一份：飘字在战场中央一闪就过，
+      // 而玩家看勇者进度时的视线在左上角（用户反馈「看不出来他在用什么技能」）
+      hud.skillCast(text);
     },
     onHeroLevel: (level, passive) => {
       scene.fx.ring(game.hero.x, game.hero.y, 90, 0xffb347, 5);
@@ -131,6 +147,9 @@ async function bootstrap(): Promise<void> {
         scene.fx.burst(x, y, 0x8fd7ff, 20, radius);
       } else if (kind === 'taunt') {
         scene.fx.ring(x, y, radius, 0xffb347, 4);
+      } else if (kind === 'summon') {
+        scene.fx.ring(x, y, radius, 0x9b5bff, 5);
+        scene.fx.burst(x, y, 0xc79bff, 16, radius * 0.8);
       } else {
         scene.fx.burst(x, y, 0xff7a3c, 26, radius);
       }
@@ -156,6 +175,7 @@ async function bootstrap(): Promise<void> {
       audio.unlock();
       game.start();
       scene.reset();
+      hud.clearPerks();
       hud.hideOverlay();
       hud.setVisible(true);
     },
@@ -163,6 +183,7 @@ async function bootstrap(): Promise<void> {
       audio.unlock();
       game.start();
       scene.reset();
+      hud.clearPerks();
       hud.hideOverlay();
       hud.setVisible(true);
     },

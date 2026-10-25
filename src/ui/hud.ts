@@ -1,6 +1,6 @@
 import { CARDS, cardCdSeconds } from '../content/cards';
 import { RUN, VIEW, xpNeed } from '../content/config';
-import type { Game, PowerupOption } from '../gameplay/game';
+import type { Game, HandCard, PowerupOption } from '../gameplay/game';
 
 export interface HudHandlers {
   onStart(): void;
@@ -16,6 +16,7 @@ interface CardNode {
   art: HTMLImageElement;
   cd: HTMLDivElement;
   star: HTMLSpanElement;
+  lvEl: HTMLSpanElement;
   name: HTMLSpanElement;
   stack: HTMLSpanElement;
   /** 上一次写入的值（只在这些值变化时才碰 DOM） */
@@ -47,6 +48,10 @@ export class Hud {
   private readonly xpFill: HTMLDivElement;
   private readonly xpText: HTMLSpanElement;
   private readonly heroStats: HTMLDivElement;
+  private readonly castEl: HTMLDivElement;
+  private readonly castNameEl: HTMLElement;
+  private readonly castBarEl: HTMLElement;
+  private readonly perksEl: HTMLDivElement;
   private readonly pStar: HTMLElement;
   private readonly pCd: HTMLElement;
   private readonly pPlaced: HTMLElement;
@@ -57,6 +62,12 @@ export class Hud {
   private readonly levelupLevelEl: HTMLElement;
   private readonly levelupPassiveEl: HTMLElement;
   private levelupTimer = 0;
+  private castTimer = 0;
+  private readonly perks: string[] = [];
+  private readonly tooltipEl: HTMLDivElement;
+  private tipTarget: HTMLElement | null = null;
+  /** 提示需要的数据来自 game，但提示是"用户交互时"才构建的，所以留个引用 */
+  private gameRef: Game | null = null;
   private muteEl!: HTMLButtonElement;
   private pauseEl!: HTMLButtonElement;
   private lastToast: { text: string; at: number; el: HTMLElement } | null = null;
@@ -103,6 +114,11 @@ export class Hud {
             <span class="hero-xp-text" data-xp-text>Lv.1 · 0%</span>
           </div>
           <div class="hero-stats" data-hero-stats></div>
+          <div class="hero-cast" data-hero-cast hidden>
+            <span class="hero-cast-name" data-cast-name>剑气</span>
+            <span class="hero-cast-bar"><i data-cast-bar></i></span>
+          </div>
+          <div class="hero-perks" data-hero-perks></div>
         </div>
         <div class="timer-sub">打不死他，5 分钟就到</div>
       </div>
@@ -114,7 +130,7 @@ export class Hud {
         </div>
         <div class="power-panel" data-power>
           <span class="power-row"><i>星数上限</i><b data-p-star>10</b></span>
-          <span class="power-row"><i>冷却缩减</i><b data-p-cd>0%</b></span>
+          <span class="power-row"><i>充能</i><b data-p-cd>0%</b></span>
           <span class="power-row"><i>已召唤</i><b data-p-placed>0</b></span>
           <span class="power-row"><i>击杀</i><b data-p-kills>0</b></span>
         </div>
@@ -143,6 +159,10 @@ export class Hud {
     this.xpFill = this.must('[data-xp]');
     this.xpText = this.must('[data-xp-text]');
     this.heroStats = this.must('[data-hero-stats]');
+    this.castEl = this.must('[data-hero-cast]');
+    this.castNameEl = this.must('[data-cast-name]');
+    this.castBarEl = this.must('[data-cast-bar]');
+    this.perksEl = this.must('[data-hero-perks]');
     this.pStar = this.must('[data-p-star]');
     this.pCd = this.must('[data-p-cd]');
     this.pPlaced = this.must('[data-p-placed]');
@@ -156,6 +176,13 @@ export class Hud {
 
     this.pauseEl = this.must('[data-pause]');
     this.pauseEl.addEventListener('click', () => this.handlers.onPause());
+
+    // 悬浮提示用独立的一层（挂在 body 上而不是卡片里），
+    // 否则会被 .hand 的 overflow 裁掉，也会被卡框贴图盖住。
+    this.tooltipEl = document.createElement('div');
+    this.tooltipEl.className = 'card-tip';
+    this.tooltipEl.hidden = true;
+    document.body.appendChild(this.tooltipEl);
     this.muteEl = this.must('[data-mute]');
     this.muteEl.addEventListener('click', () => this.handlers.onToggleMute());
   }
@@ -176,6 +203,7 @@ export class Hud {
   // ---------------------------------------------------------------- 主更新
 
   public update(game: Game): void {
+    this.gameRef = game;
     const timeLeft = Math.max(0, game.timeLeft);
     const mm = Math.floor(timeLeft / 60);
     const ss = Math.floor(timeLeft % 60);
@@ -287,22 +315,44 @@ export class Hud {
         <img class="card-art" alt="" draggable="false" />
         <div class="card-cd"></div>
         <span class="card-star"></span>
+        <span class="card-lv"></span>
         <span class="card-name"></span>
         <span class="card-stack"></span>
       `;
       root.addEventListener('click', () => this.handlers.onCard(index));
+      // 悬浮提示：玩家根本不知道这些卡是干嘛的（用户反馈），
+      // 所以鼠标移上去 / 键盘聚焦 / 移动端点一下都要能看到完整说明。
+      const showTip = (): void => {
+        const g = this.gameRef;
+        const card = g?.hand[index];
+        if (g && card) this.showTooltip(root, card, index, g);
+      };
+      root.addEventListener('pointerenter', (e) => {
+        if (e.pointerType === 'mouse') showTip();
+      });
+      root.addEventListener('pointerleave', (e) => {
+        if (e.pointerType === 'mouse') this.hideTooltip();
+      });
+      // 触屏没有 hover：抬手时顺手把说明弹出来（鼠标用户走上面两条，不受影响）
+      root.addEventListener('pointerup', (e) => {
+        if (e.pointerType !== 'mouse') showTip();
+      });
+      root.addEventListener('focus', showTip);
+      root.addEventListener('blur', () => this.hideTooltip());
       this.handEl.appendChild(root);
       const art = root.querySelector<HTMLImageElement>('.card-art');
       const cd = root.querySelector<HTMLDivElement>('.card-cd');
       const star = root.querySelector<HTMLSpanElement>('.card-star');
+      const lv = root.querySelector<HTMLSpanElement>('.card-lv');
       const name = root.querySelector<HTMLSpanElement>('.card-name');
       const stack = root.querySelector<HTMLSpanElement>('.card-stack');
-      if (!art || !cd || !star || !name || !stack) throw new Error('卡牌节点构建失败');
+      if (!art || !cd || !star || !lv || !name || !stack) throw new Error('卡牌节点构建失败');
       this.nodes.push({
         root,
         art,
         cd,
         star,
+        lvEl: lv,
         name,
         stack,
         lastPct: '',
@@ -329,7 +379,8 @@ export class Hud {
       node.name.textContent = def?.name ?? card.id;
       node.star.textContent = `★${card.star}`;
       node.root.classList.toggle('selected', game.selected === i);
-      node.root.classList.toggle('ready', card.cd <= 0);
+      // "能不能放"只看充能；cd 只用来画回充进度条（见 cards.ts CARD_STACK）
+      node.root.classList.toggle('ready', card.charges > 0);
       const total = cardCdSeconds(card.star);
       const pct = total > 0 ? Math.min(1, Math.max(0, card.cd / total)) : 0;
       const pctText = pct.toFixed(2);
@@ -337,17 +388,21 @@ export class Hud {
         node.lastPct = pctText;
         node.cd.style.setProperty('--p', pctText);
       }
-      const cdText = card.cd > 0 ? card.cd.toFixed(1) : '';
+      // 只在"用光正在回充"时才显示秒数：有充能的时候显示倒计时反而像"不能放"
+      const cdText = card.charges <= 0 && card.cd > 0 ? card.cd.toFixed(1) : '';
       if (node.lastCdText !== cdText) {
         node.lastCdText = cdText;
         node.cd.textContent = cdText;
       }
-      // 通量：把「这张牌还剩几次」直接印在卡面上 —— 堆叠之后玩家最需要知道的就是这个
+      // 充能层数 + 卡牌等级：这两个数字决定"这张牌现在多强、还能放几次"
       const stackText = `${card.charges}/${card.maxCharges}`;
-      if (node.lastStack !== stackText) {
-        node.lastStack = stackText;
+      const lvSuffix = card.level > 1 ? ` ·Lv.${card.level}` : '';
+      if (node.lastStack !== stackText + lvSuffix) {
+        node.lastStack = stackText + lvSuffix;
         node.stack.textContent = stackText;
+        node.lvEl.textContent = card.level > 1 ? `Lv.${card.level}` : '';
         node.root.classList.toggle('spent', card.charges <= 0);
+        this.refreshTooltip(node, card, i, game);
       }
       const ready = card.charges > 0;
       if (node.lastReady !== ready) {
@@ -375,7 +430,7 @@ export class Hud {
         node.root.classList.toggle('disp', shapeCls);
       }
       // 卡面直接用游戏内贴图：玩家在卡上看到的和场上看到的必须是同一只怪
-      const wanted = `${import.meta.env.BASE_URL ?? '/'}art/${card.id}.png`;
+      const wanted = `${import.meta.env.BASE_URL ?? '/'}art/${def?.art ?? card.id}.png`;
       if (node.art.getAttribute('src') !== wanted) node.art.src = wanted;
       node.art.style.display = '';
     }
@@ -407,12 +462,49 @@ export class Hud {
   }
 
   /**
+   * 「他正在用什么技能」。
+   *
+   * 玩家反馈原话：「我仍然看不出来勇者升级获得了什么和他正在使用什么技能」。
+   * 光有飘字不够 —— 飘字在战场中央、一闪就过，玩家的视线在手牌和勇者血条之间。
+   * 所以在勇者面板里固定开一块：技能名 + 一条读条，持续 1.2 秒。
+   */
+  public skillCast(name: string, seconds = 1.2): void {
+    this.castNameEl.textContent = name;
+    this.castEl.hidden = false;
+    this.castEl.classList.remove('is-anim');
+    void this.castEl.offsetWidth;
+    this.castEl.classList.add('is-anim');
+    window.clearTimeout(this.castTimer);
+    this.castTimer = window.setTimeout(() => {
+      this.castEl.hidden = true;
+      this.castEl.classList.remove('is-anim');
+    }, seconds * 1000);
+  }
+
+  /** 勇者已获得的天赋（最多显示最近 3 条，够看出"他在朝什么方向长"）。 */
+  public pushPerk(name: string): void {
+    if (!name) return;
+    this.perks.push(name);
+    if (this.perks.length > 3) this.perks.shift();
+    this.perksEl.innerHTML = this.perks
+      .map((perk, i) => `<span class="hero-perk${i === this.perks.length - 1 ? ' is-new' : ''}">${perk}</span>`)
+      .join('');
+  }
+
+  public clearPerks(): void {
+    this.perks.length = 0;
+    this.perksEl.innerHTML = '';
+    this.castEl.hidden = true;
+  }
+
+  /**
    * 升级播报（M3）。toast 会被战斗信息淹掉，
    * 而"他刚刚又变强了"是玩家最需要立刻感知的事，所以单独给一块中屏横幅。
    */
   public levelUp(level: number, passive: string): void {
     this.levelupLevelEl.textContent = `锅巴 Lv.${level}`;
     this.levelupPassiveEl.textContent = passive ? `获得被动：${passive}` : '他变强了';
+    this.pushPerk(passive);
     this.levelupEl.hidden = false;
     this.levelupEl.classList.remove('is-in');
     // 强制重排，让同一次升级连发时动画能重播
@@ -423,6 +515,80 @@ export class Hud {
       this.levelupEl.classList.remove('is-in');
       this.levelupEl.hidden = true;
     }, 1900);
+  }
+
+  // ---------------------------------------------------------------- 悬浮提示
+
+  /**
+   * 卡牌悬浮说明。
+   *
+   * 玩家反馈原话：「玩家根本不知道魔物卡的效果」。卡面只有一张图 + 名字 + 星级，
+   * 而"远程/肉盾/召唤"这些东西在卡面上看不出来。所以提示里必须回答三件事：
+   * 这只怪**怎么打**（标签）、**有多强**（按当前星级算好的实际数值）、
+   * 以及**什么时候该拿它**（一句人话）。
+   */
+  private showTooltip(target: HTMLElement, card: HandCard, index: number, game: Game): void {
+    this.tipTarget = target;
+    this.tooltipEl.innerHTML = this.tooltipHtml(card, index, game);
+    this.tooltipEl.hidden = false;
+    this.positionTooltip(target);
+  }
+
+  private hideTooltip(): void {
+    this.tipTarget = null;
+    this.tooltipEl.hidden = true;
+  }
+
+  private refreshTooltip(node: CardNode, card: HandCard, index: number, game: Game): void {
+    if (this.tipTarget !== node.root) return;
+    this.tooltipEl.innerHTML = this.tooltipHtml(card, index, game);
+    this.positionTooltip(node.root);
+  }
+
+  private tooltipHtml(card: HandCard, index: number, game: Game): string {
+    const def = CARDS[card.defIdx];
+    if (!def) return '';
+    // 数值按"当前星级 × 卡牌等级"算实际值：玩家要看的是这只怪现在到底多少血
+    const levelMul = 1 + 0.12 * (card.level - 1);
+    const starMul = card.star;
+    const hp = Math.round(def.hp * starMul * levelMul);
+    const atk = Math.round(def.atk * starMul * levelMul);
+    const dps = (atk / def.atkInterval).toFixed(1);
+    const units = def.units ?? 1;
+    const tags = def.tags.map((tag) => `<i>${tag}</i>`).join('');
+    const ready = card.charges > 0
+      ? `可放 ${card.charges}/${card.maxCharges} 次`
+      : `充能中 ${card.cd.toFixed(1)}s`;
+    return `
+      <div class="tip-head">
+        <b>${def.name}</b>
+        <span class="tip-star">★${card.star}</span>
+        ${card.level > 1 ? `<span class="tip-lv">Lv.${card.level}</span>` : ''}
+      </div>
+      <div class="tip-tags">${tags}</div>
+      <div class="tip-stats">
+        <span>生命 <b>${hp}</b></span>
+        <span>攻击 <b>${atk}</b></span>
+        <span>攻速 <b>${dps}/s</b></span>
+        ${def.armor > 0 ? `<span>护甲 <b>${def.armor}</b></span>` : ''}
+        <span>${def.range > 120 ? '射程' : '近战'} <b>${def.range}</b></span>
+        <span>占用 <b>${card.star * units}★</b></span>
+      </div>
+      <div class="tip-note">${def.note}</div>
+      <div class="tip-foot">${ready} · 第 ${index + 1} 张 · 放得越多这张卡越强</div>
+    `;
+  }
+
+  private positionTooltip(target: HTMLElement): void {
+    const rect = target.getBoundingClientRect();
+    const tipRect = this.tooltipEl.getBoundingClientRect();
+    // 默认放卡上方；屏幕上沿放不下就翻到下方
+    let top = rect.top - tipRect.height - 10;
+    if (top < 8) top = rect.bottom + 10;
+    let left = rect.left + rect.width / 2 - tipRect.width / 2;
+    left = Math.max(8, Math.min(left, window.innerWidth - tipRect.width - 8));
+    this.tooltipEl.style.top = `${top}px`;
+    this.tooltipEl.style.left = `${left}px`;
   }
 
   // ---------------------------------------------------------------- 覆盖层

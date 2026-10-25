@@ -12,7 +12,10 @@ export const ART_IDS = [
   'ghost',
   'skeleton',
   'spider',
+  // v2.5 卡池的 5 只：史莱姆 / 蝙蝠群 / 哥布林弓箭手 / 石像鬼 / 巨大蜘蛛
   'bat',
+  'goblin',
+  'spider-giant',
   'assassin',
   'boom',
   'frost',
