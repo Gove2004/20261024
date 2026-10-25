@@ -1,6 +1,7 @@
-﻿import { CARDS, cardCdSeconds } from '../content/cards';
+import { CARDS, cardCdSeconds } from '../content/cards';
 import { APP, RUN, VIEW, xpNeed } from '../content/config';
 import { PASSIVE_POOL } from '../content/heroSkills';
+import { HINT_DEFAULT, tutorialCardCount, tutorialHint } from '../content/tutorial';
 import type { Game, HandCard, PowerupOption } from '../gameplay/game';
 
 export interface HudHandlers {
@@ -58,6 +59,7 @@ export class Hud {
   private readonly pPlaced: HTMLElement;
   private readonly pKills: HTMLElement;
   private readonly handEl: HTMLDivElement;
+  private readonly hintEl: HTMLDivElement;
   private readonly toastEl: HTMLDivElement;
   private readonly levelupEl: HTMLDivElement;
   private readonly levelupLevelEl: HTMLElement;
@@ -88,6 +90,7 @@ export class Hud {
   private lastUrgent = false;
   private lastWarn = false;
   private lastLow = false;
+  private lastHint = '';
   private readonly overlayEl: HTMLDivElement;
   /** 场景横幅（开局 / 每波 / 结算前的"编排用"字幕） */
   private readonly bannerEl: HTMLDivElement;
@@ -180,6 +183,7 @@ export class Hud {
     this.pPlaced = this.must('[data-p-placed]');
     this.pKills = this.must('[data-p-kills]');
     this.handEl = this.must('[data-hand]');
+    this.hintEl = this.must('[data-hint]');
     this.toastEl = this.must('[data-toasts]');
     this.levelupEl = this.must('[data-levelup]');
     this.levelupLevelEl = this.must('[data-levelup-level]');
@@ -219,6 +223,12 @@ export class Hud {
 
   public update(game: Game): void {
     this.gameRef = game;
+    // 新手引导文案：按已放置数量推进。和下面所有 HUD 更新一样只在变化时写 DOM。
+    const hint = tutorialHint(game.placedTotal, HINT_DEFAULT);
+    if (hint !== this.lastHint) {
+      this.lastHint = hint;
+      this.hintEl.textContent = hint;
+    }
     const timeLeft = Math.max(0, game.timeLeft);
     const mm = Math.floor(timeLeft / 60);
     const ss = Math.floor(timeLeft % 60);
@@ -381,11 +391,14 @@ export class Hud {
       });
     }
 
+    // 新手引导：开局只露出第 1 张卡，之后每成功放一次多解锁一张。
+    // 详见 content/tutorial.ts 的设计说明。
+    const unlocked = tutorialCardCount(game.placedTotal, game.hand.length);
     for (let i = 0; i < this.nodes.length; i += 1) {
       const node = this.nodes[i];
       const card = game.hand[i];
       if (!node) continue;
-      if (!card) {
+      if (!card || i >= unlocked) {
         node.root.style.display = 'none';
         continue;
       }
