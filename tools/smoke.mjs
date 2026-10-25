@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 冒烟测试：用本地 Edge 打开构建产物，验证 M1 手感闭环。
  *
  *   1. 页面无 console error / 未捕获异常
@@ -1066,8 +1066,11 @@ check(
   powerupWarn.state === 'playing' && powerupWarn.warnOn && powerupWarn.cards === 0,
   `state=${powerupWarn.state} 预告条=${powerupWarn.warnOn} 面板=${powerupWarn.cards}`,
 );
-// 第二段：前摇走完，三张卡才开
-await page.waitForTimeout(800);
+// 第二段：前摇走完，三张卡才开。
+// 不等固定毫秒数 —— 软件渲染下帧率会掉到个位数，固定等待会读到"面板还没开"或"锁已经解开"。
+await page
+  .waitForFunction(() => document.querySelectorAll('.overlay.is-open [data-opt]').length === 3, null, { timeout: 8000 })
+  .catch(() => {});
 const powerupOpen = await page.evaluate(() => {
   const cards = [...document.querySelectorAll('[data-opt]')];
   const first = cards[0];
@@ -1131,12 +1134,15 @@ await page.evaluate(() => {
   const opt = document.querySelector('[data-opt]:not([disabled])');
   if (opt instanceof HTMLElement) opt.click();
   const g = window.__game;
-  // 权能每 30 秒来一次：把计时器推到很后面。否则推进到 300 秒的这 0.6 秒里
-  // 可能正好撞上一次权能弹窗，世界又停住 —— 这条检查就会随机假失败。
+  // 权能每 30 秒来一次：把计时器推到很后面，避免推进时间时又弹一次
   g.powerupTimer = 1e6;
-  g.elapsed = 299.4;
+  // 不靠"等真实帧跑到 300 秒"：软件渲染掉到个位数帧率时这条会随机假失败。
+  // 直接喂一帧 1 秒给逻辑层，判负本来就是 step() 的职责。
+  g.state = 'playing';
+  g.elapsed = 299.5;
+  g.step(1);
 });
-await page.waitForTimeout(1600);
+await page.waitForTimeout(300);
 const ended = await page.evaluate(() => ({
   state: window.__game.state,
   title: document.querySelector('.panel-title')?.textContent ?? '',
