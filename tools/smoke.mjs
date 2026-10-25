@@ -1017,7 +1017,11 @@ await page.evaluate(() => {
   // 先把面板点掉再倒计时（否则这条检查会因为"面板开着"而假失败）。
   const opt = document.querySelector('[data-opt]:not([disabled])');
   if (opt instanceof HTMLElement) opt.click();
-  window.__game.elapsed = 299.4;
+  const g = window.__game;
+  // 权能每 30 秒来一次：把计时器推到很后面。否则推进到 300 秒的这 0.6 秒里
+  // 可能正好撞上一次权能弹窗，世界又停住 —— 这条检查就会随机假失败。
+  g.powerupTimer = 1e6;
+  g.elapsed = 299.4;
 });
 await page.waitForTimeout(900);
 const ended = await page.evaluate(() => ({
