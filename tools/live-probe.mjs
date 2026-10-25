@@ -42,7 +42,15 @@ const before = await page.evaluate(() => ({
 
 // 真的点一次"开始讨伐"，再放两只怪 —— 只加载不开始的探针什么都不算数
 await page.click('[data-start]');
-await page.waitForTimeout(600);
+await page.waitForTimeout(400);
+// v2.8：新手教程默认开启，点开始后世界是**暂停**的（这是设计，不是挂了）。
+// 探针要么走完 4 步、要么点"跳过"，然后才谈"进局"。
+const tutorialSeen = await page.evaluate(() => document.querySelector('[data-tutorial]')?.hidden === false);
+if (tutorialSeen) {
+  const skip = await page.$('[data-tut-skip]');
+  if (skip !== null) await skip.click();
+  await page.waitForTimeout(600);
+}
 const played = await page.evaluate(() => {
   const g = window.__game;
   g.hand.forEach((card) => {
@@ -65,6 +73,7 @@ const rows = [
   ['页面标题正确', before.title.includes('锅巴必须死'), before.title],
   ['WebGL 画布挂载', before.canvas, 'canvas #game-canvas'],
   ['游戏初始化完成（__dshReady）', true, 'true'],
+  ['新手教程默认开启（进局先讲一遍）', tutorialSeen, `教程占屏=${tutorialSeen}`],
   ['点开始后真的进局', played.state === 'playing', `state=${played.state} 剩余=${played.timeLeft}s`],
   ['能成功召唤', played.placed, `activeCount=${played.monsters}`],
   ['运行 2.5 秒无崩溃', after.state === 'playing' || after.state === 'won' || after.state === 'lost', `state=${after.state} 在场=${after.monsters}`],
