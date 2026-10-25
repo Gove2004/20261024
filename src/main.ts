@@ -7,7 +7,7 @@ import './style-mobile.css';
 import { audio, updateAudio } from './audio';
 import { FixedStepLoop } from './core/loop';
 import { createRng } from './core/rng';
-import { CAM_ZOOM, VIEW } from './content/config';
+import { CAM_ZOOM, RUN, VIEW } from './content/config';
 import { AI } from './content/heroAi';
 import { Game, type GameEvents } from './gameplay/game';
 import { loadArt, missingArt } from './render/art';
@@ -161,6 +161,10 @@ let hitTick = 0;
     },
     onPowerup: (options) => {
       audio.onPowerupOpen();
+      // 波次报幕放在面板弹出之前：玩家先读到"第 N 波"，再看到三选一，
+      // 顺序反了就成了"面板突然糊你一脸"。
+      const wave = Math.floor((RUN.duration - game.timeLeft) / 30) + 1;
+      hud.sceneBanner(`第 ${wave} 波`, '权能降临 · 3 选 1', 1200);
       hud.showPowerup(options);
     },
     onFinish: (won) => {
@@ -178,6 +182,9 @@ let hitTick = 0;
       hud.clearPerks();
       hud.hideOverlay();
       hud.setVisible(true);
+      // 分段报幕：先"魔王殿"，再"第 1 波 + 怎么玩"。副标题在 1.6s 后换掉，
+      // 是因为玩家第一个动作发生在那儿 —— 报幕结束正好接上操作提示。
+      hud.playIntro();
     },
     onRestart: () => {
       audio.unlock();
@@ -186,6 +193,7 @@ let hitTick = 0;
       hud.clearPerks();
       hud.hideOverlay();
       hud.setVisible(true);
+      hud.playIntro();
     },
     onCard: (index) => game.selectCard(index),
     onPowerup: (id) => {

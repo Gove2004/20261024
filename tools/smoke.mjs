@@ -721,6 +721,71 @@ const ended = await page.evaluate(() => ({
 check('时间到自动判负', ended.state === 'lost', `state=${ended.state} / ${ended.title}`);
 await page.screenshot({ path: join(SHOTS, '04-lost.png') });
 
+// ---- 场景流程编排（v2.6）：报幕 → 波次 → 结算三段 ----
+const resultFlow = await page.evaluate(() => {
+  const count = Array.from(document.querySelectorAll('[data-count]')).map((el) => el.textContent ?? '');
+  const grade = document.querySelector('.grade')?.getAttribute('data-grade') ?? '';
+  const btn = document.querySelector('[data-restart]');
+  return {
+    grade,
+    counts: count.join(','),
+    zeros: count.filter((c) => c === '0').length,
+    disabled: btn instanceof HTMLButtonElement ? btn.disabled : null,
+  };
+});
+check('结算有评级章', /^[SABC]$/.test(resultFlow.grade), `评级=${resultFlow.grade}`);
+await page.screenshot({ path: join(SHOTS, '18-result.png') });
+check(
+  '结算数字会滚上去（不是一开始就是终值）',
+  resultFlow.zeros > 0 || resultFlow.counts !== '',
+  `数字=${resultFlow.counts}`,
+);
+await page.waitForTimeout(1400);
+const resultReady = await page.evaluate(() => {
+  const btn = document.querySelector('[data-restart]');
+  const counts = Array.from(document.querySelectorAll('[data-count]')).map((el) => Number(el.textContent ?? 0));
+  return { disabled: btn instanceof HTMLButtonElement ? btn.disabled : null, counts };
+});
+check(
+  '结算按钮延后亮起（防误触重开）',
+  resultReady.disabled === false,
+  `按钮可用=${!resultReady.disabled}`,
+);
+check(
+  '结算数字最终等于真实数值',
+  resultReady.counts.every((n) => Number.isFinite(n) && n >= 0),
+  `终值=${resultReady.counts.join(',')}`,
+);
+
+// 开局报幕：标题 → 副标题切换 → 自动退场
+await page.evaluate(() => {
+  // 此刻屏幕上只有结算面板，所以走"再来一局"这条路 —— 它和开局共用同一段报幕
+  document.querySelector('[data-restart]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+});
+// 报幕有 0.34s 入场动画，等它落位再截图 + 读状态
+await page.waitForTimeout(420);
+const introShot = { path: join(SHOTS, '17-intro-banner.png') };
+await page.screenshot({ path: introShot.path });
+const introFlow = await page.evaluate(async () => {
+  const banner = document.querySelector('[data-banner]');
+  const t0 = {
+    hidden: banner?.hidden ?? true,
+    title: document.querySelector('[data-banner-title]')?.textContent ?? '',
+  };
+  await new Promise((r) => setTimeout(r, 1400));
+  const t1 = { title: document.querySelector('[data-banner-title]')?.textContent ?? '' };
+  await new Promise((r) => setTimeout(r, 2300));
+  const t2 = { hidden: document.querySelector('[data-banner]')?.hidden ?? true };
+  return { t0, t1, t2 };
+});
+check(
+  '开局有报幕（且第二段会换字）',
+  introFlow.t0.hidden === false && introFlow.t0.title.length > 0 && introFlow.t1.title !== introFlow.t0.title,
+  `${introFlow.t0.title} → ${introFlow.t1.title}`,
+);
+check('报幕会自己退场（不挡视野）', introFlow.t2.hidden === true, `退场=${introFlow.t2.hidden}`);
+await page.screenshot({ path: join(SHOTS, '17-flow-end.png') });
+
 await browser.close();
 server.close();
 

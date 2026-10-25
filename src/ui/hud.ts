@@ -88,6 +88,11 @@ export class Hud {
   private lastWarn = false;
   private lastLow = false;
   private readonly overlayEl: HTMLDivElement;
+  /** 场景横幅（开局 / 每波 / 结算前的"编排用"字幕） */
+  private readonly bannerEl: HTMLDivElement;
+  private readonly bannerTitleEl: HTMLElement;
+  private readonly bannerSubEl: HTMLElement;
+  private bannerTimer = 0;
   /** 权能预告条（懒创建，见 showPowerupWarning） */
   private warnEl: HTMLDivElement | null = null;
   private readonly nodes: CardNode[] = [];
@@ -144,6 +149,10 @@ export class Hud {
         <span data-levelup-passive>获得：力量 +8%</span>
       </div>
       <div class="toasts" data-toasts></div>
+      <div class="scene-banner" data-banner hidden>
+        <b class="banner-title" data-banner-title></b>
+        <span class="banner-sub" data-banner-sub></span>
+      </div>
       <div class="overlay" data-overlay></div>
     `;
     parent.appendChild(this.root);
@@ -173,6 +182,9 @@ export class Hud {
     this.levelupLevelEl = this.must('[data-levelup-level]');
     this.levelupPassiveEl = this.must('[data-levelup-passive]');
     this.overlayEl = this.must('[data-overlay]');
+    this.bannerEl = this.must('[data-banner]');
+    this.bannerTitleEl = this.must('[data-banner-title]');
+    this.bannerSubEl = this.must('[data-banner-sub]');
 
     this.pauseEl = this.must('[data-pause]');
     this.pauseEl.addEventListener('click', () => this.handlers.onPause());
@@ -673,31 +685,104 @@ export class Hud {
     }, 450);
   }
 
+  /**
+   * 场景横幅：一次只显示一件事，到点自己退场。
+   *
+   * 为什么需要它：一局的节奏是「开局 → 每 30 秒一波 → 结束」，但玩家看到的信息
+   * 只有右上角的倒计时在跳。横幅是把"现在发生了什么阶段"**明说出来**的那一层，
+   * 也是"更大更强的界面"里最省成本的一环 —— 一句大字比十个数值插件都显眼。
+   */
+  public sceneBanner(title: string, sub = '', ms = 1700, tone: 'gold' | 'danger' = 'gold'): void {
+    this.bannerTimer += 1;
+    const stamp = this.bannerTimer;
+    this.bannerTitleEl.textContent = title;
+    this.bannerSubEl.textContent = sub;
+    this.bannerEl.dataset.tone = tone;
+    this.bannerEl.hidden = false;
+    // 强制重排再加 class，否则连续两次 banner 不会重播动画
+    void this.bannerEl.offsetWidth;
+    this.bannerEl.classList.add('is-on');
+    window.setTimeout(() => {
+      if (stamp !== this.bannerTimer) return;
+      this.bannerEl.classList.remove('is-on');
+      window.setTimeout(() => {
+        if (stamp === this.bannerTimer) this.bannerEl.hidden = true;
+      }, 260);
+    }, ms);
+  }
+
+  /** 开局编排：横幅报幕 → 提示怎么玩 → 退场，让第一秒就有"开演了"的感觉。 */
+  public playIntro(): void {
+    this.sceneBanner('魔王殿', '锅巴还有 5 分钟走到王座', 1500);
+    window.setTimeout(() => {
+      this.sceneBanner('第 1 波', '点卡 → 点地面 · 把魔物摆在他的路上', 2000);
+    }, 1600);
+  }
+
+  /**
+   * 结算面板。
+   *
+   * v2.6 把"一行数字 + 一个按钮"改成了三段编排：
+   * ① 评级先砸出来（S/A/B/C，纯装饰但玩家会截图）；
+   * ② 五条数据错峰数上去（0 → 终值，每行 60ms 间隔），读起来像在结算而不是在读表格；
+   * ③ 按钮最后才亮，避免"手还在狂点地面时误触重开"。
+   */
   public showResult(won: boolean, game: Game): void {
     const hero = game.hero;
     const elapsed = RUN.duration - game.timeLeft;
     const mm = Math.floor(elapsed / 60);
     const ss = Math.floor(elapsed % 60);
+    const hpLeft = hero.maxHp > 0 ? Math.max(0, hero.hp / hero.maxHp) : 0;
     const title = won ? '他倒下了' : '他还是走到了王座前';
     const desc = won
       ? `用时 ${mm}:${ss.toString().padStart(2, '0')} · 剩余 ${Math.ceil(game.timeLeft)} 秒`
-      : '倒计时归零，锅巴还站着 —— 这次是你输了';
+      : `倒计时归零，锅巴还站着（剩 ${Math.round(hpLeft * 100)}% 血）—— 这次是你输了`;
+    // 评级只看"赢没赢"和"赢得多快"：赢了按用时给 S/A/B，输了固定 C。
+    // 不做复杂公式 —— 玩家不需要看懂评分，只需要一个"下一局想拿 S"的念头。
+    const grade = !won ? 'C' : elapsed < 120 ? 'S' : elapsed < 200 ? 'A' : 'B';
+    const stats: readonly [string, number][] = [
+      ['得分', game.score],
+      ['锅巴等级', hero.level],
+      ['击杀', game.kills],
+      ['峰值星数', game.peakStars],
+      ['召唤', game.placedTotal],
+    ];
     this.overlayEl.className = `overlay is-open ${won ? 'won' : 'lost'}`;
     this.overlayEl.innerHTML = `
-      <div class="panel">
+      <div class="panel result-panel">
+        <div class="grade" data-grade="${grade}">${grade}</div>
         <h2 class="panel-title">${title}</h2>
         <p class="panel-sub">${desc}</p>
         <div class="stats">
-          <div><span>得分</span><b>${game.score}</b></div>
-          <div><span>锅巴</span><b>Lv.${hero.level}</b></div>
-          <div><span>击杀</span><b>${game.kills}</b></div>
-          <div><span>峰值星数</span><b>${game.peakStars}</b></div>
-          <div><span>召唤</span><b>${game.placedTotal}</b></div>
+          ${stats
+            .map(
+              ([label, value], i) =>
+                `<div style="--i:${i}"><span>${label}</span><b data-count="${value}">0</b></div>`,
+            )
+            .join('')}
         </div>
-        <button class="btn-primary" data-restart>再来一局</button>
+        <button class="btn-primary" data-restart disabled>再来一局</button>
       </div>
     `;
-    this.overlayEl.querySelector('[data-restart]')?.addEventListener('click', () => this.handlers.onRestart());
+    const rows = Array.from(this.overlayEl.querySelectorAll<HTMLElement>('[data-count]'));
+    const startAt = performance.now();
+    const DURATION = 620;
+    const tick = (): void => {
+      const k = Math.min(1, (performance.now() - startAt) / DURATION);
+      // easeOutCubic：数字先快后慢，最后一格停得住，读得清
+      const e = 1 - (1 - k) ** 3;
+      for (const row of rows) {
+        const target = Number(row.dataset.count ?? 0);
+        row.textContent = String(Math.round(target * e));
+      }
+      if (k < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+    const btn = this.overlayEl.querySelector<HTMLButtonElement>('[data-restart]');
+    window.setTimeout(() => {
+      if (btn !== null) btn.disabled = false;
+    }, 1100);
+    btn?.addEventListener('click', () => this.handlers.onRestart());
   }
 
   /**

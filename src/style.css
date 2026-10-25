@@ -1246,6 +1246,229 @@ body {
   color: #f2ecff;
 }
 
+/* ============================================================
+   v2.6 视觉升级：更大 + 更强 + 流程编排
+   ------------------------------------------------------------
+   三条原则（不是"把数字调大"就算完）：
+   1) **可读性优先**：手牌从 86×104 加到 100×122，字号 +1~2px。
+      1280 宽的屏幕上原来 8 张牌只占 768px，留白太多、卡片太小，
+      远看像一排按钮而不像"手牌"。
+   2) **层级靠对比而不是加元素**：卡面加内外双层描边 + 选中态强描边，
+      不用再加图标（加图标只会让它在 100px 里更挤）。
+   3) **流程要有"开演/换幕/落幕"**：横幅、评级、错峰数字都在下面。
+   ============================================================ */
+
+.card {
+  width: 100px;
+  height: 122px;
+  padding: 12px 7px;
+  font-size: 14px;
+  border-radius: 12px;
+  border-width: 1.5px;
+}
+
+.card-name {
+  font-size: 12.5px;
+}
+
+.card-lv {
+  font-size: 10px;
+  padding: 0 5px;
+}
+
+.card-stack {
+  font-size: 11px;
+  min-width: 22px;
+  transform: scale(1.05);
+}
+
+.hand {
+  gap: 12px;
+}
+
+/* 悬浮/选中时的"抬起来"要更明显：这是手牌唯一能摸到的反馈 */
+.card:hover {
+  transform: translateY(-4px) scale(1.02);
+}
+
+.card.is-selected {
+  transform: translateY(-8px) scale(1.04);
+  border-color: var(--lava-1, #ffb347);
+  box-shadow:
+    0 0 0 2px rgba(255, 179, 71, 0.55),
+    0 16px 34px rgba(255, 179, 71, 0.28);
+}
+
+/* 顶部计时器：整屏最需要"远看也清楚"的一个数字 */
+.timer {
+  font-size: 30px;
+  letter-spacing: 0.06em;
+}
+
+.timer-sub {
+  font-size: 12px;
+}
+
+.hero-panel {
+  transform: scale(1.06);
+  transform-origin: top left;
+}
+
+.powerup-card {
+  min-width: 176px;
+  padding: 18px 16px;
+}
+
+.powerup-title {
+  font-size: 17px;
+}
+
+.powerup-desc {
+  font-size: 13px;
+}
+
+.stats > div {
+  min-width: 104px;
+  padding: 12px 14px;
+}
+
+.stats b {
+  font-size: 22px;
+}
+
+/* ---- 场景横幅：开局 / 每波 / 精英登场都走这一个 ---- */
+.scene-banner {
+  position: absolute;
+  left: 50%;
+  top: 16%;
+  transform: translate(-50%, 0);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 34px 12px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(14, 11, 24, 0.86), rgba(8, 7, 15, 0.62));
+  border: 1px solid rgba(255, 179, 71, 0.26);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+  opacity: 0;
+  z-index: 60;
+}
+
+.scene-banner.is-on {
+  animation: banner-in 0.34s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.scene-banner[data-tone='danger'] {
+  border-color: rgba(255, 92, 92, 0.4);
+}
+
+.banner-title {
+  font-size: 34px;
+  font-weight: 900;
+  letter-spacing: 0.22em;
+  text-indent: 0.22em;
+  background: linear-gradient(180deg, #fff3d4, #ffb347 62%, #e0782f);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.7));
+}
+
+.scene-banner[data-tone='danger'] .banner-title {
+  background: linear-gradient(180deg, #ffe0e0, #ff6b6b 62%, #b63030);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+.banner-sub {
+  font-size: 12.5px;
+  letter-spacing: 0.16em;
+  color: #b6aed2;
+}
+
+@keyframes banner-in {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 14px) scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
+/* ---- 结算：评级 + 错峰数字 + 按钮延后亮 ---- */
+.result-panel {
+  position: relative;
+  padding-top: 34px;
+}
+
+.grade {
+  position: absolute;
+  top: -34px;
+  left: 50%;
+  transform: translateX(-50%) rotate(-4deg);
+  width: 74px;
+  height: 74px;
+  display: grid;
+  place-items: center;
+  font-size: 42px;
+  font-weight: 900;
+  border-radius: 16px;
+  color: #1a1206;
+  background: linear-gradient(160deg, #ffe9b8, #ffb347 60%, #d9781f);
+  box-shadow: 0 14px 30px rgba(255, 140, 40, 0.35);
+  animation: grade-slam 0.42s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+
+.grade[data-grade='A'] {
+  background: linear-gradient(160deg, #e6f0ff, #9cc4ff 60%, #4a76c8);
+}
+
+.grade[data-grade='B'] {
+  background: linear-gradient(160deg, #e8ffe6, #9be09a 60%, #43854a);
+}
+
+.grade[data-grade='C'] {
+  background: linear-gradient(160deg, #ffd9d9, #ff8a8a 60%, #8a3a3a);
+  color: #210b0b;
+}
+
+@keyframes grade-slam {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) rotate(-16deg) scale(1.7);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(-50%) rotate(-4deg) scale(1);
+  }
+}
+
+.stats > div {
+  animation: stat-in 0.34s ease-out both;
+  animation-delay: calc(var(--i, 0) * 70ms);
+}
+
+@keyframes stat-in {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.overlay .btn-primary[disabled] {
+  opacity: 0.35;
+  filter: grayscale(0.5);
+  cursor: default;
+}
+
 /* 调试角标（F3 开关）*/
 .debug-badge {
   position: absolute;
