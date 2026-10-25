@@ -1,8 +1,13 @@
-import { AI } from '../content/heroAi';
+﻿import { AI } from '../content/heroAi';
 import { PASSIVE_POOL, SKILL_BY_ID, SKILL_TUNING, type SkillId } from '../content/heroSkills';
 
 /** 技能 id 的固定顺序（热路径遍历冷却用，避免每帧 Object.keys） */
 const SKILL_IDS: readonly SkillId[] = ['shot', 'spread', 'qi', 'bomb', 'heavy', 'heal', 'roll'];
+
+/** 特性/行为编号（与 cards.ts 的 ABILITY_CODE / BEHAVIOR_CODE 对应）。
+ *  勇者要"读得懂"怪物的状态机，就得用同一套编号 —— 见 readThreat()。 */
+const ABI_SUMMON = 4;
+const BEH_CHARGER = 4;
 import {
   HALL,
   HALL_CENTER,
@@ -458,6 +463,47 @@ export class Hero {
   }
 
   /** ---- 感知：10Hz 刷新候选，带迟滞 ---- */
+  private clusterScore(store: MonsterStore, slot: number): number {
+    const cx = store.x[slot] ?? 0;
+    const cy = store.y[slot] ?? 0;
+    const r = AI.scoreClusterRadius;
+    let count = 0;
+    for (let i = 0; i < store.activeCount; i += 1) {
+      const other = store.active[i];
+      if (other === undefined || other === slot) continue;
+      const dx = (store.x[other] ?? 0) - cx;
+      const dy = (store.y[other] ?? 0) - cy;
+      if (dx * dx + dy * dy <= r * r) count += 1;
+    }
+    return count;
+  }
+
+  /**
+   * 读前摇：怪物在蓄力/俯冲/冲锋阶段，且离得够近 → 该翻滚了。
+   *
+   * 这是"他看起来会玩"的关键一条：翻滚原本只在 `dist < rollTrigger` 时触发，
+   * 也就是"已经贴脸了"，那救不了冲锋。现在他看得到行为状态机（store.behMode），
+   * 于是蓄力中的石像鬼、盘旋即将俯冲的蝙蝠都会让他提前闪开。
+   */
+  private readThreat(store: MonsterStore): boolean {
+    for (let i = 0; i < store.activeCount; i += 1) {
+      const slot = store.active[i];
+      if (slot === undefined) continue;
+      const beh = store.beh[slot] ?? 0;
+      const mode = store.behMode[slot] ?? 0;
+      const dx = (store.x[slot] ?? 0) - this.x;
+      const dy = (store.y[slot] ?? 0) - this.y;
+      const d = Math.hypot(dx, dy);
+      // 4 = 石像鬼：蓄力(1)或冲锋(2)中，且冲着他来
+      if (beh === BEH_CHARGER && d < AI.dodgeWindupRange) {
+        if (mode === 1 || mode === 2) return true;
+      }
+      // 1 = 史莱姆扑击、2 = 蝙蝠俯冲、5 = 精英扑击：已经爆发且在近身范围
+      if ((beh === 1 || beh === 2 || beh === 5) && mode === 2 && d < AI.dodgeBurstRange) return true;
+    }
+    return false;
+  }
+
   private updatePerception(dt: number, store: MonsterStore): void {
     if (this.target >= 0 && store.alive[this.target] === 0) this.target = -1;
 
@@ -487,6 +533,12 @@ export class Hero {
       score += (1 - hpRatio) * AI.scoreLowHp;
       score += (store.range[slot] ?? 0) > 120 ? AI.scoreRangedFirst : 0;
       score -= (store.armor[slot] ?? 0) * AI.scoreArmor;
+      // 残血收尾：快死的怪不补掉，它就会一直在他背后放箭
+      if (hpRatio < AI.scoreFinisherHp) score += AI.scoreFinisher;
+      // 精英优先：会召唤的那只放着不管，场上只会越来越挤
+      if ((store.abi[slot] ?? 0) === ABI_SUMMON) score += AI.scoreElite;
+      // 抱团加成：让他的 AoE 打在人多的地方，而不是一只一只点
+      if (d < AI.maxChaseDistance * 0.5) score += this.clusterScore(store, slot) * AI.scoreCluster;
       if (slot === this.target) score += AI.scoreSticky;
 
       if (slot === this.target) currentScore = score;
@@ -576,6 +628,12 @@ export class Hero {
 
     if (this.hpRatio < SKILL_TUNING.healThreshold && this.canUse('heal')) {
       this.beginSkill('heal', dir, hooks);
+      return;
+    }
+    // 先读"它要动手了"的信号，再决定要不要闪。以前只看距离，于是石像鬼蓄力时
+    // 他还站在那儿硬吃一发冲锋 —— 玩家看得出他"笨"。现在两种前摇都能提前躲。
+    if (this.canUse('roll') && this.readThreat(store)) {
+      this.beginSkill('roll', dir, hooks);
       return;
     }
     if (dist < SKILL_TUNING.rollTrigger && this.canUse('roll')) {

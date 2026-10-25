@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 勇者 AI 的全部可调参数。
  *
  * 只改这里、不改 `gameplay/hero.ts` 的逻辑，就能整体调手感 ——
@@ -56,7 +56,7 @@ export const AI = {
   /** 离墙多少距离开始被推回场地中间 */
   wallMargin: 260,
   /** 切向（绕圈）分量权重。越大越爱跑圈，越小越像直线逃跑 */
-  orbitWeight: 0.95,
+  orbitWeight: 1.2,
   /** 离墙推力权重。这是"不进墙角"的主要保障 */
   wallWeight: 1.7,
   /** 切向方向换边的门槛：外侧空间要明显更大才换，防止每帧抖动 */
@@ -91,4 +91,15 @@ export const AI = {
   scoreRangedFirst: 8,
   scoreArmor: 2,
   scoreSticky: 25,
+  /** 残血收尾：血量低于这个比例时额外加权，他会回头补掉快死的怪 */
+  scoreFinisherHp: 0.3,
+  scoreFinisher: 22,
+  /** 精英（会召唤的）先打：放任它 20 秒，场上就多出一队小怪 */
+  scoreElite: 26,
+  /** 抱团加成：周围 120px 内每多一只友军 +6，逼他往怪堆里放 AoE */
+  scoreClusterRadius: 120,
+  scoreCluster: 6,
+  /** 看到冲锋/扑击前摇时提前翻滚：蓄力中的石像鬼在 200px 内就闪 */
+  dodgeWindupRange: 210,
+  dodgeBurstRange: 110,
 } as const;

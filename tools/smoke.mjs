@@ -423,6 +423,84 @@ const abilities = await page.evaluate(() => {
 check('巨大蜘蛛会召唤小蜘蛛', abilities.summon > 0, `召唤 ${abilities.summon} 次，场上 ${abilities.alive} 只`);
 check('哥布林/蜘蛛会远程开火', abilities.spiderShot > 0, `远程弹 ${abilities.spiderShot} 次`);
 
+// ---- 行为原型：五张卡不能都只会"直线追" ----
+const behaviors = await page.evaluate(() => {
+  const g = window.__game;
+  const one = (id) => {
+    g.start();
+    g.debugFillHand();
+    const idx = g.hand.findIndex((card) => card.id === id);
+    g.selectCard(idx);
+    g.place(g.hero.x + 230, g.hero.y);
+    g.selected = -1;
+    g.store.refreshActive();
+    const slot = g.store.active[0];
+    const modes = new Set();
+    let maxSpeed = 0;
+    let dMin = 1e9;
+    for (let i = 0; i < 60 * 7; i += 1) {
+      g.update(1 / 60);
+      if (slot === undefined || g.store.alive[slot] === 0) break;
+      modes.add(g.store.behMode[slot] ?? 0);
+      maxSpeed = Math.max(maxSpeed, Math.round(Math.hypot(g.store.vx[slot] ?? 0, g.store.vy[slot] ?? 0)));
+      dMin = Math.min(dMin, Math.round(Math.hypot((g.store.x[slot] ?? 0) - g.hero.x, (g.store.y[slot] ?? 0) - g.hero.y)));
+    }
+    return { beh: g.store.beh[slot] ?? -1, modes: [...modes].sort().join(','), maxSpeed, dMin };
+  };
+  return {
+    slime: one('slime'),
+    goblin: one('goblin'),
+    gargoyle: one('gargoyle'),
+    bat: one('bat'),
+  };
+});
+check(
+  '史莱姆会扑击（速度出现爆发）',
+  behaviors.slime.modes.includes('2'),
+  `阶段=${behaviors.slime.modes} 最高速度=${behaviors.slime.maxSpeed}`,
+);
+check(
+  '哥布林会保持距离横移（不是一路贴身）',
+  behaviors.goblin.modes.includes('3') && behaviors.goblin.dMin > 150,
+  `阶段=${behaviors.goblin.modes} 最近 ${behaviors.goblin.dMin}px`,
+);
+check(
+  '石像鬼会蓄力冲锋（速度 ×3）',
+  behaviors.gargoyle.modes.includes('1') && behaviors.gargoyle.modes.includes('2') && behaviors.gargoyle.maxSpeed > 150,
+  `阶段=${behaviors.gargoyle.modes} 最高速度=${behaviors.gargoyle.maxSpeed}`,
+);
+check(
+  '蝙蝠会盘旋俯冲（出现盘旋阶段）',
+  behaviors.bat.modes.includes('1') && behaviors.bat.modes.includes('2'),
+  `阶段=${behaviors.bat.modes} 最高速度=${behaviors.bat.maxSpeed}`,
+);
+
+// ---- 勇者会读前摇：石像鬼一蓄力他就闪 ----
+const dodge = await page.evaluate(() => {
+  const g = window.__game;
+  g.start();
+  g.debugFillHand();
+  const idx = g.hand.findIndex((card) => card.id === 'gargoyle');
+  g.selectCard(idx);
+  g.place(g.hero.x + 190, g.hero.y);
+  g.selected = -1;
+  g.store.refreshActive();
+  const slot = g.store.active[0];
+  // 把它的行为计时拉满，逼它马上进蓄力
+  if (slot !== undefined) {
+    g.store.behT[slot] = 0;
+    g.store.behMode[slot] = 0;
+  }
+  let rolled = 0;
+  for (let i = 0; i < 60 * 4; i += 1) {
+    const before = g.hero.cds.roll;
+    g.update(1 / 60);
+    if (g.hero.state === 'roll' || (g.hero.cds.roll ?? 0) > before + 0.1) rolled += 1;
+  }
+  return { rolled, state: g.hero.state };
+});
+check('他会读蓄力前摇提前翻滚', dodge.rolled > 0, `翻滚 ${dodge.rolled} 次`);
+
 // ---- M3：勇者技能池必须真的轮得动 ----
 const skills = await page.evaluate(() => {
   const g = window.__game;

@@ -1,4 +1,4 @@
-﻿import { abilityCode } from '../content/cards';
+﻿import { abilityCode, behaviorCode } from '../content/cards';
 import type { CardDef } from '../content/cards';
 
 /**
@@ -38,6 +38,12 @@ export class MonsterStore {
   public readonly abi = new Uint8Array(MAX_MONSTERS);
   /** 特性冷却或持续时间（按特性各自解释） */
   public readonly abT = new Float32Array(MAX_MONSTERS);
+  /** 行为原型编号（见 cards.ts BEHAVIOR_CODE）：决定走位节奏，不是"放技能" */
+  public readonly beh = new Uint8Array(MAX_MONSTERS);
+  /** 行为阶段：0=接近 1=蓄力/盘旋 2=冲刺/俯冲 3=收招 */
+  public readonly behMode = new Uint8Array(MAX_MONSTERS);
+  /** 行为阶段计时（秒） */
+  public readonly behT = new Float32Array(MAX_MONSTERS);
   /** 自爆引信：>0 表示已点燃，倒数到 0 就炸 */
   public readonly fuse = new Float32Array(MAX_MONSTERS);
   /** 召唤物寿命：>0 时持续递减，归零自动消散（不占星、不给经验） */
@@ -106,8 +112,15 @@ export class MonsterStore {
     this.defIdx[slot] = defIndex;
     this.ghostly[slot] = def.ghostly === true ? 1 : 0;
     this.abi[slot] = abilityCode(def);
+    // 行为阶段错开初动：同一批怪如果同时冲锋，看起来像一段跳帧动画
+    this.beh[slot] = behaviorCode(def);
+    this.behMode[slot] = 0;
+    // 0.6s 起手：绝大多数怪撑不到 1.2s 才第一次扑，玩家会以为"它们只是傻走"
+    this.behT[slot] = 0.25 + (phase % 1) * 0.3;
     // 特性错开初动，否则一排巫医会在同一帧一起加血，像一段跳帧动画
-    this.abT[slot] = 0.8 + phase * 0.4;
+    // phase 是 0..2π 的角度，不是 0..1 的系数 —— 直接乘会得到一个 0.4..3.3s 的初动，
+    // 短命的小怪活不到那时候，表现上就变成"它只是傻走"。取小数部分才是"错峰 0.x 秒"。
+    this.abT[slot] = 0.8 + (phase % 1) * 0.4;
     this.fuse[slot] = 0;
     this.life[slot] = 0;
     this.frozenT[slot] = 0;

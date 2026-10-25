@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 卡池定义。
  *
  * 设计约定（见策划案 §4）：
@@ -39,6 +39,28 @@ export function abilityCode(def: CardDef): number {
   return def.ability === undefined ? 0 : ABILITY_CODE[def.ability];
 }
 
+/**
+ * 行为原型：决定「它怎么靠近、什么时候出手」，和特性（周期性技能）是两件事。
+ *
+ * 用户反馈「怪物也需要更加复杂的行为，而不只是简单的追击」。
+ * 五种怪各给一套走位逻辑，于是同样 5 张卡在场的移动节奏完全不同：
+ * 直冲、盘旋俯冲、站桩横移放箭、蓄力冲锋、精英的多形态。
+ * 代码在 `gameplay/monsters.ts` 的 `behaviorStep()` 里，一张分支表。
+ */
+export type MonsterBehavior = 'lunge' | 'dive' | 'skirmish' | 'charger' | 'elite';
+
+export const BEHAVIOR_CODE: Record<MonsterBehavior, number> = {
+  lunge: 1,
+  dive: 2,
+  skirmish: 3,
+  charger: 4,
+  elite: 5,
+};
+
+export function behaviorCode(def: CardDef): number {
+  return def.behavior === undefined ? 0 : BEHAVIOR_CODE[def.behavior];
+}
+
 export interface CardDef {
   readonly id: string;
   readonly name: string;
@@ -66,6 +88,8 @@ export interface CardDef {
   readonly ability?: MonsterAbility;
   /** 贴图 id（默认等于卡 id）：巨大蜘蛛用 spider-giant，不用旧毒蜘蛛的图 */
   readonly art?: string;
+  /** 行为原型：不填就是"直线追击"（最笨的那一档） */
+  readonly behavior?: MonsterBehavior;
   /** 显示在悬浮提示里的"标签"，一行一个，玩家读得懂的人话 */
   readonly tags: readonly string[];
   readonly note: string;
@@ -141,6 +165,7 @@ export const CARDS: readonly CardDef[] = [
     range: 54,
     radius: 15,
     color: 0x7be05f,
+    behavior: 'lunge',
     tags: ['近战', '便宜', '数量'],
     note: '普通小怪：便宜、能一直铺，专门消耗他的攻击次数',
   },
@@ -161,6 +186,7 @@ export const CARDS: readonly CardDef[] = [
     color: 0xc79bff,
     units: 3,
     ghostly: true,
+    behavior: 'dive',
     tags: ['三只', '极快', '穿行'],
     note: '快速小怪：一次落三只，无视同伴碰撞，速度和勇者持平半档',
   },
@@ -179,7 +205,8 @@ export const CARDS: readonly CardDef[] = [
     range: 310,
     radius: 14,
     color: 0x6fd06f,
-    tags: ['远程', '射程 310', '持续输出'],
+    behavior: 'skirmish',
+    tags: ['远程', '射程 310', '横向走位'],
     note: '远程弓箭手：站在射程外持续放箭，逼他不断进圈',
   },
   {
@@ -197,7 +224,8 @@ export const CARDS: readonly CardDef[] = [
     range: 56,
     radius: 22,
     color: 0x8f8fa8,
-    tags: ['高血量', '高护甲', '肉盾'],
+    behavior: 'charger',
+    tags: ['高血量', '高护甲', '蓄力冲锋'],
     note: '高血量高防御：走上去就是一面墙，能卡住他的弹道和走位',
   },
   {
@@ -217,6 +245,8 @@ export const CARDS: readonly CardDef[] = [
     color: 0x9b5bff,
     slow: 0.22,
     ability: 'summon',
+    behavior: 'elite',
+    art: 'spider-giant',
     tags: ['精英', '远程吐丝', '近身咬', '召唤小蜘蛛'],
     note: '精英：远距离吐丝（带减速）、贴脸改咬、每 5 秒生 2 只小蜘蛛',
   },
