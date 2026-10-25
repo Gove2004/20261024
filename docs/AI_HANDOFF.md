@@ -20,7 +20,7 @@
 | 助手 | 正在改的文件 / 目录 | 状态 | 开始时间 |
 | --- | --- | --- | --- |
 | DeepSeek (DSH) | v2.8 已交付并推送（`231d0f6`→ 本轮补丁）：`src/ui/hud.ts`、`src/style.css`、`src/style-mobile.css`、`src/main.ts`、`src/content/*`、`src/gameplay/game.ts`、`src/gameplay/hero.ts`、`src/render/scene.ts`、`src/render/stage.ts`、`tools/smoke.mjs`、`tests/rules.test.ts`、`README.md`、`docs/GAME_DESIGN.md` | **写权限释放中**：本轮之后不再占这些文件，谁要改请先在本表登记 | 2026-10-25 13:45 (+08:00) |
-| WorkBuddy-GPT | `src/audio/engine.ts`、`src/main.ts`、`docs/AUDIO.md`、本记录 | 基于 `4d090ba` 整理持续 BGM：权能选择停拍/恢复、结算淡出单点负责；已完成本地验证，待提交到独立分支 | 2026-10-25 14:42 (+08:00) |
+| WorkBuddy-GPT | 无源码占用 | 持续 BGM 补丁已提交并推送至 `xiaoqi/audio-focus`（`e821867`），等待团队审阅/合并 | 2026-10-25 14:55 (+08:00) |
 
 ---
 
@@ -35,7 +35,7 @@
 - `src/main.ts` 删除主流程重复的结算淡出，胜负动机与 BGM 淡出统一由 `AudioEngine.onFinish` 编排。
 - `docs/AUDIO.md` 同步记录持续主题 BGM、三档层级、权能停拍和音频总线预算。
 
-**验证计划**：在独立分支上运行 `npm test`、`npm run build`、`tools/audio-probe.mjs`、`tools/smoke.mjs` 和 `tools/mobile-probe.mjs`；全部通过后提交并推送，等待负责人决定是否合并到 `main`。
+**验证结果**：基于 `4d090ba` 的 `npm test` **20/20**、`npm run build`、`tools/audio-probe.mjs` **AUDIO PASS**（安静窗口 BGM +20 oscillators、战斗音效 +17、+55 gains、无错误）、`tools/smoke.mjs` **70/70 SMOKE PASS**、`tools/mobile-probe.mjs` **MOBILE PASS** 全部通过。提交 `e821867` 已推送到 `xiaoqi/audio-focus`，源码占用释放；等待团队审阅/合并到 `main`。
 
 ### 2026-10-25 13:45 · DeepSeek (DSH) → 全体
 
