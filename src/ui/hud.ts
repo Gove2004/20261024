@@ -1,5 +1,6 @@
 import { CARDS, cardCdSeconds } from '../content/cards';
 import { RUN, VIEW, xpNeed } from '../content/config';
+import { PASSIVE_POOL } from '../content/heroSkills';
 import type { Game, HandCard, PowerupOption } from '../gameplay/game';
 
 export interface HudHandlers {
@@ -125,7 +126,6 @@ export class Hud {
           </div>
           <div class="hero-perks" data-hero-perks></div>
         </div>
-        <div class="timer-sub">打不死他，5 分钟就到</div>
       </div>
       <div class="hud-bottom">
         <div class="star-budget">
@@ -139,7 +139,7 @@ export class Hud {
           <span class="power-row"><i>已召唤</i><b data-p-placed>0</b></span>
           <span class="power-row"><i>击杀</i><b data-p-kills>0</b></span>
         </div>
-        <div class="hint-bar" data-hint>点卡 → 点地面召唤 · 他能远程射你摆的怪</div>
+        <div class="hint-bar" data-hint>点卡 → 点地面</div>
         <div class="hand" data-hand></div>
       </div>
       <button class="btn-pause" data-pause title="暂停 (Space)">❚❚</button>
@@ -603,6 +603,49 @@ export class Hud {
     this.tooltipEl.style.left = `${left}px`;
   }
 
+  /**
+   * 悬停在锅巴身上时，展示他这局拿到的天赋（七美德）。
+   *
+   * 用户原话："鼠标悬浮在锅巴上也能看到他选择的天赋效果，分别是 7 宗罪的反义词"。
+   * 这条很重要：玩家选的是"罪"，他长的是"德" —— 把两副牌面对面摆出来，
+   * 一局的博弈关系一眼就读完了，比任何新手引导都省字。
+   */
+  public showHeroTips(names: readonly string[], x: number, y: number): void {
+    if (names.length === 0) {
+      this.tooltipEl.innerHTML = `
+        <div class="tip-head"><b>锅巴</b><span class="tip-star">暂无天赋</span></div>
+        <div class="tip-note">他还没升级。你放得越多，他长得越快。</div>
+      `;
+    } else {
+      const rows = names
+        .map((name) => {
+          const def = PASSIVE_POOL.find((item) => item.name === name);
+          return `<div class="hero-tip-row"><b>${name}</b><span>${def?.desc ?? ''}</span></div>`;
+        })
+        .join('');
+      this.tooltipEl.innerHTML = `
+        <div class="tip-head"><b>锅巴的天赋</b><span class="tip-star">七美德 · 反七宗罪</span></div>
+        <div class="hero-tips">${rows}</div>
+      `;
+    }
+    this.tooltipEl.hidden = false;
+    this.tooltipEl.classList.add('is-hero');
+    // 鼠标位置 → 浮层位置；贴边时翻向内侧，避免被裁掉
+    const tipRect = this.tooltipEl.getBoundingClientRect();
+    let top = y - tipRect.height - 16;
+    if (top < 8) top = y + 20;
+    let left = x + 18;
+    if (left + tipRect.width > window.innerWidth - 8) left = x - tipRect.width - 18;
+    this.tooltipEl.style.top = `${Math.max(8, top)}px`;
+    this.tooltipEl.style.left = `${Math.max(8, left)}px`;
+  }
+
+  public hideHeroTips(): void {
+    if (!this.tooltipEl.classList.contains('is-hero')) return;
+    this.tooltipEl.classList.remove('is-hero');
+    this.tooltipEl.hidden = true;
+  }
+
   // ---------------------------------------------------------------- 覆盖层
 
   public showTitle(): void {
@@ -614,12 +657,11 @@ export class Hud {
         <p class="subtitle">反向肉鸽 · 你是魔王，他是勇者锅巴</p>
         <ul class="rules">
           <li>你没有身体，也打不了 —— 只能<b>把魔物放到画面里</b></li>
-          <li>勇者<span class="rule-name">锅巴</span>会一路杀穿，每杀一只就变强一级</li>
-          <li>每张卡有 <b>1–10 星</b>，星级既是强度，也是占地</li>
+          <li>每张卡有 <b>次数</b>：放一只扣一次，攒够了才能再放</li>
           <li><b>5 分钟内把他打死</b>，否则时间到就算你输</li>
         </ul>
         <button class="btn-primary" data-start>开始讨伐</button>
-        <p class="hint">点卡 → 点地面召唤 · 空格暂停 · M 静音</p>
+        <p class="hint">点卡 → 点地面 · 空格暂停 · M 静音</p>
       </div>
     `;
     this.overlayEl.querySelector('[data-start]')?.addEventListener('click', () => this.handlers.onStart());
@@ -662,8 +704,8 @@ export class Hud {
       )
       .join('');
     this.overlayEl.innerHTML = `
-      <div class="panel">
-        <h2 class="panel-title">魔王权能</h2>
+      <div class="panel powerup-panel">
+        <h2 class="panel-title">七宗罪</h2>
         <p class="panel-sub">三选一 · 世界已为你暂停</p>
         <div class="powerup-row">${cards}</div>
         <div class="powerup-hold"><span class="powerup-hold-fill"></span></div>

@@ -202,6 +202,46 @@ export class FxLayer {
     fx.startScale = 1;
   }
 
+  /**
+   * 翻滚残影 + 尘土。
+   *
+   * 用户原话："现在锅巴翻滚就是闪现，没特效，让人感觉莫名其妙"。
+   * 位移本身只有 130px/0.18s，**看不见过程**，所以必须在路径上留下三段拖影：
+   * 人眼把"残影"读成"刚才在这里、现在在那里"，闪现感就消失了。
+   */
+  public rollTrail(fromX: number, fromY: number, toX: number, toY: number): void {
+    const dx = toX - fromX;
+    const dy = toY - fromY;
+    const len = Math.hypot(dx, dy) || 1;
+    const nx = dx / len;
+    const ny = dy / len;
+
+    // 三段残影：越靠后越淡越小，模拟"拖出去的一串影子"
+    for (let i = 0; i < 3; i += 1) {
+      const fx = this.bursts[this.burstCursor];
+      this.burstCursor = (this.burstCursor + 1) % BURST_POOL;
+      if (!fx) continue;
+      const k = (i + 1) / 3;
+      const g = fx.gfx;
+      g.clear();
+      g.circle(0, 0, 15 - i * 2).fill({ color: 0xa9d6ff, alpha: 0.3 - i * 0.07 });
+      g.circle(0, 0, 17 - i * 2).stroke({ color: 0xdff1ff, width: 2, alpha: 0.5 - i * 0.12 });
+      g.position.set(fromX + nx * len * 0.28 * k, fromY + ny * len * 0.28 * k);
+      g.alpha = 1;
+      g.scale.set(1);
+      g.visible = true;
+      fx.life = 0.26 + i * 0.05;
+      fx.maxLife = fx.life;
+      fx.startScale = 1;
+    }
+
+    // 起点的尘土：告诉他"是从这儿蹬地出去的"
+    this.burst(fromX, fromY, 0x6b5f86, 10, 26);
+    this.burst(toX, toY, 0x9fb6d8, 6, 18);
+    // 一条贴地的速度线，长度就是这次位移
+    this.slash(fromX, fromY, nx, ny, Math.min(len, 150), 6);
+  }
+
   /** 剑气刀光：一条快速淡出的长条。 */
   public slash(x: number, y: number, dirX: number, dirY: number, length: number, width: number): void {
     const fx = this.bursts[this.burstCursor];

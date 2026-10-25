@@ -1340,7 +1340,9 @@ body {
 .scene-banner {
   position: absolute;
   left: 50%;
-  top: 16%;
+  /* 16% 会压到顶部 HUD（放大后顶部到 199px），冒烟量出来是 131–218 直接叠上；
+     28.5% 起（≈205px）刚好落在血条下沿之外，又不碰 456px 起的手牌区。 */
+  top: 28.5%;
   transform: translate(-50%, 0);
   display: flex;
   flex-direction: column;
@@ -1483,4 +1485,249 @@ body {
   border-radius: 6px;
   padding: 6px 9px;
   white-space: pre;
+}
+
+/* ============================================================
+   v2.7 再放大一档 + 把层级拉开
+   ------------------------------------------------------------
+   为什么还要加（v2.6 已经加过一次，但还不够）：
+   1) 手牌 100×122 在 1280×720 的截图里仍然"像一排按钮"：卡面立绘只有
+      74px 宽，四周一圈空底色。118×142 + 84×76 的立绘才撑得满卡面，
+      远看能靠图认卡，而不是靠字认卡。
+   2) "权能三选一"是整局唯一需要**读字做决策**的界面，却是全屏最小的一块：
+      176px 的卡片里塞 17px 标题 + 13px 说明，读起来像附录、像免责声明。
+      240px + 21/14.5px 才有"这是决策"的权重。代价是 .panel 必须从
+      680 加宽到 900 —— 否则 3 张卡会被 flex-wrap 折成 2+1，
+      那才是真正的层级反了（选项比标题还矮）。
+   3) 层级不靠加元素，靠尺寸差和阴影：标题 26→30、结算数字 22→26、
+      评级牌 74→84，一眼能排出 "结算 > 权能选项 > 手牌 > 提示" 的顺序。
+   旧 v2.6 的规则一条都没删，全部靠"后来者覆盖"生效 ——
+   要回滚只需删掉这一整段，不用去翻前面改了什么。
+   ============================================================ */
+
+/* ---- 手牌：100×122 → 118×142 ---- */
+.card {
+  width: 118px;
+  height: 142px;  padding: 14px 8px;
+  border-radius: 13px;
+  font-size: 15px;
+}
+
+.card-name {
+  font-size: 14px;
+}
+
+.card-lv {
+  font-size: 11px;
+  /* 卡变高 + padding 变厚，名字的顶边上移到 ~111px，
+     30px 的 bottom 会让等级字压住名字，往下挪 6px 留出呼吸 */
+  bottom: 36px;
+  padding: 0 6px;
+}
+
+/* v2.6 只 scale 了宽度，height 仍是 22px，放大后会被拉成椭圆；
+   宽度和高度必须一起给，圆角别称才不变形 */
+.card-stack {
+  min-width: 24px;
+  height: 24px;
+  font-size: 12px;
+  transform: scale(1.05);
+}
+
+/* 卡变大而立绘不变，会在顶上留一条空底色，看起来像"贴图没加载完"；
+   高度卡在 84：再高就顶到 .card-lv（bottom:36 ≈ y99）和卡名了 */
+.card-art {
+  width: 88px;
+  height: 84px;
+}
+
+/* 8 张 × 118 + 7 × 14 = 1042px，1280 下 .hand 的 94vw（≈1203px）仍放得下，
+   不会触发横向滚动；只有更窄的窗口才滑 */
+.hand {
+  gap: 14px;
+}
+
+/* ---- 顶部：计时器与勇者面板 ---- */
+/* 36px 是"隔一米也能读出秒数"的下限，30px 在 720p 上只算勉强 */
+.timer {
+  font-size: 36px;
+}
+
+.timer-sub {
+  font-size: 12.5px;
+}
+
+.hero-panel {
+  /* transform-origin 保持 top left：以中心/底部为原点放大会把血条顶出
+     顶部安全区（HUD padding 只有 14px），上半截直接被裁掉。
+     但原点在左边 → 放大后整体右移 (1.14-1)/2 = 7% 宽，和正上方的
+     计时器对不齐；translateX(-6.14%) 会先被 scale 放大 1.14 倍，
+     落地正好是 -7%，把这块偏移抵消掉，右边缘仍在屏内。 */
+  transform: scale(1.14) translateX(-6.14%);
+  transform-origin: top left;
+  /* transform 不占布局：向下多伸出的 14% 高会盖住紧跟着的 .timer-sub 药丸，
+     用 margin 在布局里预留这块空隙，药丸本身的位置一个字都不用改 */
+  margin-bottom: 12px;
+}
+
+/* ---- 权能三选一（"全能选择界面"的主体）---- */
+.panel {
+  /* 3 × 240 的卡 + 2 × 20 的 gap + 左右各 40 padding = 840，
+     680 装不下一行；900 能在 1280 上一行放下且左右还有余量。
+     92vw 兜住更窄的窗口，再窄的交由 style-mobile.css 压回来。 */
+  width: min(900px, 92vw);
+  max-width: 92vw;
+  padding: 36px 40px 34px;
+  border-radius: 18px;
+  /* 压暗加深 + 内描边：覆盖层自己的背景是半透明的，面板必须靠阴影
+     从战场里"浮起来"，否则和背景飘字糊成一片 */
+  box-shadow:
+    0 36px 100px rgba(0, 0, 0, 0.8),
+    0 0 0 1px rgba(255, 179, 71, 0.12) inset;
+}
+
+.panel-title {
+  font-size: 30px;
+}
+
+.panel-sub {
+  font-size: 14px;
+}
+
+.powerup-row {
+  gap: 20px;
+}
+
+.powerup-card {
+  min-width: 240px;
+  /* 高度给死，避免三个选项因为说明长短不同而"高矮不齐"，
+     那会让最矮的那个看起来像 disabled */
+  min-height: 140px;
+  padding: 24px 22px;
+  border-radius: 14px;
+  gap: 10px;
+}
+
+.powerup-card:hover {
+  box-shadow: 0 18px 44px rgba(255, 179, 71, 0.3);
+}
+
+.powerup-title {
+  font-size: 21px;
+}
+
+.powerup-desc {
+  font-size: 14.5px;
+  line-height: 1.62;
+}
+
+.powerup-hold {
+  margin-top: 16px;
+  height: 4px;
+}
+
+/* ---- 结算：数字是主角 ---- */
+.result-panel {
+  /* 84 的评级牌挂在 top:-38，向下占到 46px；标题必须从 46 之后开始，
+     34px 会被评级牌压掉半个字（v2.6 时代就已经压了 6px） */
+  padding-top: 46px;
+}
+
+.grade {
+  top: -38px;
+  width: 84px;
+  height: 84px;
+  font-size: 48px;
+  border-radius: 18px;
+}
+
+.stats {
+  gap: 12px;
+  margin-bottom: 26px;
+}
+
+.stats > div {
+  min-width: 124px;
+  padding: 14px 16px;
+  gap: 5px;
+}
+
+.stats span {
+  font-size: 11.5px;
+}
+
+.stats b {
+  font-size: 26px;
+}
+
+/* ---- 星数条 / 提示 / 权能面板：只微调 (≤10%)，位置一律不动 ---- */
+.star-budget {
+  font-size: 13px;
+  gap: 10px;
+}
+
+/* 200 而不是 236：星数上限能到 65，右侧数字变成"18 / 65"这种两位/两位之后，
+   236px 会把星点条右沿顶出面板边框（截图里被切掉一点）。 */
+.star-dots {
+  width: min(200px, 52vw);
+  height: 7px;
+}
+
+.hint-bar {
+  font-size: 12px;
+}
+
+/* 注意：工程里没有 .power-bar，左下角那块权能数字叫 .power-panel
+   （hud.ts 里 power-row 四个读数）*/
+.power-panel {
+  padding: 7px 13px;
+  gap: 2px 15px;
+}
+
+.power-row b {
+  font-size: 14px;
+}
+
+/* 手牌长高 20px 之后，.hud-bottom 整体上移，升级横幅（原来 bottom:168px）
+   正好压在提示条上 —— 冒烟当场抓到"升级横幅压提示=true"。
+   这里把它抬到手牌 + 提示条之上，留 8px 呼吸。 */
+.levelup {
+  /* 从"贴手牌上方"改到屏幕中段：手牌 118×142 之后，底部那条带上已经挤了
+     星数条 + 权能读数 + 提示条 + 手牌，升级横幅放哪儿都会压住一样东西。
+     中段是唯一一块空白（报幕横幅在 16%，这里退到 38%）。 */
+  top: 42%;
+  bottom: auto;
+}
+
+/* 悬停锅巴看天赋（七美德）：比卡牌说明更宽，因为每条都是一句完整机制 */
+.card-tip.is-hero {
+  max-width: 380px;
+  min-width: 300px;
+}
+
+.hero-tips {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 6px;
+}
+
+.hero-tip-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 9px;
+  border-left: 2px solid rgba(255, 179, 71, 0.5);
+}
+
+.hero-tip-row b {
+  font-size: 13.5px;
+  color: #ffe4bd;
+  letter-spacing: 0.1em;
+}
+
+.hero-tip-row span {
+  font-size: 12px;
+  line-height: 1.55;
+  color: #b0a8cc;
 }

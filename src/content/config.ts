@@ -87,9 +87,11 @@ export const HERO = {
   armorPerLevel: 1,
   baseAtk: 26,
   atkPerLevel: 7,
-  baseSpeed: 108,
-  speedPerLevel: 2.2,
-  maxSpeed: 152,
+  // v2.7：用户反馈"移速太慢，老是被贴脸"。史莱姆扑击 ×2.4、蝙蝠俯冲 ×2.2 之后，
+  // 108 的移速连拉扯都做不出来 —— 提到 132，并把封顶从 152 抬到 186（相当于一直比蝙蝠慢一点）。
+  baseSpeed: 132,
+  speedPerLevel: 3.0,
+  maxSpeed: 186,
   baseAtkInterval: 1 / 1.1,
   range: 62,
   radius: 20,

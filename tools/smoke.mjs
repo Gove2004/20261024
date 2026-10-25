@@ -174,6 +174,88 @@ check(
   `提示=${charges.err ?? 'null'}`,
 );
 
+// ---- v2.7 充能规则：上限 5 / 放置不重置回填 / 0 层禁止 ----
+const refill = await page.evaluate(async () => {
+  const g = window.__game;
+  g.start();
+  g.debugFillHand();
+  const card = g.hand[0];
+  if (!card) return { max: 0 };
+  const max = card.maxCharges;
+  const start = card.charges;
+  g.selectCard(0);
+  const before = card.cd;
+  g.place(g.hero.x + 170, g.hero.y + 110);
+  // 从满层掉下来的那一刻才开始计时（cd 从 0 变成 cardCd）
+  const afterFirst = card.cd;
+  await new Promise((r) => setTimeout(r, 700));
+  const ticked = card.cd;
+  g.selectCard(0);
+  g.place(g.hero.x + 200, g.hero.y + 130);
+  const afterSecond = card.cd;
+  // 用光之后必须被挡住
+  card.charges = 0;
+  g.selectCard(0);
+  const blocked = g.placementError(g.hero.x + 120, g.hero.y + 80);
+  return { max, start, before, afterFirst, ticked, afterSecond, blocked };
+});
+check('充能上限 5 层', refill.max === 5 && refill.start === 5, `上限=${refill.max} 初始=${refill.start}`);
+check(
+  '放置不会重置回填计时（这就是"卡手"的根因）',
+  refill.ticked < refill.afterFirst && refill.afterSecond <= refill.ticked + 0.05,
+  `放前 ${refill.afterFirst?.toFixed(2)}s → 走 0.7s 后 ${refill.ticked?.toFixed(2)}s → 再放一次 ${refill.afterSecond?.toFixed(2)}s`,
+);
+check(
+  '0 层时禁止放置',
+  typeof refill.blocked === 'string' && refill.blocked.includes('充能'),
+  `提示=${refill.blocked ?? 'null'}`,
+);
+
+// ---- v2.7 权能 = 七宗罪（恰好 7 条，抽 3 条） ----
+const SINS = ['pride', 'greed', 'gluttony', 'lust', 'wrath', 'envy', 'sloth'];
+const pool = await page.evaluate(async () => {
+  const g = window.__game;
+  const seen = new Set();
+  // 抽很多轮，把 7 条全捞出来看：条数必须正好 7，且每次给 3 个不重复。
+  // 注意要等世界真的跑一帧（openPowerup 在 step 里被调用），同步循环拿不到 pendingPowerup。
+  const frame = () => new Promise((r) => requestAnimationFrame(() => r(null)));
+  for (let round = 0; round < 40; round += 1) {
+    g.deferPowerup(0.001);
+    await frame();
+    await frame();
+    const opts = window.__game.pendingPowerup ?? [];
+    if (opts.length !== 3) continue;
+    for (const o of opts) seen.add(o.id);
+    g.choosePowerup(opts[0].id);
+  }
+  return [...seen];
+});
+check(
+  '权能池恰好是七宗罪 7 条',
+  pool.length === SINS.length && SINS.every((id) => pool.includes(id)),
+  `拿到 ${pool.length} 条：${pool.join('/')}`,
+);
+
+// ---- v2.7 悬停锅巴：把他的天赋（七美德）列出来 ----
+const heroTips = await page.evaluate(() => {
+  const hudRef = window.__hud;
+  if (!hudRef) return { ok: false, reason: 'no __hud' };
+  window.__game.hero.passives.length = 0;
+  window.__game.hero.passives.push('谦逊', '勤勉');
+  hudRef.showHeroTips(window.__game.hero.passives, 640, 360);
+  const tip = document.querySelector('.card-tip');
+  const rows = document.querySelectorAll('.hero-tip-row').length;
+  const text = tip?.textContent ?? '';
+  const visible = tip !== null && tip.hidden === false && tip.classList.contains('is-hero');
+  hudRef.hideHeroTips();
+  return { visible, rows, text };
+});
+check(
+  '悬停锅巴能看到他的天赋（且写明是七宗罪的反义词）',
+  heroTips.visible === true && heroTips.rows === 2 && heroTips.text.includes('反 傲慢'),
+  `行数=${heroTips.rows} / ${heroTips.text?.slice(0, 40) ?? ''}`,
+);
+
 // ---- 卡牌等级：同一张卡放得越多越强（对冲"后期一刀一个"） ----
 const cardLevel = await page.evaluate(() => {
   const g = window.__game;
@@ -694,8 +776,10 @@ const powerupOpen = await page.evaluate(() => ({
   state: window.__game.state,
   cards: document.querySelectorAll('[data-opt]').length,
   disabled: document.querySelectorAll('[data-opt]:disabled').length,
+  cls: document.querySelector('.overlay')?.className ?? '',
+  warn: document.querySelector('.powerup-warn')?.className ?? '',
 }));
-check('30 秒权能 3 选 1', powerupOpen.state === 'powerup' && powerupOpen.cards === 3, `选项=${powerupOpen.cards}`);
+check('30 秒权能 3 选 1', powerupOpen.state === 'powerup' && powerupOpen.cards === 3, `state=${powerupOpen.state} 选项=${powerupOpen.cards} overlay=${powerupOpen.cls} warn=${powerupOpen.warn}`);
 check(
   '面板刚出现时按钮是锁的（防连点穿透）',
   powerupOpen.disabled > 0,
@@ -711,6 +795,10 @@ check('选择权能后继续对局', (await page.evaluate(() => window.__game.st
 
 // ---- 倒计时归零判负 ----
 await page.evaluate(() => {
+  // 如果此刻正好弹出权能三选一，世界是暂停的 —— 直接改 elapsed 不会推进时间。
+  // 先把面板点掉再倒计时（否则这条检查会因为"面板开着"而假失败）。
+  const opt = document.querySelector('[data-opt]:not([disabled])');
+  if (opt instanceof HTMLElement) opt.click();
   window.__game.elapsed = 299.4;
 });
 await page.waitForTimeout(900);
@@ -758,32 +846,57 @@ check(
 );
 
 // 开局报幕：标题 → 副标题切换 → 自动退场
-await page.evaluate(() => {
+// 注意：t0 必须在**同一个 evaluate 里、点击后立刻读**。
+// 分开写的话中间那 400ms 里任何一次真实波次报幕都会把标题改掉，检查就会假失败（踩过一次）。
+const introFlow = await page.evaluate(async () => {
   // 此刻屏幕上只有结算面板，所以走"再来一局"这条路 —— 它和开局共用同一段报幕
   document.querySelector('[data-restart]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-});
-// 报幕有 0.34s 入场动画，等它落位再截图 + 读状态
-await page.waitForTimeout(420);
-const introShot = { path: join(SHOTS, '17-intro-banner.png') };
-await page.screenshot({ path: introShot.path });
-const introFlow = await page.evaluate(async () => {
   const banner = document.querySelector('[data-banner]');
   const t0 = {
     hidden: banner?.hidden ?? true,
     title: document.querySelector('[data-banner-title]')?.textContent ?? '',
   };
-  await new Promise((r) => setTimeout(r, 1400));
+  await new Promise((r) => setTimeout(r, 1900));
   const t1 = { title: document.querySelector('[data-banner-title]')?.textContent ?? '' };
-  await new Promise((r) => setTimeout(r, 2300));
+  await new Promise((r) => setTimeout(r, 2400));
   const t2 = { hidden: document.querySelector('[data-banner]')?.hidden ?? true };
   return { t0, t1, t2 };
 });
+await page.screenshot({ path: join(SHOTS, '17-flow-end.png') });
 check(
   '开局有报幕（且第二段会换字）',
   introFlow.t0.hidden === false && introFlow.t0.title.length > 0 && introFlow.t1.title !== introFlow.t0.title,
   `${introFlow.t0.title} → ${introFlow.t1.title}`,
 );
 check('报幕会自己退场（不挡视野）', introFlow.t2.hidden === true, `退场=${introFlow.t2.hidden}`);
+
+// 报幕横幅不能压在 HUD 上：顶部是计时/血条，底部是手牌。
+// 单纯"看得见"不够 —— 横幅挡在血条上，报幕就变成了遮挡（v2.7 放大后真的发生过）。
+const bannerFit = await page.evaluate(() => {
+  window.__hud.sceneBanner('第 2 波', '权能降临 · 3 选 1', 3000);
+  const box = (sel) => {
+    const el = document.querySelector(sel);
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return { l: r.left, r: r.right, t: r.top, b: r.bottom };
+  };
+  const hit = (a, b) => a !== null && b !== null && a.l < b.r && a.r > b.l && a.t < b.b && a.b > b.t;
+  const banner = box('[data-banner]');
+  const top = box('.hud-top');
+  const bottom = box('.hud-bottom');
+  return {
+    banner: banner ? { t: Math.round(banner.t), b: Math.round(banner.b) } : null,
+    top: top ? { t: Math.round(top.t), b: Math.round(top.b) } : null,
+    bottom: bottom ? { t: Math.round(bottom.t), b: Math.round(bottom.b) } : null,
+    overlapTop: hit(banner, top),
+    overlapBottom: hit(banner, bottom),
+  };
+});
+check(
+  '报幕横幅不压 HUD（顶部血条 / 底部手牌）',
+  bannerFit.overlapTop === false && bannerFit.overlapBottom === false,
+  `横幅 ${bannerFit.banner?.t}–${bannerFit.banner?.b}px / 顶部到 ${bannerFit.top?.b}px / 底部从 ${bannerFit.bottom?.t}px`,
+);
 await page.screenshot({ path: join(SHOTS, '17-flow-end.png') });
 
 await browser.close();

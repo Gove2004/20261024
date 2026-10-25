@@ -1,4 +1,4 @@
-﻿import { AI } from '../content/heroAi';
+import { AI } from '../content/heroAi';
 import { PASSIVE_POOL, SKILL_BY_ID, SKILL_TUNING, type SkillId } from '../content/heroSkills';
 
 /** 技能 id 的固定顺序（热路径遍历冷却用，避免每帧 Object.keys） */
@@ -64,14 +64,14 @@ interface Passive {
  */
 const PASSIVES: readonly Passive[] = [
   {
-    name: '猎手直觉',
+    name: '谦逊',
     apply: (h) => {
       h.gainAtk(0.1);
       h.executeMul += 0.6;
     },
   },
   {
-    name: '铁壁回响',
+    name: '贞洁',
     apply: (h) => {
       h.armor += 5;
       h.damageReduction = Math.min(0.6, h.damageReduction + 0.08);
@@ -79,14 +79,14 @@ const PASSIVES: readonly Passive[] = [
     },
   },
   {
-    name: '嗜血',
+    name: '节制',
     apply: (h) => {
       h.lifesteal += 0.04;
       h.killHeal += 0.03;
     },
   },
   {
-    name: '疾风连珠',
+    name: '勤勉',
     apply: (h) => {
       h.moveMul += 0.12;
       // "击杀后立刻回一次弹弓"用攻速实现：数值等价，实现上不碰主循环
@@ -94,7 +94,7 @@ const PASSIVES: readonly Passive[] = [
     },
   },
   {
-    name: '困兽之斗',
+    name: '宽容',
     apply: (h) => {
       h.lowHpRage += 0.5;
       h.gainMaxHp(0.08);
@@ -102,7 +102,7 @@ const PASSIVES: readonly Passive[] = [
     },
   },
   {
-    name: '剑豪',
+    name: '慷慨',
     apply: (h) => {
       h.qiMul += 0.3;
       h.skillCdMul *= 0.85;
@@ -110,7 +110,7 @@ const PASSIVES: readonly Passive[] = [
     },
   },
   {
-    name: '暴击狂徒',
+    name: '善良',
     apply: (h) => {
       h.crit += 0.12;
       h.spreadExtra += 1;
@@ -162,6 +162,8 @@ export class Hero {
 
   /** 正在蓄力的技能（null = 没在放技能） */
   public pendingSkill: SkillId | null = null;
+  /** 已获得的天赋名（七美德），供悬停面板读取 */
+  public readonly passives: string[] = [];
   /** 每个主动技能的剩余冷却 */
   public readonly cds: Record<SkillId, number> = {
     shot: 0,
@@ -276,6 +278,7 @@ export class Hero {
     this.windup = 0;
     this.recover = 0;
     this.pendingSkill = null;
+    this.passives.length = 0;
     this.cds.shot = 0;
     this.cds.spread = 0;
     this.cds.qi = 0;
@@ -368,7 +371,12 @@ export class Hero {
       this.speed = heroSpeed(this.level);
       this.armor += HERO.armorPerLevel;
       const passive = this.rng.pick(PASSIVES);
-      if (passive) passive.apply(this);
+      if (passive) {
+        passive.apply(this);
+        // 记下名字：鼠标悬在他身上时要列出"这局拿了哪几条美德"（v2.7）。
+        // 同名不重复记 —— 玩家关心"我有哪些"，不关心"我拿了几次"。
+        if (!this.passives.includes(passive.name)) this.passives.push(passive.name);
+      }
       hooks.onLevelUp(this.level, passive ? passive.name : '');
       need = xpNeed(this.level);
     }

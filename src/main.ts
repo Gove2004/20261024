@@ -4,7 +4,7 @@ import './style.css';
 // 走 JS 导入而不是 index.html 里的 <link>：Vite 构建时会把 html 里指向
 // /src/*.css 的 link 直接丢掉，样式表就静默消失了（踩过）。
 import './style-mobile.css';
-import { audio, updateAudio } from './audio';
+import { audio, startMusic, updateAudio } from './audio';
 import { FixedStepLoop } from './core/loop';
 import { createRng } from './core/rng';
 import { CAM_ZOOM, RUN, VIEW } from './content/config';
@@ -52,7 +52,10 @@ let hitTick = 0;
       // 召唤落地：一圈紫环 + 向上溅的碎屑，"从地里冒出来"比凭空出现好读
       scene.fx.ring(sx, sy, 26, 0x9b6bff, 3);
       scene.fx.burst(sx, sy, 0x9b6bff, 10, 30);
-      audio.onSpawn(def.star[slot] ?? 1);
+      const star = def.star[slot] ?? 1;
+      // ★4 以上单独一套低频落地音：大怪要有"重量"，否则五星精英和史莱姆听起来一样
+      if (star >= 4) audio.onSummonLarge(star);
+      else audio.onSpawn(star);
     },
     onDeath: (slot) => {
       const store = game.store;
@@ -90,6 +93,11 @@ let hitTick = 0;
         hitStop = Math.max(hitStop, 1);
         audio.onCritHit();
       }
+    },
+    onRoll: (fromX, fromY, toX, toY) => {
+      // 翻滚以前是"人突然出现在 130px 外"，没有任何过程 —— 必被读成 bug 或闪现
+      scene.fx.rollTrail(fromX, fromY, toX, toY);
+      audio.onRoll();
     },
     onSkillLabel: (text, kind) => {
       const color =
@@ -160,14 +168,18 @@ let hitTick = 0;
       audio.onPowerupWarning();
     },
     onPowerup: (options) => {
+      const wave = Math.floor((RUN.duration - game.timeLeft) / 30) + 1;
+      // 波次钟声先响，再开面板：声音比画面早 100ms 落，玩家会"先抬头"再读到三选一
+      audio.onWaveStart(wave);
       audio.onPowerupOpen();
       // 波次报幕放在面板弹出之前：玩家先读到"第 N 波"，再看到三选一，
       // 顺序反了就成了"面板突然糊你一脸"。
-      const wave = Math.floor((RUN.duration - game.timeLeft) / 30) + 1;
       hud.sceneBanner(`第 ${wave} 波`, '权能降临 · 3 选 1', 1200);
       hud.showPowerup(options);
     },
     onFinish: (won) => {
+      // 先让 BGM 让位给结算动机：两段音乐叠在一起会互相糊掉
+      audio.fadeOutMusic(1.2);
       audio.onFinish(won);
       hud.showResult(won, game);
     },
@@ -182,6 +194,8 @@ let hitTick = 0;
       hud.clearPerks();
       hud.hideOverlay();
       hud.setVisible(true);
+      // 开局就把 BGM 拉起来：标题页静音、进局才响，听觉上就是"开演了"
+      startMusic();
       // 分段报幕：先"魔王殿"，再"第 1 波 + 怎么玩"。副标题在 1.6s 后换掉，
       // 是因为玩家第一个动作发生在那儿 —— 报幕结束正好接上操作提示。
       hud.playIntro();
@@ -193,12 +207,14 @@ let hitTick = 0;
       hud.clearPerks();
       hud.hideOverlay();
       hud.setVisible(true);
+      startMusic();
       hud.playIntro();
     },
     onCard: (index) => game.selectCard(index),
     onPowerup: (id) => {
       game.choosePowerup(id);
       hud.hideOverlay();
+      audio.onPowerupChoose();
       audio.onPowerupClose();
     },
     onPause: () => {
@@ -245,17 +261,28 @@ let hitTick = 0;
   });
 
   canvas.addEventListener('pointermove', (event) => {
+    // 鼠标悬在锅巴身上 → 弹出他这局拿到的美德（七宗罪的反义词）。
+    // 判定放在"是否选了卡"之前，因为这是纯信息展示，随时都该能看。
+    const hoverWorld = toWorld(event.clientX, event.clientY);
+    const heroDist = Math.hypot(hoverWorld.x - game.hero.x, hoverWorld.y - game.hero.y);
+    if (heroDist < 56) {
+      const rect = canvas.getBoundingClientRect();
+      hud.showHeroTips(game.hero.passives, event.clientX - rect.left, event.clientY - rect.top);
+    } else {
+      hud.hideHeroTips();
+    }
+
     if (game.state !== 'playing' || game.selected < 0) {
       scene.setPreview(null);
       return;
     }
 
-    const point = toWorld(event.clientX, event.clientY);
-    scene.setPreview({ x: point.x, y: point.y, ok: game.placementError(point.x, point.y) === null });
+    scene.setPreview({ x: hoverWorld.x, y: hoverWorld.y, ok: game.placementError(hoverWorld.x, hoverWorld.y) === null });
   });
 
   canvas.addEventListener('pointerleave', () => {
     scene.setPreview(null);
+    hud.hideHeroTips();
   });
 
   window.addEventListener('keydown', (event) => {
@@ -342,6 +369,9 @@ let hitTick = 0;
 
   // 供冒烟测试 / 调试台使用
   (window as unknown as { __game?: Game }).__game = game;
+  // HUD 也暴露一份：悬停浮层这类纯 DOM 的东西没法只靠像素判断，
+  // 冒烟要能直接读"浮层里现在列了什么"
+  (window as unknown as { __hud?: Hud }).__hud = hud;
   // 截图工具用：相机平时跟着锅巴，看不到完整房间，改布局时没法验收
   (window as unknown as { __stage?: unknown }).__stage = stage;
   (window as unknown as { __dshReady?: boolean }).__dshReady = true;

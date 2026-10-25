@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+﻿import { describe, expect, it } from 'vitest';
 import {
   CARDS,
   CARD_CD,
@@ -103,9 +103,9 @@ describe('卡池', () => {
     expect(new Set(CARDS.map((card) => card.id)).size).toBe(5);
   });
 
-  it('卡牌堆叠：每张手牌可连放，且持续速率与旧冷却一致', () => {
-    expect(CARD_STACK.charges).toBeGreaterThanOrEqual(2);
-    expect(CARD_STACK.charges).toBeLessThanOrEqual(4);
+  it('卡牌堆叠：每张手牌 5 层，回充间隔等于旧冷却', () => {
+    // v2.7 用户指定："史莱姆上限 5，每到一个回填间隔就恢复 1 层"
+    expect(CARD_STACK.charges).toBe(5);
     // 通量回充间隔必须等于旧版 CD —— 堆叠只加爆发窗口，不该悄悄加强度
     expect(cardCdSeconds(3)).toBeCloseTo(CARD_CD.base + CARD_CD.linear * 3 + CARD_CD.quad * 9, 6);
   });

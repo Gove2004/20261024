@@ -1,4 +1,4 @@
-﻿import {
+import {
   HALL,
   HALL_CENTER,
   HERO,
@@ -40,7 +40,7 @@ export interface HandCard {
   xp: number;
 }
 
-export type PowerupKind = 'atk' | 'hp' | 'starcap' | 'armor' | 'weak' | 'charge' | 'star';
+export type PowerupKind = 'star' | 'charge' | 'hp' | 'atkspeed' | 'atk' | 'starcap' | 'heroSlow';
 
 export interface PowerupOption {
   readonly id: string;
@@ -63,13 +63,23 @@ const HAND_MAX_EXTRA = 2;
  * 都要重新理解一遍，决策成本超过信息量。现在每条要么直接改魔物数值，
  * 要么改"你能放多少"，没有重复的小加成。
  */
+/**
+ * 权能池 = **七宗罪**（v2.7）。
+ *
+ * 用户原话："全能就7个, 化用七宗罪"。之前是 6 条功能名（尖牙/厚壳/硬皮…），
+ * 玩家记不住"厚壳和硬皮有什么区别"。七宗罪的好处是**每个人都已经认识这七个词**，
+ * 于是记忆成本为零，只需要记"这一条改的是哪个数"。
+ *
+ * 数值都往上抬了一档：条目少了，每条就得更"够本"，否则三选一变成三选零。
+ */
 const POWERUPS: readonly PowerupOption[] = [
-  { id: 'atk', title: '尖牙', desc: '所有魔物攻击 +22%', kind: 'atk', value: 0.22 },
-  { id: 'hp', title: '厚壳', desc: '所有魔物生命 +22%', kind: 'hp', value: 0.22 },
-  { id: 'charge', title: '充能扩容', desc: '每张手牌 +2 层充能（能一口气放更多）', kind: 'charge', value: 2 },
-  { id: 'starcap', title: '星域扩张', desc: '星数上限 +10（能同时站更多魔物）', kind: 'starcap', value: 10 },
-  { id: 'armor', title: '硬皮', desc: '所有魔物护甲 +3（对他的每发伤害都减）', kind: 'armor', value: 3 },
-  { id: 'weak', title: '诅咒', desc: '锅巴攻击 −8%（他打得更慢更轻）', kind: 'weak', value: 0.08 },
+  { id: 'pride', title: '傲慢', desc: '选一张手牌 +1 星：属性大幅提升，之后召唤的都是更强的版本', kind: 'star', value: 1 },
+  { id: 'greed', title: '贪婪', desc: '每张手牌 +2 层充能：能一口气放更多', kind: 'charge', value: 2 },
+  { id: 'gluttony', title: '暴食', desc: '所有魔物生命 +28%', kind: 'hp', value: 0.28 },
+  { id: 'lust', title: '色欲', desc: '所有魔物攻速 +20%', kind: 'atkspeed', value: 0.2 },
+  { id: 'wrath', title: '暴怒', desc: '所有魔物攻击 +28%', kind: 'atk', value: 0.28 },
+  { id: 'envy', title: '嫉妒', desc: '星数上限 +12：能同时站更多魔物', kind: 'starcap', value: 12 },
+  { id: 'sloth', title: '懒惰', desc: '锅巴移速 −12%、攻速 −10%：让他拖着步子走', kind: 'heroSlow', value: 0.12 },
 ];
 
 /**
@@ -79,13 +89,7 @@ const POWERUPS: readonly PowerupOption[] = [
  * 根本不知道有啥用"—— 因为星数是"消耗"（占星数上限）却看不出收益。
  * 现在把**收益**写在最前面，并明确它会立刻作用于已放置的同类魔物。
  */
-const STAR_UPGRADE: PowerupOption = {
-  id: 'star',
-  title: '卡牌升星',
-  desc: '选一张手牌 +1 星：属性 ×星级大幅提升，之后召唤的都是更强的版本',
-  kind: 'star',
-  value: 1,
-};
+
 
 /** 渲染层/UI 需要监听的事件。游戏逻辑不直接碰 DOM 与 Pixi。 */
 export interface GameEvents {
@@ -94,6 +98,8 @@ export interface GameEvents {
   onHeroHurt(amount: number): void;
   /** 打中魔物的伤害数字（上帝视角里"谁在掉血"必须一眼看得出来） */
   onMonsterHit(x: number, y: number, amount: number, crit: boolean): void;
+  /** 翻滚位移：渲染层要画残影/尘土，否则看起来就是"闪现"（用户原话） */
+  onRoll(fromX: number, fromY: number, toX: number, toY: number): void;
   /** 技能名飘字：剑气 / 落雷 / 翻滚 / 干粮 */
   onSkillLabel(text: string, kind: 'qi' | 'bomb' | 'roll' | 'heal'): void;
   onHeroLevel(level: number, passive: string): void;
@@ -165,6 +171,8 @@ export class Game {
   private atkSpeedStack = 0;
   private cdStack = 0;
   private armorStack = 0;
+  /** 攻速倍率（色欲叠层）：只影响魔物出手间隔，不影响移速 */
+  private atkSpeedMul = 1;
 
   private powerupTimer: number = POWERUP.interval;
   /** 权能前摇剩余秒数（>0 表示预告中，世界还在跑） */
@@ -222,6 +230,7 @@ export class Game {
     this.atkSpeedStack = 0;
     this.cdStack = 0;
     this.armorStack = 0;
+    this.atkSpeedMul = 1;
     this.powerupTimer = POWERUP.interval;
     this.powerupWindup = 0;
     this.pendingPowerup = null;
@@ -294,12 +303,25 @@ export class Game {
 
     this.updateAoe(dt);
 
+    // 充能回填：**计时器一直在走，放置不会重置它**（v2.7 修的就是这条）。
+    // 旧实现里 place() 会把 cd 顶回满值，于是"放得越快回得越慢"，
+    // 玩家体感就是"明明有次数却永远在等"——这就是他说的卡手。
     for (const card of this.hand) {
-      if (card.charges >= card.maxCharges) continue;
+      if (card.charges >= card.maxCharges) {
+        // 满的时候计时归零：这样第一次放出去之后，第一个回填间隔是从此刻开始算的
+        card.cd = 0;
+        continue;
+      }
       card.cd -= dt;
       if (card.cd > 0) continue;
       card.charges += 1;
-      card.cd = card.charges < card.maxCharges ? this.cardCd(card.star) : 0;
+      if (card.charges >= card.maxCharges) {
+        card.cd = 0;
+      } else {
+        // 用 += 而不是 =：把这一帧多出来的时间带到下一次回填里，
+        // 否则每补一层都会悄悄丢掉最多 1/60 秒，长局里累积成肉眼可见的"回得慢"。
+        card.cd += this.cardCd(card.star);
+      }
     }
 
     const occupied = this.store.occupiedStars();
@@ -534,10 +556,12 @@ export class Game {
       this.events.onSpawn(slot);
     }
 
-    // 充能：放一次扣一层，**不进入冷却**。用光之前可以连着放同一张卡。
-    // 回充在 step() 里独立走，所以持续召唤速率仍然等于旧冷却 —— 只多了爆发窗口。
+    // 充能：放一次扣一层，**放置不进入冷却、也不重置回填计时**。
+    // 用光之前可以连着放同一张卡；回填在 step() 里按固定节拍一直走。
     card.charges = Math.max(0, card.charges - 1);
-    if (card.cd <= 0) card.cd = this.cardCd(card.star);
+    if (card.maxCharges > 0 && card.cd <= 0 && card.charges < card.maxCharges) {
+      card.cd = this.cardCd(card.star);
+    }
     this.gainCardXp(card, count);
     this.selected = -1;
     this.store.refreshActive();
@@ -566,14 +590,17 @@ export class Game {
     this.store.atkInterval[slot] = (this.store.atkInterval[slot] ?? 1) / (1 + 0.1 * this.atkSpeedStack);
     // 护甲是加法叠层：新召唤的怪也要吃到已经选过的权能
     this.store.armor[slot] = (this.store.armor[slot] ?? 0) + 2 * this.armorStack;
+    this.store.atkInterval[slot] = (this.store.atkInterval[slot] ?? 1) / this.atkSpeedMul;
   }
 
   // ---------------------------------------------------------------- 权能
 
   private openPowerup(): void {
+    // 七宗罪里抽 3 个，互不重复（v2.7）。以前是"升星固定 + 2 随机"，
+    // 现在升星就是「傲慢」，和其他六条一样参与抽签 —— 池子永远只有 7 条。
     const pool = [...POWERUPS];
-    const options: PowerupOption[] = [STAR_UPGRADE];
-    for (let i = 0; i < 2 && pool.length > 0; i += 1) {
+    const options: PowerupOption[] = [];
+    for (let i = 0; i < 3 && pool.length > 0; i += 1) {
       const idx = Math.floor(this.rng.next() * pool.length);
       const picked = pool.splice(idx, 1)[0];
       if (picked) options.push(picked);
@@ -608,6 +635,16 @@ export class Game {
       case 'hp':
         this.hpStack += 1;
         break;
+      case 'atkspeed':
+        // 攻速走"间隔除法"：乘算叠加不会像加成那样越叠越没用，
+        // 而且立刻重算场上已有的魔物，玩家能马上看到它们打得更密。
+        this.atkSpeedMul *= 1 + picked.value;
+        for (let i = 0; i < this.store.activeCount; i += 1) {
+          const slot = this.store.active[i];
+          if (slot === undefined) continue;
+          this.store.atkInterval[slot] = (this.store.atkInterval[slot] ?? 1) / (1 + picked.value);
+        }
+        break;
       case 'charge':
         // 充能扩容：直接让每张牌能连放的次数变多，手感变化比数值更直观
         for (const card of this.hand) {
@@ -621,17 +658,10 @@ export class Game {
       case 'star':
         this.upgradeRandomCard();
         break;
-      case 'armor':
-        this.armorStack += 1;
-        for (let i = 0; i < this.store.activeCount; i += 1) {
-          const slot = this.store.active[i];
-          if (slot === undefined) continue;
-          this.store.armor[slot] = (this.store.armor[slot] ?? 0) + picked.value;
-        }
-        break;
-      case 'weak':
-        // 直接改他的攻击：这是唯一会"反向成长"的权能，玩家能明显感到他在变弱
-        this.hero.gainAtk(-picked.value);
+      case 'heroSlow':
+        // 反向成长：只改他的移速与出手频率，"让对手变笨"比"让自己变强"更有实感
+        this.hero.moveMul *= 1 - picked.value;
+        this.hero.skillCdMul *= 1 + picked.value * 0.8;
         break;
     }
 
@@ -733,7 +763,7 @@ export class Game {
     },
     onRoll: (fromX, fromY, toX, toY) => {
       this.statRoll += 1;
-      this.events.onRangedShot(-1, fromX, fromY, toX, toY);
+      this.events.onRoll(fromX, fromY, toX, toY);
       this.events.onSkillLabel('翻滚', 'roll');
     },
     onLevelUp: (level, passive) => {

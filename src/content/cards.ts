@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 卡池定义。
  *
  * 设计约定（见策划案 §4）：
@@ -116,7 +116,7 @@ export const CARD_CD = { base: 2.5, linear: 1.55, quad: 0.05 } as const;
  * 于是「一口气把 4 层全砸在同一个位置」变成了一个真实可用的战术动作。
  * 持续召唤速率不变（回充间隔 = 旧冷却），所以数值曲线不会被推翻，见 §7。
  */
-export const CARD_STACK = { charges: 4 } as const;
+export const CARD_STACK = { charges: 5 } as const;
 
 /**
  * 卡牌等级：放得越多，这张卡越强。
