@@ -1,5 +1,5 @@
-import { CARDS, cardCdSeconds } from '../content/cards';
-import { RUN, VIEW, xpNeed } from '../content/config';
+﻿import { CARDS, cardCdSeconds } from '../content/cards';
+import { APP, RUN, VIEW, xpNeed } from '../content/config';
 import { PASSIVE_POOL } from '../content/heroSkills';
 import type { Game, HandCard, PowerupOption } from '../gameplay/game';
 
@@ -144,6 +144,9 @@ export class Hud {
       </div>
       <button class="btn-pause" data-pause title="暂停 (Space)">❚❚</button>
       <button class="btn-mute" data-mute title="静音 (M)">🔊</button>
+      <!-- 角落版本角标：常驻但不抢视线（opacity 0.42、pointer-events: none）。
+           放右下角是因为那里没有 HUD 元素，只在暂停/静音按钮之外的空地上 -->
+      <span class="ver-tag" data-ver-tag>${APP.version}</span>
       <div class="levelup" data-levelup hidden>
         <b data-levelup-level>锅巴 Lv.2</b>
         <span data-levelup-passive>获得：力量 +8%</span>
@@ -652,8 +655,9 @@ export class Hud {
     this.overlayEl.className = 'overlay is-open';
     this.overlayEl.innerHTML = `
       <div class="panel title-panel">
+        <span class="ver-badge" data-ver>${APP.version}</span>
         <img class="title-hero" src="${import.meta.env.BASE_URL}art/guoba.png" alt="勇者锅巴" />
-        <h1 class="game-title">锅巴必须死</h1>
+        <h1 class="game-title">${APP.title}</h1>
         <p class="subtitle">反向肉鸽 · 你是魔王，他是勇者锅巴</p>
         <ul class="rules">
           <li>你没有身体，也打不了 —— 只能<b>把魔物放到画面里</b></li>

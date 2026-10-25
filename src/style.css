@@ -1,4 +1,4 @@
-/* ── 全局调色板（与 docs/GAME_DESIGN.md §8.1 保持一致）────────────
+﻿/* ── 全局调色板（与 docs/GAME_DESIGN.md §8.1 保持一致）────────────
    深渊底色 #0B0A14 / #151226   大厅石 #2E2740 / #43395C
    熔岩     #FF6B4A / #FFB347   血色   #FF3B5C
    锅巴皮甲 #8A6A4A / #D8C8B0   钢刃   #9AA3AD                */
@@ -1730,4 +1730,57 @@ body {
   font-size: 12px;
   line-height: 1.55;
   color: #b0a8cc;
+}
+
+/* ---- 版本角标（v2.7）：名字定案 + 版本号 ----
+   两处都要，用途不同：
+   · 标题页的 .ver-badge 是"这是哪一版"的正式标注，压在面板右上角；
+   · 局内的 .ver-tag 是给截图/录屏留的记号（比赛要求能看出交付版本），
+     所以它必须**常驻但不抢视线** —— opacity 0.4、不接指针事件、
+     放在右上角暂停键下方，避开所有 HUD 元素。
+   数字来自 config.ts 的 APP.version，改版只改一处。 */
+.ver-badge {
+  position: absolute;
+  top: 16px;
+  right: 18px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: #ffd9a0;
+  background: rgba(255, 179, 71, 0.12);
+  border: 1px solid rgba(255, 179, 71, 0.45);
+  pointer-events: none;
+}
+
+.ver-tag {
+  position: absolute;
+  right: 18px;
+  top: 62px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-family: ui-monospace, 'Cascadia Code', monospace;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: rgba(222, 215, 242, 0.5);
+  background: rgba(11, 10, 20, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  opacity: 0.75;
+  pointer-events: none;
+  user-select: none;
+}
+
+@media (max-width: 560px) {
+  .ver-badge {
+    top: 8px;
+    right: 10px;
+    font-size: 10px;
+  }
+
+  .ver-tag {
+    right: 10px;
+    top: 54px;
+    font-size: 9px;
+  }
 }

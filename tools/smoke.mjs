@@ -119,6 +119,29 @@ const canvasInfo = await page.evaluate(() => {
 });
 
 check('WebGL 上下文', canvasInfo.ok && canvasInfo.context !== 'none', canvasInfo.context);
+
+// 名字与版本角标：用户定案"就叫《锅巴必须死》，加个版本号角标"
+const branding = await page.evaluate(() => ({
+  title: document.querySelector('.game-title')?.textContent?.trim() ?? '',
+  docTitle: document.title,
+  badge: document.querySelector('[data-ver]')?.textContent?.trim() ?? '',
+  badgeVisible: (() => {
+    const el = document.querySelector('[data-ver]');
+    if (el === null) return false;
+    const r = el.getBoundingClientRect();
+    return r.width > 0 && r.height > 0;
+  })(),
+}));
+check(
+  '标题页写着《锅巴必须死》',
+  branding.title === '锅巴必须死' && branding.docTitle.includes('锅巴必须死'),
+  `${branding.title} / ${branding.docTitle}`,
+);
+check(
+  '标题页有版本号角标',
+  branding.badgeVisible && /^v\d+\.\d+$/.test(branding.badge),
+  `角标=${branding.badge || '(空)'}`,
+);
 await page.screenshot({ path: join(SHOTS, '01-title.png') });
 
 // ---- 开始游戏 ----
@@ -143,6 +166,26 @@ const placed = await page.evaluate(() => {
   return { ok, before, after: g.store.activeCount, selected: g.selected };
 });
 check('选卡 + 召唤成功', placed.ok === true && placed.after > placed.before, `active=${placed.after}`);
+
+// 局内版本角标：常驻、不挡操作（pointer-events: none），且和标题页是同一个版本号
+const verTag = await page.evaluate(() => {
+  const el = document.querySelector('[data-ver-tag]');
+  if (el === null) return { ok: false };
+  const r = el.getBoundingClientRect();
+  const cs = getComputedStyle(el);
+  return {
+    ok: r.width > 0 && r.height > 0,
+    text: el.textContent?.trim() ?? '',
+    noPointer: cs.pointerEvents === 'none',
+    // 角标不能挂在屏幕外，也不能盖住"再来一局"/暂停按钮所在区域
+    inside: r.right <= window.innerWidth && r.bottom <= window.innerHeight,
+  };
+});
+check(
+  '局内常驻版本角标（不抢操作）',
+  verTag.ok === true && verTag.noPointer === true && verTag.inside === true && verTag.text === branding.badge,
+  `${verTag.text} / 不接指针=${verTag.noPointer} / 在屏内=${verTag.inside}`,
+);
 
 // ---- 充能模型：连放不卡手（用户反馈"卡牌依旧卡手"的验收点） ----
 const charges = await page.evaluate(() => {
@@ -241,18 +284,20 @@ const heroTips = await page.evaluate(() => {
   const hudRef = window.__hud;
   if (!hudRef) return { ok: false, reason: 'no __hud' };
   window.__game.hero.passives.length = 0;
-  window.__game.hero.passives.push('谦逊', '勤勉');
+  window.__game.hero.passives.push('谦逊', '勤勉', '宽容');
   hudRef.showHeroTips(window.__game.hero.passives, 640, 360);
   const tip = document.querySelector('.card-tip');
   const rows = document.querySelectorAll('.hero-tip-row').length;
   const text = tip?.textContent ?? '';
   const visible = tip !== null && tip.hidden === false && tip.classList.contains('is-hero');
-  hudRef.hideHeroTips();
   return { visible, rows, text };
 });
+// 截图留档：浮层好不好看必须看图才能判断
+await page.screenshot({ path: join(SHOTS, '19-hero-tips.png') });
+await page.evaluate(() => window.__hud.hideHeroTips());
 check(
   '悬停锅巴能看到他的天赋（且写明是七宗罪的反义词）',
-  heroTips.visible === true && heroTips.rows === 2 && heroTips.text.includes('反 傲慢'),
+  heroTips.visible === true && heroTips.rows === 3 && heroTips.text.includes('反 傲慢'),
   `行数=${heroTips.rows} / ${heroTips.text?.slice(0, 40) ?? ''}`,
 );
 
