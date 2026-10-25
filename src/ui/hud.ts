@@ -773,7 +773,15 @@ export class Hud {
     const done = this.tutOnDone;
     this.tutEl.hidden = true;
     this.tutOnDone = null;
+    // 跨模块信号：剧情对白要等教程讲完再开口，否则两段文字会叠在同一块屏幕上
+    //（交接板上 GPT 明确要一个"教程完成/占屏结束"的信号，这里就是那个信号）
+    document.dispatchEvent(new CustomEvent('guoba:tutorial-done'));
     done?.();
+  }
+
+  /** 教程是否正在占屏（剧情/对白接入方可以用它决定要不要等一等）。 */
+  public isTutorialOpen(): boolean {
+    return this.tutEl.hidden === false;
   }
 
   private renderTutorialStep(): void {
