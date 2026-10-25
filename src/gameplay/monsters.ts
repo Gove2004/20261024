@@ -214,7 +214,7 @@ export function updateMonsters(store: MonsterStore, hero: Hero, dt: number, hook
       // 巨大蜘蛛：多形态。贴脸时改"咬"（更疼、不出弹道），中远距离才吐丝。
       // 这是本卡"精英"的地方 —— 他不能靠"站远一点"躲开，也不能靠"贴上去"压制。
       if (abi === ABI_SUMMON && dist < ELITE_MELEE_RANGE) {
-        hooks.hitHero((store.atk[slot] ?? 1) * 1.7, slot);
+        hooks.hitHero((store.atk[slot] ?? 1) * 2.2, slot);
         hooks.onWarn(store.x[slot] ?? x, store.y[slot] ?? y, ELITE_MELEE_RANGE * 0.7, 0.25);
       } else {
         if (range > 120) hooks.onRangedShot(slot, x, y, hero.x, hero.y);

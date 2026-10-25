@@ -97,11 +97,16 @@ export const HERO = {
   hpPerLevel: 1180,
   /** 每级自然增长的护甲（%减伤，见 Hero.takeDamage） */
   armorPerLevel: 1,
+  /** v2.10：每秒自动回血（替代吸血）：基础 0.2%/s，击杀回 0.4% */
+  regenPerSec: 0.0015,
+  killHealBase: 0.001,
   baseAtk: 26,
   atkPerLevel: 7,
   // v2.7：用户反馈"移速太慢，老是被贴脸"。史莱姆扑击 ×2.4、蝙蝠俯冲 ×2.2 之后，
   // 108 的移速连拉扯都做不出来 —— 提到 132，并把封顶从 152 抬到 186（相当于一直比蝙蝠慢一点）。
   baseSpeed: 132,
+  /** v2.10：锅巴整体提速 10%（用户要求），做在公式里而不是改 base/max，等级曲线不变形 */
+  speedScale: 1.1,
   speedPerLevel: 3.0,
   maxSpeed: 186,
   baseAtkInterval: 1 / 1.1,
@@ -125,7 +130,7 @@ export const XP = { base: 60, per: 62, perStar: 8 } as const;
  * 8 局模拟里他平均剩 81% 血结束 —— 玩家完全没有"快赢了"的紧张感。
  * 这个倍率补的就是"看起来只围住 3 只，实际是整群在打"的差额。
  */
-export const MONSTER_DMG_MUL = 1.7;
+export const MONSTER_DMG_MUL = 2.2;
 
 /** 击杀奖励（评分用）。 */
 export const SCORE = { perSecondLeft: 12, perPeakStar: 50, perKill: 4 } as const;
@@ -148,5 +153,5 @@ export function heroAtk(level: number): number {
 }
 
 export function heroSpeed(level: number): number {
-  return Math.min(HERO.baseSpeed + HERO.speedPerLevel * (level - 1), HERO.maxSpeed);
+  return Math.min(HERO.baseSpeed + HERO.speedPerLevel * (level - 1), HERO.maxSpeed) * HERO.speedScale;
 }

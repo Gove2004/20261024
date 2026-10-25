@@ -81,12 +81,11 @@ const PASSIVES: readonly Passive[] = [
   {
     name: '节制',
     apply: (h) => {
-      // v2.8 用户反馈「吸血太强了, 根本打不死锅巴」。
-      // 原值 4% 吸血 + 3% 最大生命/击杀，叠 3 次就是 9%/击杀 —— 一局 180 只怪
-      // 等于他白拿 1600% 最大生命，血条永远回满。现在砍到 2% / 0.8%，并加总上限：
-      // 美德可以叠，但"叠到无敌"这条路必须封死（上限 8% 吸血 / 2% 击杀回血）。
-      h.lifesteal = Math.min(0.08, h.lifesteal + 0.02);
-      h.killHeal = Math.min(0.02, h.killHeal + 0.008);
+      // v2.10 用户拍板：「后期怪一多，锅巴吸血直接满了，改为自动每秒回血 + 击败回血」。
+      // 伤害转治疗这条路整个删掉 —— 它天然和"怪多"线性挂钩，怎么调都救不回来。
+      // 现在只有两条慢速回血：每秒一点点，击杀回一点点，都有上限，叠不出一只不死的单位。
+      h.regen = Math.min(0.012, h.regen + 0.003);
+      h.killHeal = Math.min(0.015, h.killHeal + 0.005);
     },
   },
   {
@@ -148,7 +147,8 @@ export class Hero {
   public speed: number = HERO.baseSpeed;
   public armor = 0;
   public crit = 0.05;
-  public lifesteal = 0;
+  /** 每秒自动回血（最大生命的比例/秒）。v2.10 用它替代"伤害转治疗"的吸血 */
+  public regen = 0;
 
   /** 被动带来的永久倍率（等级公式重算时要乘回去） */
   public hpMul = 1;
@@ -275,7 +275,7 @@ export class Hero {
     this.speed = HERO.baseSpeed;
     this.armor = 0;
     this.crit = 0.05;
-    this.lifesteal = 0;
+    this.regen = HERO.regenPerSec;
     this.hpMul = 1;
     this.atkMul = 1;
     this.state = 'seek';
@@ -300,7 +300,7 @@ export class Hero {
     this.heavyMul = 1;
     this.spreadExtra = 0;
     this.shotPierce = 0;
-    this.killHeal = 0;
+    this.killHeal = HERO.killHealBase;
     this.skillCdMul = 1;
     this.executeMul = 0;
     this.lowHpRage = 0;
@@ -402,6 +402,11 @@ export class Hero {
     if (!this.alive) return;
 
     this.flash = Math.max(0, this.flash - dt * 6);
+    // v2.10：自动每秒回血（替代伤害吸血）。上限仍是满血，
+    // 数值刻意小（0.2%/秒起）：它只负责"别被杂兵磨死"，不负责把血条拉满。
+    if (this.regen > 0 && this.hp < this.maxHp) {
+      this.hp = Math.min(this.maxHp, this.hp + this.maxHp * this.regen * dt);
+    }
     this.hurtTimer = Math.max(0, this.hurtTimer - dt);
     this.retreatLock = Math.max(0, this.retreatLock - dt);
     this.attackTimer = Math.max(0, this.attackTimer - dt);
@@ -751,7 +756,6 @@ export class Hero {
     // 减法会让高护甲怪直接免疫（实测 4 点伤害），"堆数量"就变成唯一解。
     const dmg = Math.max(1, raw * (60 / (60 + (store.armor[slot] ?? 0))));
     hooks.hitMonster(slot, dmg, crit);
-    if (this.lifesteal > 0) this.hp = Math.min(this.maxHp, this.hp + dmg * this.lifesteal);
     return dmg;
   }
 
@@ -1084,17 +1088,10 @@ export class Hero {
     let dirY = 0;
     let wantMove = false;
 
-    // 蓄力时站定：这是玩家唯一能"贴上去"的窗口。
-    // 会边跑边射的远程单位在测试里几乎不掉血（8 局平均剩 87% 血），必须给他这个破绽。
-    if (this.pendingSkill !== null) {
-      this.vx = damp(this.vx, 0, AI.accelK * 2, dt);
-      this.vy = damp(this.vy, 0, AI.accelK * 2, dt);
-      this.x += this.vx * dt;
-      this.y += this.vy * dt;
-      this.moving = false;
-      this.confineToArena();
-      return;
-    }
+    // v2.10：**攻击时不再站定**（用户要求"攻击时不再静止"）。
+    // 以前蓄力整段时间速度归零，玩家唯一的破绽窗口就是"他开枪那一秒"。
+    // 现在改成"边打边走"：速度压到 55%，站位还在变，但不会像原地钉住的靶子。
+    const casting = this.pendingSkill !== null;
 
     if (this.target >= 0) {
       const tx = store.x[this.target] ?? this.x;
@@ -1156,6 +1153,7 @@ export class Hero {
     const speedMul =
       (this.enraged ? AI.enrageSpeed : 1) *
       (this.state === 'retreat' ? 1.1 : 1) *
+      (casting ? 0.55 : 1) *
       (this.target >= 0 && distance(this.x, this.y, store.x[this.target] ?? this.x, store.y[this.target] ?? this.y) < AI.panicRange
         ? AI.kiteSpeed
         : 1);

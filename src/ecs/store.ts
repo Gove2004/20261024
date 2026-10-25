@@ -1,4 +1,4 @@
-﻿import { abilityCode, behaviorCode } from '../content/cards';
+import { abilityCode, behaviorCode } from '../content/cards';
 import type { CardDef } from '../content/cards';
 
 /**
@@ -25,6 +25,13 @@ export class MonsterStore {
   public readonly range = new Float32Array(MAX_MONSTERS);
   public readonly radius = new Float32Array(MAX_MONSTERS);
   public readonly star = new Float32Array(MAX_MONSTERS);
+  /**
+   * 这个单位占多少星数预算（v2.10）。
+   * 和 `star` 分开："战力星级"与"占位成本"不再是同一件事 ——
+   * 蝙蝠群一次落 3 只但共用一颗星（只有第一只计费），
+   * 巨大蜘蛛生的小蜘蛛完全免费。渲染与数值仍然读 `star`。
+   */
+  public readonly cost = new Float32Array(MAX_MONSTERS);
   public readonly flash = new Float32Array(MAX_MONSTERS);
   public readonly slowT = new Float32Array(MAX_MONSTERS);
   public readonly slowFactor = new Float32Array(MAX_MONSTERS);
@@ -105,6 +112,7 @@ export class MonsterStore {
     this.range[slot] = def.range;
     this.radius[slot] = def.radius * (1 + 0.055 * (star - 1));
     this.star[slot] = star;
+    this.cost[slot] = star;
     this.flash[slot] = 0;
     this.slowT[slot] = 0;
     this.slowFactor[slot] = 1;
@@ -153,7 +161,7 @@ export class MonsterStore {
     let sum = 0;
     for (let i = 0; i < this.activeCount; i += 1) {
       const slot = this.active[i];
-      if (slot !== undefined) sum += this.star[slot] ?? 0;
+      if (slot !== undefined) sum += this.cost[slot] ?? 0;
     }
     return sum;
   }

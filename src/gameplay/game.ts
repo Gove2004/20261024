@@ -432,6 +432,8 @@ export class Game {
       store.abT[child] = 0;
       store.behT[child] = 0;
       store.radius[child] = (store.radius[child] ?? 30) * 0.5;
+      // 小蜘蛛不占星数预算（用户要求）：它们是母体特性的产物，不是玩家花的星
+      store.cost[child] = 0;
       this.applyStacks(child);
       this.placedTotal += 1;
       this.events.onSpawn(child);
@@ -546,7 +548,9 @@ export class Game {
     const def = CARDS[card.defIdx];
     if (!def) return '未知卡牌';
 
-    const cost = card.star * summonCount(def);
+    // v2.10：一次召唤只按卡面星级算一份星数（哪怕落 3 只蝙蝠）。
+    // 以前是 star * units，蝙蝠 2★ 三只直接吃 6 星，一张卡就能把预算吃光。
+    const cost = card.star;
     if (this.occupiedStars + cost > this.starCap) {
       return `星数已满 ${this.occupiedStars}/${this.starCap}`;
     }
@@ -600,6 +604,8 @@ export class Game {
       this.store.maxHp[slot] = (this.store.maxHp[slot] ?? 0) * levelMul;
       this.store.hp[slot] = this.store.maxHp[slot] ?? 0;
       this.store.atk[slot] = (this.store.atk[slot] ?? 0) * levelMul;
+      // 只有第一只计费：多单位卡"共用一颗星"（用户要求）
+      this.store.cost[slot] = i === 0 ? card.star : 0;
       this.applyStacks(slot);
       this.placedTotal += 1;
       this.events.onSpawn(slot);
