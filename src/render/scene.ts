@@ -1,4 +1,4 @@
-﻿import { Container, Graphics, Sprite, Texture, TilingSprite } from 'pixi.js';
+import { Container, Graphics, Sprite, Texture, TilingSprite } from 'pixi.js';
 import { CAM_ZOOM, HALL, HALL_CENTER, HALL_WALL, MAGIC_CIRCLE, PILLARS, PLACE, THRONE, VIEW, WORLD } from '../content/config';
 import { CARDS, type CardShape } from '../content/cards';
 import { COLOR } from '../content/palette';
@@ -151,7 +151,9 @@ export class Scene {
 
     const sprite = new Sprite(texture);
     sprite.anchor.set(0.5, 0.82);
-    const size = 118;
+    // v2.8 用户反馈「锅巴体形太大」：贴图 118 → 100。
+    // 只缩画面不缩判定（hitbox 在 gameplay 里），手感不变，视觉上把空间让给怪物。
+    const size = 100;
     sprite.width = size;
     sprite.height = size;
     this.heroBody.visible = false;
@@ -571,7 +573,9 @@ export class Scene {
           // anchor 压在脚底，这样 y 排序（zIndex = y）和分离力才对得上。
           const sprite = new Sprite(texture);
           sprite.anchor.set(0.5, 0.8);
-          const size = def.radius * 4.2;
+          // v2.8 用户反馈「怪物太小」：同星级整体放大约 18%（4.2 → 4.95），
+          // 让杂兵也从"地上一粒"变成能一眼看清的敌人；星级缩放仍在下面统一乘。
+          const size = def.radius * 4.95;
           sprite.width = size;
           sprite.height = size;
 

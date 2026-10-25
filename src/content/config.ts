@@ -9,7 +9,7 @@ import { clamp } from '../core/math';
  * 版本号写在常量里而不是各处分硬编码 —— 改版只改这一行，标题页和角落角标同时跟上，
  * 不会出现"标题写了 v2.7、角标还是 v2.6"这种一眼假的情况。
  */
-export const APP = { title: '锅巴必须死', version: 'v2.7' } as const;
+export const APP = { title: '锅巴必须死', version: 'v2.8' } as const;
 
 /** 设计分辨率（逻辑坐标系），实际屏幕等比缩放。 */
 export const VIEW = { w: 1280, h: 720 } as const;
@@ -90,8 +90,11 @@ export const PLACE = { minDistHero: 90, screenEdge: 36 } as const;
 
 /** 勇者基础属性与成长。 */
 export const HERO = {
-  baseHp: 18000,
-  hpPerLevel: 900,
+  // v2.8：砍掉吸血之后，模拟器 3 局全胜（117~190s 就把他打死了）。
+  // 上一版是"根本打不死"，这一版不能变成"闭眼都能打死" —— 血量抬 32%，
+  // 让一局的胜负重新落在"你放得够不够好"上，而不是"你放不放"。
+  baseHp: 23800,
+  hpPerLevel: 1180,
   /** 每级自然增长的护甲（%减伤，见 Hero.takeDamage） */
   armorPerLevel: 1,
   baseAtk: 26,

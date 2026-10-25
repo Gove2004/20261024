@@ -1,4 +1,4 @@
-﻿/* ── 全局调色板（与 docs/GAME_DESIGN.md §8.1 保持一致）────────────
+/* ── 全局调色板（与 docs/GAME_DESIGN.md §8.1 保持一致）────────────
    深渊底色 #0B0A14 / #151226   大厅石 #2E2740 / #43395C
    熔岩     #FF6B4A / #FFB347   血色   #FF3B5C
    锅巴皮甲 #8A6A4A / #D8C8B0   钢刃   #9AA3AD                */
@@ -1783,4 +1783,536 @@ body {
     top: 54px;
     font-size: 9px;
   }
+}
+
+/* ============================================================
+   v2.8 HUD 精简 + 新手教程 + 权能再放大
+   ------------------------------------------------------------
+   这一版 hud.ts 的结构变了三处，样式必须跟着变：
+   1) 顶部只剩「时间 + 锅巴血条 + 查看锅巴按钮」，经验条 / 基础属性 /
+      技能条全部搬进左上角的 .hero-info 折叠面板。顶部从"叠三层"变成
+      "一行高"，所以 v2.7 那个 scale(1.14) 的"放大找存在感"不再成立
+      （再放大只会把血条撑得比计时器还高），收敛到 1.04。
+   2) 卡牌说明（.card-tip）不再跟随鼠标，锚死在左下角：它是一段能一眼
+      读完的长文，跟着鼠标走会在手牌上来回抖，固定在左下角反而稳定、
+      也更像"资料卡"而不是"气泡提示"。
+   3) 新手教程是"整层挖洞 + 说明卡"：层本身不吃指针（教程期间世界是
+      暂停的，但玩家随时可能点"跳过"），只有卡片里的按钮吃指针。
+
+   z-index 层级（#ui / .hud 都没有建新的层叠上下文，所以是全局比较）：
+     手牌 / 星数 自动(0)  <  .hero-info 30  <  .scene-banner 60
+     <  .tutorial 70  <  .overlay 80  <  .card-tip 90
+   .overlay 以前没有 z-index，靠 DOM 顺序压住 HUD；加了教程层之后
+   "后出现的在下面"这条规律不再可靠，所以这里显式写死 80。
+   ============================================================ */
+
+/* ---- 2.8.1 顶部一行：时间 / 血条 / 查看锅巴 ------------------------------
+   1280×720 实测预算：timer ≈ 88 + gap 20 + hero-panel 420（缩放后视觉 437）
+   + gap 20 + 按钮 ≈ 74 = 622px，可用宽度 1240px → 不换行、也够不到右侧
+   绝对定位的静音(right:62) / 暂停(right:18) 两个 38px 方块。
+   gap 给 20 而不是 10：hero-panel 带 scale(1.04)，transform 不占布局，
+   会从左右各"吃"掉 8.4px，落地视觉间距 = 20 - 8.4 ≈ 11.6px ≥ 10px。 */
+.hud-top {
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  flex-wrap: nowrap;
+}
+
+/* v2.7 的 scale(1.14) + translateX(-6.14%) 是为"上下叠三层"补位移用的：
+   现在血条只占一行，1.14 会让它比计时器还高，把顶部顶出 14px 的安全区。
+   以中心为原点缩放不产生位移，所以不需要再补 translateX。 */
+.hero-panel {
+  margin: 0;
+  transform: scale(1.04);
+  transform-origin: center;
+}
+
+/* 「查看锅巴」是次级操作，做成描边小药丸紧贴血条右侧：
+   HUD 整体 pointer-events:none，按钮必须自己打开，否则点不到。 */
+.hero-info-toggle {
+  flex: 0 0 auto;
+  pointer-events: auto;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 179, 71, 0.38);
+  background: rgba(11, 10, 20, 0.72);
+  color: #ffd9a0;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.14s ease, border-color 0.14s ease, background 0.14s ease;
+}
+
+.hero-info-toggle:hover,
+.hero-info-toggle.is-on {
+  color: #fff3d4;
+  border-color: var(--lava-1);
+  background: rgba(255, 179, 71, 0.16);
+}
+
+/* ---- 2.8.2 左上角锅巴详情面板 ------------------------------------------
+   位置压在顶部 HUD 之下（hud 上边距 14 + 一行 ≈ 43 → 74 起才不压计时器）。
+   宽 288 是"两列属性刚好一行放一个短数字"的宽度，再宽就侵入战场。
+   高 ≤60vh + 内部滚动：真到七美德全解锁时内容会很长，但面板绝不能长成
+   一条竖到屏幕底的黑条（那会盖住左半战场）。 */
+.hero-info {
+  position: absolute;
+  left: 16px;
+  top: 74px;
+  z-index: 30;
+  width: 288px;
+  max-height: 60vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 13px 15px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 179, 71, 0.24);
+  background: linear-gradient(180deg, rgba(46, 39, 64, 0.94), rgba(11, 10, 20, 0.95));
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.66);
+  color: #ded7f2;
+  font-size: 12.5px;
+  scrollbar-width: thin;
+  /* 面板只读：不吃指针，否则鼠标滑到左上角就点不到脚下的地面了 */
+  pointer-events: none;
+}
+
+/* [hidden] 的 UA 规则是 display:none，但任何一条 display 声明都会覆盖它；
+   这里显式写死，避免以后有人给 .hero-info 加 display:flex 时"收不起来"。 */
+.hero-info[hidden] {
+  display: none;
+}
+
+.hero-info::-webkit-scrollbar {
+  width: 5px;
+}
+
+.hero-info::-webkit-scrollbar-thumb {
+  border-radius: 3px;
+  background: rgba(255, 179, 71, 0.3);
+}
+
+.hi-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  /* 18 是给 .hi-xp 里那条"飘在进度条上方"的百分比文字留的落点 */
+  margin-bottom: 18px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  font-size: 11.5px;
+  letter-spacing: 0.1em;
+  color: #8a83a8;
+}
+
+.hi-row b {
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  color: #ffd9a0;
+}
+
+/* 经验条只有 6px：百分比数字塞不进去，改成"贴在条子右上方"，
+   颜色用次要色，读得到但不抢等级的注意力。
+   注意这里**不能**加 overflow:hidden —— 那条百分比文字是绝对定位到条子上方的，
+   一旦裁剪就会被 6px 的条子整个裁掉（实测就是这么"消失"的）；
+   进度条自己的圆角由 .hi-xp-fill 的 border-radius 保证，不需要靠裁剪。 */
+.hi-xp {
+  position: relative;
+  height: 6px;
+  margin-bottom: 12px;
+  border-radius: 3px;
+  background: rgba(7, 6, 12, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.hi-xp-fill {
+  position: absolute;
+  inset: 1px auto 1px 1px;
+  width: 0;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #7be05f, #ffb347);
+  transition: width 0.2s linear;
+}
+
+.hi-xp span {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 3px);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  color: #c9c1e0;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 属性两列网格：一列一项，名字小灰字、数值亮色；
+   128px 一列刚好放下 "18000 / 18000" 这种最长的值。 */
+.hi-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 8px;
+  margin-bottom: 10px;
+}
+
+.hi-stat {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 3px 7px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.hi-stat i {
+  font-style: normal;
+  font-size: 10.5px;
+  color: #8a83a8;
+}
+
+.hi-stat b {
+  font-size: 12.5px;
+  font-weight: 800;
+  color: #f0e9ff;
+  font-variant-numeric: tabular-nums;
+}
+
+.hi-skills {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 9px;
+}
+
+.hi-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11.5px;
+}
+
+.hi-line i {
+  font-style: normal;
+  color: #8a83a8;
+}
+
+.hi-line b {
+  font-weight: 700;
+  color: #ffd9a0;
+  text-align: right;
+}
+
+.hi-perks {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 9px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+/* 每条美德：左边一根金色竖线代替分隔符，名字金、说明灰 */
+.hi-perk {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-left: 8px;
+  border-left: 2px solid rgba(255, 179, 71, 0.55);
+}
+
+.hi-perk b {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: #ffd9a0;
+}
+
+.hi-perk span {
+  font-size: 11px;
+  line-height: 1.45;
+  color: #b0a8cc;
+}
+
+.hi-empty {
+  padding: 5px 0 2px;
+  text-align: center;
+  font-size: 11.5px;
+  color: #6f6889;
+}
+
+/* ---- 2.8.3 新手教程：整层挖洞 + 说明卡 ---------------------------------
+   层必须 pointer-events:none —— 它 inset:0 铺满全屏，一旦吃指针，教程
+   "最后一页点开始"之前连地面都点不动（世界本来就暂停，但玩家会以为卡死）。 */
+.tutorial {
+  position: absolute;
+  inset: 0;
+  z-index: 70;
+  pointer-events: none;
+}
+
+/* 教程层默认 display:block，[hidden] 会被它顶掉，所以显式隐藏 */
+.tutorial[hidden] {
+  display: none;
+}
+
+/* 挖洞：9999px 扩散的内阴影把洞口以外全部压暗，inset 描边给出金色边。
+   宽高/left/top 全部由 JS 按真实控件位置算（hud.ts renderTutorialStep），
+   这里绝对不能写死尺寸，否则洞就框不住手牌。
+   刻意不加脉冲动画：box-shadow 的 9999px 扩散每帧重绘整屏，
+   软件渲染下会明显掉帧（项目里已有同类教训），只在换步时让洞平移。 */
+.tut-hole {
+  position: absolute;
+  border-radius: 12px;
+  box-shadow:
+    0 0 0 9999px rgba(6, 5, 12, 0.78),
+    0 0 0 2px rgba(255, 200, 120, 0.9) inset;
+  pointer-events: none;
+  transition:
+    left 0.18s ease,
+    top 0.18s ease,
+    width 0.18s ease,
+    height 0.18s ease;
+}
+
+.tut-hole[hidden] {
+  display: none;
+}
+
+/* 说明卡：left/top 由 JS 算（优先目标下方，放不下翻到上方），这里只管长相。
+   360px 宽 ≈ 每行 22 个汉字，四段说明最多 4 行，不至于长成一片黑。 */
+.tut-card {
+  position: absolute;
+  width: 360px;
+  padding: 15px 17px 13px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 179, 71, 0.42);
+  background: linear-gradient(180deg, rgba(46, 39, 64, 0.98), rgba(11, 10, 20, 0.99));
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.8),
+    0 0 0 1px rgba(255, 179, 71, 0.1) inset;
+  color: #ded7f2;
+  font-size: 14px;
+  line-height: 1.6;
+  pointer-events: auto;
+}
+
+.tut-title {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 15.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #ffd9a0;
+}
+
+.tut-text {
+  margin: 0 0 12px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #ded7f2;
+}
+
+/* 步骤号靠左、两个按钮靠右：跳过在下一步左边，是"可退出但不能误点"的排法 */
+.tut-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tut-step {
+  margin-right: auto;
+  font-size: 11.5px;
+  letter-spacing: 0.08em;
+  color: #8a83a8;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 跳过是纯文字按钮：它不该和"下一步"争视觉权重 */
+.tut-skip {
+  appearance: none;
+  border: 0;
+  background: none;
+  padding: 6px 8px;
+  font-family: inherit;
+  font-size: 12.5px;
+  color: #b0a8cc;
+  cursor: pointer;
+  transition: color 0.14s ease;
+}
+
+.tut-skip:hover {
+  color: #e8e2ff;
+  text-decoration: underline;
+}
+
+/* 复用 .btn-primary 的配色/贴图，但把标题页那套 13px 44px 的大内边距压回卡片尺度
+   （48px 左内边距是为了给贴图上的图标让位，卡片里没有图标）。
+   脉冲光环也关掉：卡片内部一圈 12px 扩散的阴影会糊到边框外。 */
+.tut-next {
+  min-width: 96px;
+  padding: 8px 20px;
+  font-size: 13.5px;
+  letter-spacing: 0.14em;
+  animation: none;
+}
+
+/* ---- 2.8.4 卡牌说明：固定左下角 + 放大 1.12 倍 -------------------------
+    位置定在"手牌上方那一条"的左端，而不是屏幕最底边：满 8 张手牌时手牌会
+    从 x≈119 铺到 x≈1161，贴着最底边的说明卡会压住最左边的 1~2 张牌 ——
+    正好是玩家正在挑的那两张。抬高 184px（手牌高度 + 底距）以后，说明卡
+    仍然在左下区域，但不碰手牌。
+    hud.ts 的 positionTooltip() 会清掉内联 top/left 并挂 .is-docked，
+    所以这里不需要 !important，两个选择器一起写只是兜底。 */
+.card-tip,
+.card-tip.is-docked {
+  position: fixed;
+  left: 18px;
+  /* 206 = 手牌高 142 + 底距 24 + 40 的呼吸位。
+     18 是"贴底边"的写法，但浮层自带 20px 外的投影，DOM 不重叠视觉上仍然蹭到手牌，
+     所以这里按"看得见"而不是"量得到"来留空。 */
+  bottom: 206px;
+  top: auto;
+  right: auto;
+  /* 420 是"读完不费劲"的上限；窄屏退回 36px 双边留白，别贴到边框上 */
+  width: min(420px, calc(100vw - 36px));
+  max-width: calc(100vw - 36px);
+  padding: 13px 16px 12px;
+  border-radius: 13px;
+  border: 1px solid rgba(255, 179, 71, 0.62);
+  box-shadow:
+    0 20px 56px rgba(0, 0, 0, 0.82),
+    0 0 0 1px rgba(255, 179, 71, 0.16) inset,
+    0 0 22px rgba(255, 179, 71, 0.14);
+  font-size: 13.5px;
+  line-height: 1.58;
+}
+
+/* 内部跟着放大 1.12 倍：只放大外框不放大字，读起来反而更空 */
+.tip-head b {
+  font-size: 17px;
+}
+
+.tip-tags i {
+  padding: 2px 8px;
+  font-size: 11px;
+}
+
+.tip-stats {
+  gap: 3px 11px;
+  font-size: 12px;
+}
+
+.tip-stats b {
+  font-size: 13.5px;
+}
+
+.tip-lv {
+  font-size: 11px;
+}
+
+.tip-foot {
+  font-size: 11.5px;
+}
+
+/* ---- 2.8.5 版本角标：右下角 --------------------------------------------
+   右上角现在是暂停/静音（38px 方块 + 14px 上边距），角标挤在那儿必然重叠；
+   右下角只有居中的手牌（1280 下右沿 ≈1161），right:16 落在 1224 之外，
+   天然不压任何 HUD。opacity 0.72 仍然"可以截图读到、但不会先被看到"。 */
+.ver-tag {
+  right: 16px;
+  bottom: 10px;
+  top: auto;
+  z-index: 5;
+  opacity: 0.72;
+  pointer-events: none;
+}
+
+/* ---- 2.8.6 权能三选一：再大一档 ---------------------------------------
+   1280×720 的面板预算（必须一行，不许折行）：
+     面板 1020 - 左右 padding 34×2 = 内容 952
+     3 张卡 × 300 + 2 × gap 22 = 944 ≤ 952 ✔（还剩 4px 余量）
+   所以 padding 从 v2.7 的 40 收到 34：保持 40 的话内容只有 940，
+   比 944 少 4px，flex-wrap 会把三张卡折成 2+1 —— 那正好是用户抱怨的
+   "选项比标题还矮"的反面。
+   ≤1200 时 94vw 已经开始吃掉面板宽度（94vw - 68 会小于 944），
+   那时把卡的最小宽降到 260（3×260 + 44 = 824）继续一行。 */
+.panel {
+  width: min(1020px, 94vw);
+  max-width: 94vw;
+  padding: 36px 34px 34px;
+}
+
+.powerup-row {
+  gap: 22px;
+  /* 显式 nowrap：宁可让卡被压到 min-width，也不允许折行把三选一变成 2+1 */
+  flex-wrap: nowrap;
+}
+
+.powerup-card {
+  flex: 1 1 300px;
+  min-width: 300px;
+  min-height: 170px;
+  padding: 28px 26px;
+}
+
+/* 说明越来越长（每条都写了机制），15.5/1.65 是"一屏读完三张"的下限 */
+.powerup-title {
+  font-size: 24px;
+}
+
+.powerup-desc {
+  font-size: 15.5px;
+  line-height: 1.65;
+}
+
+@media (max-width: 1200px) {
+  .powerup-card {
+    min-width: 260px;
+  }
+}
+
+/* ---- 2.8.7 标题页：紧凑规则 + 教程开关 -------------------------------- */
+.rules-tight {
+  gap: 6px;
+  margin-bottom: 14px;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+/* 一行可点的开关：checkbox 用项目金色做 accent-color，省掉自绘一个假开关。
+   面板是居中排版，所以左右用 auto 收成 fit-content，视觉才在正中。 */
+.tut-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: fit-content;
+  margin: 6px auto 18px;
+  font-size: 13px;
+  letter-spacing: 0.03em;
+  color: #b0a8cc;
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.14s ease;
+}
+
+.tut-toggle:hover {
+  color: #e8e2ff;
+}
+
+.tut-toggle input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: #ffb347;
+  cursor: pointer;
+}
+
+/* ---- 2.8.8 层级收口 --------------------------------------------------- */
+.overlay {
+  z-index: 80;
 }

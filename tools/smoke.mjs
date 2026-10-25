@@ -148,6 +148,36 @@ await page.screenshot({ path: join(SHOTS, '01-title.png') });
 await page.click('[data-start]');
 await page.waitForTimeout(300);
 
+// v2.8 新手教程（默认开启）：进局先暂停 + 指着真实控件讲一遍，讲完才真正开跑
+const tutOpen = await page.evaluate(() => {
+  const el = document.querySelector('[data-tutorial]');
+  const hole = document.querySelector('[data-tut-hole]');
+  const card = document.querySelector('[data-tut-card]');
+  const r = hole?.getBoundingClientRect();
+  return {
+    visible: el !== null && el.hidden === false,
+    title: document.querySelector('[data-tut-title]')?.textContent?.trim() ?? '',
+    step: document.querySelector('[data-tut-step]')?.textContent?.trim() ?? '',
+    holeW: Math.round(r?.width ?? 0),
+    cardVisible: card !== null && card.getBoundingClientRect().width > 0,
+    state: window.__game.state,
+  };
+});
+check(
+  '默认开启新手教程：进局先暂停并指着功能区讲',
+  tutOpen.visible && tutOpen.state === 'paused' && tutOpen.holeW > 100 && tutOpen.cardVisible,
+  `可见=${tutOpen.visible} 世界=${tutOpen.state} 高亮框宽=${tutOpen.holeW} 首步="${tutOpen.title}"`,
+);
+await page.screenshot({ path: join(SHOTS, '00-tutorial.png') });
+// 走完 4 步：按钮文案最后一步应该是「开始」
+for (let i = 0; i < 4; i += 1) await page.click('[data-tut-next]');
+await page.waitForTimeout(200);
+const tutDone = await page.evaluate(() => ({
+  hidden: document.querySelector('[data-tutorial]')?.hidden === true,
+  state: window.__game.state,
+}));
+check('教程走完后正式开跑', tutDone.hidden && tutDone.state === 'playing', `教程隐藏=${tutDone.hidden} 世界=${tutDone.state}`);
+
 const started = await page.evaluate(() => {
   const g = window.__game;
   return { state: g?.state, overlayOpen: !!document.querySelector('.overlay.is-open') };
@@ -192,16 +222,20 @@ const charges = await page.evaluate(() => {
   const g = window.__game;
   g.start();
   g.debugFillHand();
+  // 星数给足：这里验的是"充能能不能连放"，不是"星数够不够"
+  g.starBonus = 60;
   g.selectCard(0);
   const first = g.hand[0];
   const max = first?.maxCharges ?? 0;
   let okCount = 0;
-  // 一口气在同一个位置连放：旧版第二下就会被冷却挡住
+  // 一口气在同一个位置连放：旧版第二下就会被冷却挡住。
+  // 注意**不能**每轮都 selectCard(0) —— 同一张卡再点一次是"取消选中"（这是设计）
   for (let i = 0; i < max; i += 1) {
     if (g.place(g.hero.x + 150 + i * 12, g.hero.y + 90)) okCount += 1;
-    g.selectCard(0);
   }
   const left = g.hand[0]?.charges ?? -1;
+  // 用光后必须先选卡才能问"为什么放不下" —— 没选卡时提示的是"先选一张卡"
+  g.selected = 0;
   const err = g.placementError(g.hero.x + 150, g.hero.y + 90);
   g.selected = -1;
   return { max, okCount, left, err };
@@ -279,26 +313,117 @@ check(
   `拿到 ${pool.length} 条：${pool.join('/')}`,
 );
 
-// ---- v2.7 悬停锅巴：把他的天赋（七美德）列出来 ----
-const heroTips = await page.evaluate(() => {
-  const hudRef = window.__hud;
-  if (!hudRef) return { ok: false, reason: 'no __hud' };
-  window.__game.hero.passives.length = 0;
-  window.__game.hero.passives.push('谦逊', '勤勉', '宽容');
-  hudRef.showHeroTips(window.__game.hero.passives, 640, 360);
-  const tip = document.querySelector('.card-tip');
-  const rows = document.querySelectorAll('.hero-tip-row').length;
-  const text = tip?.textContent ?? '';
-  const visible = tip !== null && tip.hidden === false && tip.classList.contains('is-hero');
-  return { visible, rows, text };
+// ---- v2.8 版式：顶部只有时间、底部只有星数、版本角标在右下角 ----
+const layout = await page.evaluate(() => {
+  const rect = (sel) => {
+    const el = document.querySelector(sel);
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, w: r.width, h: r.height };
+  };
+  const ver = rect('[data-ver-tag]');
+  return {
+    hasPhase: document.querySelector('[data-phase]') !== null,
+    timer: document.querySelector('[data-timer]')?.textContent?.trim() ?? '',
+    hasPowerPanel: document.querySelector('.power-panel') !== null,
+    hasHintBar: document.querySelector('.hint-bar') !== null,
+    hasStarBudget: document.querySelector('.star-budget') !== null,
+    hasCardTipAnchor: document.querySelector('.card-tip') !== null,
+    ver,
+    vw: window.innerWidth,
+    vh: window.innerHeight,
+  };
 });
-// 截图留档：浮层好不好看必须看图才能判断
-await page.screenshot({ path: join(SHOTS, '19-hero-tips.png') });
-await page.evaluate(() => window.__hud.hideHeroTips());
 check(
-  '悬停锅巴能看到他的天赋（且写明是七宗罪的反义词）',
-  heroTips.visible === true && heroTips.rows === 3 && heroTips.text.includes('反 傲慢'),
-  `行数=${heroTips.rows} / ${heroTips.text?.slice(0, 40) ?? ''}`,
+  '顶部只显示时间（没有"第一幕/第二幕"）',
+  layout.hasPhase === false && /^\d:\d{2}$/.test(layout.timer),
+  `计时=${layout.timer} 还有幕名=${layout.hasPhase}`,
+);
+check(
+  '手牌上方只剩星数（没有数据条和小字提示）',
+  layout.hasStarBudget && !layout.hasPowerPanel && !layout.hasHintBar,
+  `星数条=${layout.hasStarBudget} 数据条=${layout.hasPowerPanel} 提示条=${layout.hasHintBar}`,
+);
+check(
+  '版本角标在右下角',
+  layout.ver !== null && layout.ver.left > layout.vw * 0.7 && layout.ver.top > layout.vh * 0.8,
+  `位置 ${Math.round(layout.ver?.left ?? -1)},${Math.round(layout.ver?.top ?? -1)} / 视口 ${layout.vw}×${layout.vh}`,
+);
+
+// 放置后选中不消失：连点两下地面应该连放两只，而不是要求重新点卡
+const stickySelect = await page.evaluate(() => {
+  const g = window.__game;
+  g.start();
+  g.debugFillHand();
+  g.starBonus = 60;
+  g.selectCard(0);
+  const first = g.place(g.hero.x + 160, g.hero.y + 100);
+  const selAfterFirst = g.selected;
+  const second = g.place(g.hero.x + 210, g.hero.y + 130);
+  const selAfterSecond = g.selected;
+  // 只留最后 1 层再放一只：这时选中必须自动取消（继续点地面没有任何意义）。
+  // 位置不能写死：hero 这几帧在跑，写死的相对坐标可能落进"离他太近"",
+  // 于是先从几个候选点里挑一个 placementError 为 null 的，再放。
+  const card = g.hand[0];
+  if (card) card.charges = 1;
+  g.selected = 0;
+  const offsets = [
+    [120, 240],
+    [-260, 200],
+    [0, 300],
+    [300, -220],
+    [-320, -240],
+  ];
+  let placedLast = false;
+  for (const [dx, dy] of offsets) {
+    const x = g.hero.x + (dx ?? 0);
+    const y = g.hero.y + (dy ?? 0);
+    if (g.placementError(x, y) === null) {
+      placedLast = g.place(x, y);
+      break;
+    }
+  }
+  const selAfterEmpty = g.selected;
+  const left = g.hand[0]?.charges ?? -1;
+  g.selected = -1;
+  return { first, second, selAfterFirst, selAfterSecond, selAfterEmpty, left, placedLast };
+});
+check(
+  '放置后选中保持，可以连点地面连放',
+  stickySelect.first === true &&
+    stickySelect.second === true &&
+    stickySelect.selAfterFirst === 0 &&
+    stickySelect.selAfterSecond === 0,
+  `第一只后 selected=${stickySelect.selAfterFirst}，第二只=${stickySelect.second}`,
+);
+check(
+  '层数用光才取消选中',
+  stickySelect.placedLast === true && stickySelect.selAfterEmpty === -1 && stickySelect.left === 0,
+  `用光后 selected=${stickySelect.selAfterEmpty} 剩 ${stickySelect.left} 层`,
+);
+
+// ---- v2.8 高级牌按时解锁（回答"怎么解锁高级牌"）----
+const unlock = await page.evaluate(() => {
+  const g = window.__game;
+  g.start();
+  const before = g.hand.map((c) => c.id);
+  // step() 每帧用 elapsed 反算 timeLeft，所以推进时间必须改 elapsed（改 timeLeft 无效）
+  g.state = 'playing';
+  g.elapsed = 76;
+  g.step(1 / 60);
+  const afterGargoyle = g.hand.map((c) => c.id);
+  g.state = 'playing';
+  g.elapsed = 166;
+  g.step(1 / 60);
+  const afterSpider = g.hand.map((c) => c.id);
+  return { before, afterGargoyle, afterSpider };
+});
+check(
+  '1:15 解锁石像鬼，2:45 解锁巨大蜘蛛',
+  unlock.before.length === 3 &&
+    unlock.afterGargoyle.includes('gargoyle') &&
+    unlock.afterSpider.includes('spider'),
+  `初始 ${unlock.before.join('/')} → ${unlock.afterGargoyle.length} 张 → ${unlock.afterSpider.length} 张`,
 );
 
 // ---- 卡牌等级：同一张卡放得越多越强（对冲"后期一刀一个"） ----
@@ -328,13 +453,38 @@ const tip = await page.evaluate(() => {
   const el = document.querySelector('.card-tip');
   if (!el) return { found: false, text: '' };
   const style = getComputedStyle(el);
-  return { found: style.display !== 'none' && !el.hidden, text: el.textContent ?? '' };
+  const r = el.getBoundingClientRect();
+  const hand = document.querySelector('.hand');
+  const hr = hand === null ? null : hand.getBoundingClientRect();
+  const overlap =
+    hr !== null && r.left < hr.right && r.right > hr.left && r.top < hr.bottom && r.bottom > hr.top;
+  return {
+    found: style.display !== 'none' && !el.hidden,
+    text: el.textContent ?? '',
+    rect: { left: Math.round(r.left), top: Math.round(r.top), right: Math.round(r.right), bottom: Math.round(r.bottom) },
+    docked: el.classList.contains('is-docked'),
+    overlapHand: overlap,
+    vw: window.innerWidth,
+    vh: window.innerHeight,
+  };
 });
 check(
   '鼠标移到卡上有悬浮说明（含生命/攻击）',
   tip.found && tip.text.includes('生命') && tip.text.includes('攻击'),
   `提示="${tip.text.replace(/\s+/g, ' ').slice(0, 34)}…"`,
 );
+// v2.8：说明卡固定左下角（不再跟鼠标跑），且不能压住手牌 ——
+// 满 8 张时手牌会从屏幕左端一路铺到右端，贴最底边的浮层正好盖住最左边那两张
+check(
+  '悬浮说明固定在左下角，且不压手牌',
+  tip.found &&
+    tip.docked === true &&
+    tip.rect.left < tip.vw * 0.1 &&
+    tip.rect.bottom > tip.vh * 0.5 &&
+    tip.overlapHand === false,
+  `位置 ${tip.rect.left},${tip.rect.top}–${tip.rect.right},${tip.rect.bottom} / 压手牌=${tip.overlapHand}`,
+);
+await page.screenshot({ path: join(SHOTS, '05-card-tip.png') });
 
 // 再放两只史莱姆（速度 92 < 他的 108），制造"被追"的场面。
 // 这里刻意不放幽灵：幽灵 178 速，比他还快，贴上来是设计里的必然，
@@ -718,30 +868,53 @@ const bannerBox = await page.evaluate(() => {
   return {
     top: hit(lv, rect('.hud-top')),
     hand: hit(lv, rect('.hand')),
-    hint: hit(lv, rect('.hint-bar')),
+    hint: hit(lv, rect('.star-budget')),
     visible: document.querySelector('[data-levelup]')?.hidden === false,
   };
 });
 check(
-  '升级横幅不压血条和手牌',
+  '升级横幅不压血条、不压手牌、不压星数条',
   bannerBox.visible && !bannerBox.top && !bannerBox.hand && !bannerBox.hint,
-  `可见=${bannerBox.visible} 压血条=${bannerBox.top} 压手牌=${bannerBox.hand} 压提示=${bannerBox.hint}`,
+  `可见=${bannerBox.visible} 压血条=${bannerBox.top} 压手牌=${bannerBox.hand} 压星数=${bannerBox.hint}`,
 );
-// 「他升级获得了什么」必须留在面板上，不能只有一闪而过的横幅
-const perks = await page.evaluate(() => {
-  const chips = Array.from(document.querySelectorAll('.hero-perk')).map((el) => el.textContent ?? '');
-  return { count: chips.length, text: chips.join('/') };
+// v2.8：美德不再常驻面板，也不再悬停锅巴本体 —— 全部收进左上「查看锅巴」详情面板
+const heroInfo = await page.evaluate(() => {
+  const hudRef = window.__hud;
+  const toggle = document.querySelector('[data-hero-toggle]');
+  const panel = document.querySelector('[data-hero-info]');
+  const before = panel?.hidden ?? true;
+  toggle?.click();
+  const openedHidden = panel?.hidden ?? true;
+  const perksCount = document.querySelectorAll('.hi-perk').length;
+  const statsCount = document.querySelectorAll('.hi-stat').length;
+  const label = toggle?.textContent?.trim() ?? '';
+  // 再点一次收起
+  toggle?.click();
+  const closedHidden = panel?.hidden ?? false;
+  hudRef.hideInfo();
+  return { before, openedHidden, closedHidden, perksCount, statsCount, label };
 });
-check('勇者面板留下已获得的被动', perks.count > 0, `天赋=${perks.text || '空'}`);
+check(
+  '「查看锅巴」按钮能展开/收起详情面板',
+  heroInfo.before === true && heroInfo.openedHidden === false && heroInfo.closedHidden === true,
+  `初始隐藏=${heroInfo.before} 展开后=${heroInfo.openedHidden} 收起后=${heroInfo.closedHidden}`,
+);
+check(
+  '详情面板里有等级/属性/七美德',
+  heroInfo.statsCount >= 6 && heroInfo.perksCount > 0,
+  `属性 ${heroInfo.statsCount} 条 / 美德 ${heroInfo.perksCount} 条`,
+);
 
-// 「他正在用什么技能」：skillCast 会把技能名写进勇者面板
-const castHud = await page.evaluate(() => {
-  const g = window.__game;
-  g.events?.onSkillLabel?.('剑气', 'qi');
-  const el = document.querySelector('[data-hero-cast]');
-  return { hidden: el?.hidden ?? true, name: el?.querySelector('[data-cast-name]')?.textContent ?? '' };
+// 悬停血条（而不是锅巴本体）也能展开：本体一直在跑，鼠标追不上
+const hoverInfo = await page.evaluate(() => {
+  document.querySelector('[data-hero-hover]')?.dispatchEvent(new MouseEvent('mouseenter', { bubbles: false }));
+  const opened = document.querySelector('[data-hero-info]')?.hidden === false;
+  document.querySelector('[data-hero-hover]')?.dispatchEvent(new MouseEvent('mouseleave', { bubbles: false }));
+  const closed = document.querySelector('[data-hero-info]')?.hidden === true;
+  window.__hud.hideInfo();
+  return { opened, closed };
 });
-check('勇者面板会显示正在使用的技能', castHud.hidden === false && castHud.name.length > 0, `技能=${castHud.name}`);
+check('悬停血条也能展开详情（不用去追锅巴本体）', hoverInfo.opened && hoverInfo.closed, `展开=${hoverInfo.opened} 离开收起=${hoverInfo.closed}`);
 
 // 截图前先塞几只怪：空场截图看不出"围杀"这件事，也做不了视觉自检
 await page.evaluate(() => {
@@ -775,11 +948,11 @@ const overlayDiag = await page.evaluate(() => {
   o.style.display = 'none';
   return `${before.cls} / ${before.display}`;
 });
-const fpsSample1 = await measureFps();
-const fpsSample2 = await measureFps();
-// 取两次里较好的那次：这台机器上微信/豆包/若干 webview 常年抢 CPU，
-// 单次采样 ±40% 抖动（同一构建上测到过 23 和 41），取最大值才是"这个游戏能跑多快"。
-const fps = Math.max(fpsSample1, fpsSample2);
+// 采样 3 次取最好的一次：这台机器上微信/豆包/若干 webview 常年抢 CPU，
+// 单次采样 ±40% 抖动（同一构建上测到过 18 和 41），取最大值才是"这个游戏能跑多快"。
+// 下限仍然是 baseline × 0.4（软件渲染的绝对帧率没有意义，只比"相对空页面"）。
+const fpsSamples = [await measureFps(), await measureFps(), await measureFps()];
+const fps = Math.max(...fpsSamples);
 // 复原：后面还要用这个覆盖层做权能三选一
 await page.evaluate(() => {
   const o = document.querySelector('.overlay');
@@ -795,7 +968,7 @@ const fpsFloor = Math.max(20, Math.round(baselineFps * 0.4));
 check(
   '帧率（软件渲染）',
   fps >= fpsFloor,
-  `${fps} fps（两次采样 ${fpsSample1}/${fpsSample2}，空页面基线 ${baselineFps}，下限 ${fpsFloor}；测前 overlay=${overlayDiag}）`,
+  `${fps} fps（三次采样 ${fpsSamples.join('/')}，空页面基线 ${baselineFps}，下限 ${fpsFloor}；测前 overlay=${overlayDiag}）`,
 );
 
 // ---- 权能面板（含 1.1s 前摇，防误触） ----

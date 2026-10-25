@@ -16,7 +16,7 @@ import {
   inHall,
   starCapAt,
 } from '../content/config';
-import { CARDS, CARD_LEVEL, CARD_STACK, STARTER_HAND, cardCdSeconds, cardLevelMul, findCard, summonCount, unitStar } from '../content/cards';
+import { CARDS, CARD_LEVEL, CARD_STACK, CARD_UNLOCK, STARTER_HAND, cardCdSeconds, cardLevelMul, findCard, summonCount, unitStar } from '../content/cards';
 import { SKILL_TUNING } from '../content/heroSkills';
 import { MonsterStore } from '../ecs/store';
 import { Hero, type HeroHooks } from './hero';
@@ -73,13 +73,13 @@ const HAND_MAX_EXTRA = 2;
  * 数值都往上抬了一档：条目少了，每条就得更"够本"，否则三选一变成三选零。
  */
 const POWERUPS: readonly PowerupOption[] = [
-  { id: 'pride', title: '傲慢', desc: '选一张手牌 +1 星：属性大幅提升，之后召唤的都是更强的版本', kind: 'star', value: 1 },
-  { id: 'greed', title: '贪婪', desc: '每张手牌 +2 层充能：能一口气放更多', kind: 'charge', value: 2 },
-  { id: 'gluttony', title: '暴食', desc: '所有魔物生命 +28%', kind: 'hp', value: 0.28 },
-  { id: 'lust', title: '色欲', desc: '所有魔物攻速 +20%', kind: 'atkspeed', value: 0.2 },
-  { id: 'wrath', title: '暴怒', desc: '所有魔物攻击 +28%', kind: 'atk', value: 0.28 },
-  { id: 'envy', title: '嫉妒', desc: '星数上限 +12：能同时站更多魔物', kind: 'starcap', value: 12 },
-  { id: 'sloth', title: '懒惰', desc: '锅巴移速 −12%、攻速 −10%：让他拖着步子走', kind: 'heroSlow', value: 0.12 },
+  { id: 'pride', title: '傲慢', desc: '指定一张手牌提升 1 星：该卡的血量、攻击、护甲同步提高，场上同类魔物一并受益。', kind: 'star', value: 1 },
+  { id: 'greed', title: '贪婪', desc: '每张手牌立即回复 2 层充能，并永久提高其层数上限 2 层。', kind: 'charge', value: 2 },
+  { id: 'gluttony', title: '暴食', desc: '场上与后续召唤的所有魔物最大生命 +28%。', kind: 'hp', value: 0.28 },
+  { id: 'lust', title: '色欲', desc: '所有魔物攻击间隔缩短，等效攻速 +20%。', kind: 'atkspeed', value: 0.2 },
+  { id: 'wrath', title: '暴怒', desc: '所有魔物攻击力 +28%。', kind: 'atk', value: 0.28 },
+  { id: 'envy', title: '嫉妒', desc: '星数上限永久 +12（只抬上限，不补当前星数）。', kind: 'starcap', value: 12 },
+  { id: 'sloth', title: '懒惰', desc: '锅巴移速 −12%、攻击间隔延长 10%，技能冷却相应增加。', kind: 'heroSlow', value: 0.12 },
 ];
 
 /**
@@ -117,6 +117,8 @@ export interface GameEvents {
   onPowerup(options: readonly PowerupOption[]): void;
   /** 权能预告（面板弹出前的前摇），HUD 用它出倒计时 */
   onPowerupWarning(seconds: number): void;
+  /** 高级牌解锁（v2.8）：必须播报，否则玩家永远不知道有这张牌 */
+  onCardUnlock(name: string, star: number, why: string): void;
   onFinish(won: boolean): void;
 }
 
@@ -175,6 +177,8 @@ export class Game {
   private atkSpeedMul = 1;
 
   private powerupTimer: number = POWERUP.interval;
+  /** 已解锁到第几张高级牌（CARD_UNLOCK 的下标） */
+  private unlockIdx = 0;
   /** 权能前摇剩余秒数（>0 表示预告中，世界还在跑） */
   private powerupWindup = 0;
   private pendingPowerup: PowerupOption[] | null = null;
@@ -232,6 +236,7 @@ export class Game {
     this.armorStack = 0;
     this.atkSpeedMul = 1;
     this.powerupTimer = POWERUP.interval;
+    this.unlockIdx = 0;
     this.powerupWindup = 0;
     this.pendingPowerup = null;
     this.camX = this.hero.x;
@@ -342,6 +347,29 @@ export class Game {
     if (this.powerupTimer <= 0) {
       this.powerupTimer += POWERUP.interval;
       this.openPowerup();
+    }
+
+    // 高级牌按时间线解锁（v2.8）：不播报的解锁等于没解锁，所以这里既发牌也发事件
+    const elapsed = RUN.duration - this.timeLeft;
+    while (this.unlockIdx < CARD_UNLOCK.length) {
+      const step = CARD_UNLOCK[this.unlockIdx];
+      if (step === undefined || elapsed < step.at) break;
+      this.unlockIdx += 1;
+      const def = findCard(step.id);
+      if (def === undefined) continue;
+      if (this.hand.some((card) => card.id === def.id)) continue;
+      this.hand.push({
+        id: def.id,
+        defIdx: CARDS.findIndex((card) => card.id === def.id),
+        star: def.startStar,
+        cd: 0,
+        charges: CARD_STACK.charges,
+        maxCharges: CARD_STACK.charges,
+        level: 1,
+        xp: 0,
+      });
+      this.handBonus = Math.min(HAND_MAX_EXTRA, this.handBonus + 1);
+      this.events.onCardUnlock(def.name, def.startStar, step.why);
     }
 
     // 权能前摇：世界照常跑，倒计时结束才真正暂停开面板
@@ -563,7 +591,11 @@ export class Game {
       card.cd = this.cardCd(card.star);
     }
     this.gainCardXp(card, count);
-    this.selected = -1;
+    // v2.8 用户反馈「放置一张卡之后选中状态不消失, 直接点击地板还能放置」：
+    // 以前放完就 `selected = -1`，玩家每放一只都得重新点一次卡 —— 这在"一口气砸 5 层"的
+    // 次数制下就是纯浪费。现在**只要还剩层数就保持选中**，连点地面就是连续放置；
+    // 层数用光才取消选中（此时选中也没有意义，还会让人以为"点了没反应"）。
+    if (card.charges <= 0) this.selected = -1;
     this.store.refreshActive();
     return true;
   }

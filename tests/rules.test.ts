@@ -1,14 +1,15 @@
-﻿import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
   CARDS,
   CARD_CD,
   CARD_STACK,
+  CARD_UNLOCK,
   STARTER_HAND,
   cardCdSeconds,
   findCard,
   summonCount,
 } from '../src/content/cards';
-import { STAR_CAP, heroAtk, heroMaxHp, starCapAt, xpNeed } from '../src/content/config';
+import { RUN, STAR_CAP, heroAtk, heroMaxHp, starCapAt, xpNeed } from '../src/content/config';
 import { AI } from '../src/content/heroAi';
 import { PASSIVE_POOL, SKILLS, SKILL_TUNING } from '../src/content/heroSkills';
 import { PASSIVE_COUNT, PASSIVE_POOL_COUNT } from '../src/gameplay/hero';
@@ -47,11 +48,12 @@ describe('星数与 CD 曲线', () => {
 
 describe('勇者成长', () => {
   it('等级公式', () => {
-    expect(heroMaxHp(1)).toBe(18000);
-    // v2.5：baseHp 12000→18000、hpPerLevel 420→900。
-    // 新卡池单只更强（石像鬼 14 攻 / 精英近身咬 1.7×），血量不跟上的话，
-    // 他 60 秒就暴毙，一局还没热身就结束（见 GAME_DESIGN §7.2 的 v2.5 模拟）。
-    expect(heroMaxHp(11)).toBe(27000);
+    // v2.8：baseHp 18000→23800、hpPerLevel 900→1180。
+    // 砍掉吸血之后他一度 3 局全胜 117~190s（从一个极端跳到另一个极端），
+    // 血量抬 32% 才回到"能赢但不轻松"：模拟 6 胜 4 负，压线局只剩 2~3 成血。
+    expect(heroMaxHp(1)).toBe(23800);
+    // Lv11 = 23800 + 1180×10
+    expect(heroMaxHp(11)).toBe(35600);
     expect(heroAtk(1)).toBe(26);
     expect(heroAtk(11)).toBe(96);
   });
@@ -108,6 +110,25 @@ describe('卡池', () => {
     expect(CARD_STACK.charges).toBe(5);
     // 通量回充间隔必须等于旧版 CD —— 堆叠只加爆发窗口，不该悄悄加强度
     expect(cardCdSeconds(3)).toBeCloseTo(CARD_CD.base + CARD_CD.linear * 3 + CARD_CD.quad * 9, 6);
+  });
+
+  it('高级牌按时间线解锁：递增、可解析、落在一局之内', () => {
+    // v2.8 用户问"怎么解锁高级牌" —— 之前那两张只会在"全部满星"时兜底发放，
+    // 正常一局根本见不到。这条断言锁住"按时间明牌给"这件事。
+    expect(CARD_UNLOCK.length).toBeGreaterThan(0);
+    let last = 0;
+    for (const step of CARD_UNLOCK) {
+      // 必须是真卡，否则解锁时会静默跳过
+      expect(findCard(step.id)).toBeDefined();
+      // 必须从开局手牌之外给，否则"解锁"等于没解锁
+      expect(STARTER_HAND).not.toContain(step.id);
+      // 时间必须递增且留在一局之内（否则玩家永远等不到）
+      expect(step.at).toBeGreaterThan(last);
+      expect(step.at).toBeLessThan(RUN.duration);
+      // 文案必须说清"它强在哪" —— 只说"解锁新卡"等于没说
+      expect(step.why.length).toBeGreaterThan(6);
+      last = step.at;
+    }
   });
 });
 

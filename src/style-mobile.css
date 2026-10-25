@@ -389,3 +389,100 @@ body {
     font-size: 20px;
   }
 }
+
+/* ============================================================
+   v2.8 移动端补充（桌面规则在 style.css 末尾的 v2.8 段落）
+   ------------------------------------------------------------
+   这一整段必须放在文件最后：style-mobile.css 在 style.css 之后加载，
+   同优先级下后写的赢，所以 v2.8 里那些"桌面尺寸"的规则需要在这里被压回来。
+   ============================================================ */
+
+/* ---- 竖屏手机：顶部一行放不下三件，允许折行，不让血条被压成细条 ---- */
+@media (max-width: 560px) {
+  /* 360 宽实测：timer ≈ 72 + gap 10 + 血条 70vw(252) + gap 10 + 按钮 66
+     = 410 > 可用 344，所以这里明确允许换行 —— 换行后按钮落到第二行居中，
+     这正是"紧贴右侧或下方"允许的形态，比把血条压成窄条可读得多。 */
+  .hud-top {
+    flex-wrap: wrap;
+    gap: 6px 10px;
+  }
+
+  .hero-panel {
+    width: min(420px, 70vw);
+  }
+
+  .hero-info-toggle {
+    padding: 4px 10px;
+    font-size: 11px;
+  }
+
+  /* 详情面板占满整宽：288px 在 360 的屏上会把右半战场全挡住 */
+  .hero-info {
+    left: 12px;
+    top: 62px;
+    width: calc(100vw - 24px);
+    max-height: 54vh;
+  }
+
+  .tut-card {
+    width: calc(100vw - 24px);
+  }
+
+  /* .card-tip 的 left/bottom 在 style.css 里定死（左下、手牌上方），
+     这里只压宽度和字号；手机上底距按手牌高度重算，别让说明卡盖住手牌 */
+  .card-tip {
+    width: calc(100vw - 24px);
+    max-width: calc(100vw - 24px);
+    padding: 11px 13px 10px;
+    font-size: 12.5px;
+    bottom: 168px;
+  }
+
+  /* 竖屏必须竖排：三张 300px 的卡横着放只能看到一张半 */
+  .powerup-row {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .powerup-card {
+    min-width: auto;
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 16px 16px;
+  }
+
+  .tut-toggle {
+    font-size: 12px;
+  }
+
+  .ver-tag {
+    right: 10px;
+    bottom: 8px;
+    top: auto;
+  }
+}
+
+/* ---- 横屏手机（≤520 高）：垂直空间是唯一稀缺资源 ---- */
+@media (max-height: 520px) and (orientation: landscape) {
+  /* v2.7 的 scale(1.14) + margin-right:62px 是为了给已不存在的 .timer-sub
+     药丸让位；现在是"时间 / 血条 / 按钮"一行，1.14 会顶到 24px 的计时器上 */
+  .hero-panel {
+    transform: none;
+    margin: 0;
+  }
+
+  .hero-info {
+    top: 52px;
+    max-height: 42vh;
+    font-size: 11.5px;
+  }
+
+  .hi-row {
+    margin-bottom: 15px;
+  }
+
+  .tut-card {
+    width: min(360px, calc(100vw - 24px));
+    padding: 12px 14px 10px;
+  }
+}

@@ -1,4 +1,4 @@
-﻿import { CARDS, cardCdSeconds } from '../content/cards';
+import { CARDS, cardCdSeconds } from '../content/cards';
 import { APP, RUN, VIEW, xpNeed } from '../content/config';
 import { PASSIVE_POOL } from '../content/heroSkills';
 import type { Game, HandCard, PowerupOption } from '../gameplay/game';
@@ -39,24 +39,20 @@ interface CardNode {
 export class Hud {
   private readonly root: HTMLDivElement;
   private readonly timerEl: HTMLDivElement;
-  private readonly phaseEl: HTMLDivElement;
   private readonly hpFill: HTMLDivElement;
   private readonly hpText: HTMLSpanElement;
-  private readonly lvEl: HTMLSpanElement;
+  /** 详情面板（默认折叠）：等级 / 经验 / 属性 / 技能 / 美德都在里面 */
+  private readonly infoEl: HTMLDivElement;
+  private readonly infoToggleEl: HTMLButtonElement;
+  private readonly lvEl: HTMLElement;
   private readonly intentEl: HTMLSpanElement;
   private readonly starText: HTMLSpanElement;
   private readonly starDots: HTMLDivElement;
   private readonly xpFill: HTMLDivElement;
   private readonly xpText: HTMLSpanElement;
   private readonly heroStats: HTMLDivElement;
-  private readonly castEl: HTMLDivElement;
-  private readonly castNameEl: HTMLElement;
-  private readonly castBarEl: HTMLElement;
+  private readonly skillsEl: HTMLDivElement;
   private readonly perksEl: HTMLDivElement;
-  private readonly pStar: HTMLElement;
-  private readonly pCd: HTMLElement;
-  private readonly pPlaced: HTMLElement;
-  private readonly pKills: HTMLElement;
   private readonly handEl: HTMLDivElement;
   private readonly toastEl: HTMLDivElement;
   private readonly levelupEl: HTMLDivElement;
@@ -64,6 +60,20 @@ export class Hud {
   private readonly levelupPassiveEl: HTMLElement;
   private levelupTimer = 0;
   private castTimer = 0;
+  /** 详情面板是否展开（默认折叠，按 item 9） */
+  private infoOpen = false;
+  /** 点过「查看锅巴」= 钉住，悬停离开也不收起 */
+  private infoPinned = false;
+  private infoTimer = 0;
+  private tutEl!: HTMLDivElement;
+  private tutHoleEl!: HTMLDivElement;
+  private tutCardEl!: HTMLDivElement;
+  private tutTitleEl!: HTMLElement;
+  private tutTextEl!: HTMLElement;
+  private tutStepEl!: HTMLElement;
+  private tutNextEl!: HTMLButtonElement;
+  private tutOn = true;
+  private lastSkill = '';
   private readonly perks: string[] = [];
   private readonly tooltipEl: HTMLDivElement;
   private tipTarget: HTMLElement | null = null;
@@ -106,26 +116,23 @@ export class Hud {
     this.root.className = 'hud';
     this.root.innerHTML = `
       <div class="hud-top">
-        <div class="phase" data-phase>第一幕 · 试探</div>
         <div class="timer" data-timer>5:00</div>
-        <div class="hero-panel">
+        <div class="hero-panel" data-hero-hover>
           <div class="hero-row">
             <span class="hero-name">锅巴</span>
-            <span class="hero-lv" data-lv>Lv.1</span>
             <span class="hero-intent" data-intent>追击</span>
           </div>
-          <div class="hero-hp"><div class="hero-hp-fill" data-hp></div><span class="hero-hp-text" data-hp-text>12000 / 12000</span></div>
-          <div class="hero-xp" title="他杀怪升级：经验条满了就 Lv+1，回一点血、天赋更强">
-            <div class="hero-xp-fill" data-xp></div>
-            <span class="hero-xp-text" data-xp-text>Lv.1 · 0%</span>
-          </div>
-          <div class="hero-stats" data-hero-stats></div>
-          <div class="hero-cast" data-hero-cast hidden>
-            <span class="hero-cast-name" data-cast-name>剑气</span>
-            <span class="hero-cast-bar"><i data-cast-bar></i></span>
-          </div>
-          <div class="hero-perks" data-hero-perks></div>
+          <div class="hero-hp"><div class="hero-hp-fill" data-hp></div><span class="hero-hp-text" data-hp-text>18000 / 18000</span></div>
         </div>
+        <button class="hero-info-toggle" data-hero-toggle>查看锅巴</button>
+      </div>
+      <!-- 锅巴详情：默认折叠。悬停顶部血条，或点「查看锅巴」都能展开 -->
+      <div class="hero-info" data-hero-info hidden>
+        <div class="hi-row"><span>等级</span><b data-hi-lv>Lv.1</b></div>
+        <div class="hi-xp"><div class="hi-xp-fill" data-hi-xp></div><span data-hi-xp-text>0%</span></div>
+        <div class="hi-stats" data-hero-stats></div>
+        <div class="hi-skills" data-hi-skills></div>
+        <div class="hi-perks" data-hero-perks></div>
       </div>
       <div class="hud-bottom">
         <div class="star-budget">
@@ -133,52 +140,51 @@ export class Hud {
           <span class="star-text" data-star>0 / 10</span>
           <div class="star-dots" data-dots></div>
         </div>
-        <div class="power-panel" data-power>
-          <span class="power-row"><i>星数上限</i><b data-p-star>10</b></span>
-          <span class="power-row"><i>充能</i><b data-p-cd>0%</b></span>
-          <span class="power-row"><i>已召唤</i><b data-p-placed>0</b></span>
-          <span class="power-row"><i>击杀</i><b data-p-kills>0</b></span>
-        </div>
-        <div class="hint-bar" data-hint>点卡 → 点地面</div>
         <div class="hand" data-hand></div>
       </div>
       <button class="btn-pause" data-pause title="暂停 (Space)">❚❚</button>
       <button class="btn-mute" data-mute title="静音 (M)">🔊</button>
-      <!-- 角落版本角标：常驻但不抢视线（opacity 0.42、pointer-events: none）。
-           放右下角是因为那里没有 HUD 元素，只在暂停/静音按钮之外的空地上 -->
+      <!-- 版本角标：常驻但不抢视线（opacity、pointer-events: none），按用户要求放右下角 -->
       <span class="ver-tag" data-ver-tag>${APP.version}</span>
       <div class="levelup" data-levelup hidden>
         <b data-levelup-level>锅巴 Lv.2</b>
-        <span data-levelup-passive>获得：力量 +8%</span>
+        <span data-levelup-passive>获得：谦逊</span>
       </div>
       <div class="toasts" data-toasts></div>
       <div class="scene-banner" data-banner hidden>
         <b class="banner-title" data-banner-title></b>
         <span class="banner-sub" data-banner-sub></span>
       </div>
+      <div class="tutorial" data-tutorial hidden>
+        <div class="tut-hole" data-tut-hole></div>
+        <div class="tut-card" data-tut-card>
+          <b class="tut-title" data-tut-title></b>
+          <p class="tut-text" data-tut-text></p>
+          <div class="tut-actions">
+            <span class="tut-step" data-tut-step></span>
+            <button class="tut-skip" data-tut-skip>跳过</button>
+            <button class="btn-primary tut-next" data-tut-next>下一步</button>
+          </div>
+        </div>
+      </div>
       <div class="overlay" data-overlay></div>
     `;
     parent.appendChild(this.root);
 
     this.timerEl = this.must('[data-timer]');
-    this.phaseEl = this.must('[data-phase]');
     this.hpFill = this.must('[data-hp]');
     this.hpText = this.must('[data-hp-text]');
-    this.lvEl = this.must('[data-lv]');
     this.intentEl = this.must('[data-intent]');
     this.starText = this.must('[data-star]');
     this.starDots = this.must('[data-dots]');
-    this.xpFill = this.must('[data-xp]');
-    this.xpText = this.must('[data-xp-text]');
+    this.infoEl = this.must('[data-hero-info]');
+    this.infoToggleEl = this.must('[data-hero-toggle]');
+    this.lvEl = this.must('[data-hi-lv]');
+    this.xpFill = this.must('[data-hi-xp]');
+    this.xpText = this.must('[data-hi-xp-text]');
     this.heroStats = this.must('[data-hero-stats]');
-    this.castEl = this.must('[data-hero-cast]');
-    this.castNameEl = this.must('[data-cast-name]');
-    this.castBarEl = this.must('[data-cast-bar]');
+    this.skillsEl = this.must('[data-hi-skills]');
     this.perksEl = this.must('[data-hero-perks]');
-    this.pStar = this.must('[data-p-star]');
-    this.pCd = this.must('[data-p-cd]');
-    this.pPlaced = this.must('[data-p-placed]');
-    this.pKills = this.must('[data-p-kills]');
     this.handEl = this.must('[data-hand]');
     this.toastEl = this.must('[data-toasts]');
     this.levelupEl = this.must('[data-levelup]');
@@ -200,6 +206,39 @@ export class Hud {
     document.body.appendChild(this.tooltipEl);
     this.muteEl = this.must('[data-mute]');
     this.muteEl.addEventListener('click', () => this.handlers.onToggleMute());
+
+    // 悬停血条看详情，而不是悬停锅巴本体：
+    // 本体一直在跑（还会翻滚），鼠标追不上；血条是固定的，玩家想查的时候它一定在原位。
+    const hoverZone = this.must('[data-hero-hover]');
+    hoverZone.addEventListener('mouseenter', () => {
+      if (!this.infoPinned) this.setInfoOpen(true);
+    });
+    hoverZone.addEventListener('mouseleave', () => {
+      if (!this.infoPinned) this.setInfoOpen(false);
+    });
+    this.infoToggleEl.addEventListener('click', () => {
+      this.infoPinned = !this.infoPinned;
+      this.setInfoOpen(this.infoPinned);
+    });
+
+    // 新手教程：下一步 / 跳过
+    this.tutEl = this.must('[data-tutorial]');
+    this.tutHoleEl = this.must('[data-tut-hole]');
+    this.tutCardEl = this.must('[data-tut-card]');
+    this.tutTitleEl = this.must('[data-tut-title]');
+    this.tutTextEl = this.must('[data-tut-text]');
+    this.tutStepEl = this.must('[data-tut-step]');
+    this.tutNextEl = this.must('[data-tut-next]');
+    this.tutNextEl.addEventListener('click', () => this.stepTutorial(1));
+    this.must('[data-tut-skip]').addEventListener('click', () => this.finishTutorial());
+
+    // 教程开关注在 localStorage：默认开启，关掉就一直是关的
+    try {
+      const saved = window.localStorage.getItem('guoba.tutorial');
+      if (saved !== null) this.tutOn = saved === '1';
+    } catch {
+      this.tutOn = true;
+    }
   }
 
   /** 静音按钮的图标由这里翻，避免"点了没反应"的观感。 */
@@ -240,13 +279,8 @@ export class Hud {
       this.timerEl.classList.toggle('warn', warn);
     }
 
-    const elapsed = RUN.duration - timeLeft;
-    const phase = elapsed < 100 ? '第一幕 · 试探' : elapsed < 200 ? '第二幕 · 反扑' : '第三幕 · 决战';
-    if (phase !== this.lastPhase) {
-      this.lastPhase = phase;
-      this.phaseEl.textContent = phase;
-    }
-
+    // 顶部只留时间（用户："去掉顶部的 XXX 幕, 只显示时间"）——
+    // "第几幕"是我自己造的叙事术语，玩家读它得不到任何决策信息，反而占了最贵的一行。
     const hero = game.hero;
     const ratio = hero.hpRatio;
     const hpPct = (ratio * 100).toFixed(2);
@@ -264,41 +298,16 @@ export class Hud {
       this.lastHpText = hpText;
       this.hpText.textContent = hpText;
     }
-    const lvText = `Lv.${hero.level}`;
-    if (lvText !== this.lastLv) {
-      this.lastLv = lvText;
-      this.lvEl.textContent = lvText;
+    // 详情面板默认折叠（v2.8）：展开时才每 0.25 秒刷一次内容。
+    // 不是每帧 —— 这些数字变化很慢，每帧写 DOM 只会白烧软件渲染的预算。
+    if (this.infoOpen) {
+      this.infoTimer += 1 / 60;
+      if (this.infoTimer >= 0.25) {
+        this.infoTimer = 0;
+        this.renderInfo();
+      }
     }
 
-    // 经验条：血条下面这一条回答"他还要多久变强"。
-    // 玩家最需要预判的就是这个 —— 他升级会回血、会多一个天赋。
-    const xpRatio = Math.max(0, Math.min(1, hero.xp / Math.max(1, xpNeed(hero.level))));
-    const xpPct = (xpRatio * 100).toFixed(1);
-    if (xpPct !== this.lastXpPct) {
-      this.lastXpPct = xpPct;
-      this.xpFill.style.width = `${xpPct}%`;
-    }
-    const xpText = `Lv.${hero.level} · ${Math.floor(xpRatio * 100)}%`;
-    if (xpText !== this.lastXpText) {
-      this.lastXpText = xpText;
-      this.xpText.textContent = xpText;
-    }
-
-    // 基础属性：势均力敌的对抗里，玩家必须能读到"上限"和"减 CD"的变化
-    const statsText = `攻速 ${hero.atkPerSecond.toFixed(2)}/s · 移速 ${Math.round(hero.speed)} · 护甲 ${Math.round(hero.armor)}`;
-    if (statsText !== this.lastHeroStats) {
-      this.lastHeroStats = statsText;
-      this.heroStats.textContent = statsText;
-    }
-    const powerText = `${game.starCap}|${game.cdReductionPercent}|${game.placedTotal}|${game.kills}`;
-    if (powerText !== this.lastPower) {
-      this.lastPower = powerText;
-      const [cap, cd, placed, kills] = powerText.split('|');
-      this.pStar.textContent = cap ?? '';
-      this.pCd.textContent = `${cd}%`;
-      this.pPlaced.textContent = placed ?? '';
-      this.pKills.textContent = kills ?? '';
-    }
     const intentText = hero.intent === 'retreat' ? '撤退' : hero.intent === 'charge' ? '蓄力' : '追击';
     if (intentText !== this.lastIntent) {
       this.lastIntent = intentText;
@@ -479,37 +488,95 @@ export class Hud {
   /**
    * 「他正在用什么技能」。
    *
-   * 玩家反馈原话：「我仍然看不出来勇者升级获得了什么和他正在使用什么技能」。
-   * 光有飘字不够 —— 飘字在战场中央、一闪就过，玩家的视线在手牌和勇者血条之间。
-   * 所以在勇者面板里固定开一块：技能名 + 一条读条，持续 1.2 秒。
+   * v2.8 按用户要求把"技能长条"从顶部拿掉了（顶部只留血条），
+   * 改成写进左侧详情面板的「最近技能」一行 —— 战场上的技能名飘字仍然是主反馈，
+   * 详情面板只在玩家主动展开时才回答"他刚才干了什么"。
    */
   public skillCast(name: string, seconds = 1.2): void {
-    this.castNameEl.textContent = name;
-    this.castEl.hidden = false;
-    this.castEl.classList.remove('is-anim');
-    void this.castEl.offsetWidth;
-    this.castEl.classList.add('is-anim');
+    this.lastSkill = name;
+    this.renderInfo();
     window.clearTimeout(this.castTimer);
     this.castTimer = window.setTimeout(() => {
-      this.castEl.hidden = true;
-      this.castEl.classList.remove('is-anim');
+      this.lastSkill = '';
+      this.renderInfo();
     }, seconds * 1000);
   }
 
-  /** 勇者已获得的天赋（最多显示最近 3 条，够看出"他在朝什么方向长"）。 */
+  /** 勇者已获得的美德（全部记录，详情面板里逐条列出）。 */
   public pushPerk(name: string): void {
     if (!name) return;
-    this.perks.push(name);
-    if (this.perks.length > 3) this.perks.shift();
-    this.perksEl.innerHTML = this.perks
-      .map((perk, i) => `<span class="hero-perk${i === this.perks.length - 1 ? ' is-new' : ''}">${perk}</span>`)
-      .join('');
+    if (!this.perks.includes(name)) this.perks.push(name);
+    this.renderInfo();
   }
 
   public clearPerks(): void {
     this.perks.length = 0;
-    this.perksEl.innerHTML = '';
-    this.castEl.hidden = true;
+    this.lastSkill = '';
+    this.renderInfo();
+  }
+
+  /** 详情面板开合（点「查看锅巴」或悬停血条时调用）。 */
+  public setInfoOpen(open: boolean): void {
+    this.infoOpen = open;
+    this.infoEl.hidden = !open;
+    this.infoToggleEl.classList.toggle('is-on', open);
+    this.infoToggleEl.textContent = open ? '收起' : '查看锅巴';
+    if (open) this.renderInfo();
+  }
+
+  public toggleInfo(): void {
+    this.setInfoOpen(!this.infoOpen);
+  }
+
+  /** 教程用的"临时收起详情面板"：教程高亮血条时不该被展开的面板挡住视线 */
+  public hideInfo(): void {
+    this.infoPinned = false;
+    this.setInfoOpen(false);
+  }
+
+  public isInfoOpen(): boolean {
+    return this.infoOpen;
+  }
+
+  /**
+   * 详情面板内容：等级 / 经验 / 属性 / 最近技能 / 已得美德。
+   *
+   * 用户原话："锅巴经验条不需要显示等级，不需要显示技能长条和基础属性" +
+   * "锅巴具体情况显示在左上角，一个 查看锅巴 按钮可以折叠"。
+   * 所以这些数字没有被删掉，而是**从常驻 HUD 移到按需展开的面板**：
+   * 想查的人能查到，不想看的人屏幕上不会有这些东西。
+   */
+  private renderInfo(): void {
+    const game = this.gameRef;
+    if (!game || !this.infoOpen) return;
+    const hero = game.hero;
+    this.lvEl.textContent = `Lv.${hero.level}`;
+    const need = Math.max(1, xpNeed(hero.level));
+    const xpPct = Math.max(0, Math.min(100, (hero.xp / need) * 100));
+    this.xpFill.style.width = `${xpPct.toFixed(1)}%`;
+    this.xpText.textContent = `${Math.floor(xpPct)}%（${Math.floor(hero.xp)}/${need}）`;
+    this.heroStats.innerHTML = [
+      ['生命', `${Math.ceil(hero.hp)} / ${Math.round(hero.maxHp)}`],
+      ['攻击', `${Math.round(hero.atk)}`],
+      ['攻速', `${hero.atkPerSecond.toFixed(2)}/s`],
+      ['护甲', `${Math.round(hero.armor)}`],
+      ['移速', `${Math.round(hero.speed)}`],
+      ['暴击', `${Math.round(hero.crit * 100)}%`],
+    ]
+      .map(([k, v]) => `<span class="hi-stat"><i>${k}</i><b>${v}</b></span>`)
+      .join('');
+    this.skillsEl.innerHTML =
+      `<div class="hi-line"><i>最近技能</i><b>${this.lastSkill || '—'}</b></div>` +
+      `<div class="hi-line"><i>他的意图</i><b>${hero.intent === 'retreat' ? '撤退' : hero.intent === 'charge' ? '蓄力' : '追击'}</b></div>`;
+    this.perksEl.innerHTML =
+      this.perks.length === 0
+        ? '<div class="hi-empty">还没抽到美德</div>'
+        : this.perks
+            .map((perk) => {
+              const def = PASSIVE_POOL.find((item) => item.name === perk);
+              return `<div class="hi-perk"><b>${perk}</b><span>${def?.desc ?? ''}</span></div>`;
+            })
+            .join('');
   }
 
   /**
@@ -546,7 +613,7 @@ export class Hud {
     this.tipTarget = target;
     this.tooltipEl.innerHTML = this.tooltipHtml(card, index, game);
     this.tooltipEl.hidden = false;
-    this.positionTooltip(target);
+    this.positionTooltip();
   }
 
   private hideTooltip(): void {
@@ -557,7 +624,7 @@ export class Hud {
   private refreshTooltip(node: CardNode, card: HandCard, index: number, game: Game): void {
     if (this.tipTarget !== node.root) return;
     this.tooltipEl.innerHTML = this.tooltipHtml(card, index, game);
-    this.positionTooltip(node.root);
+    this.positionTooltip();
   }
 
   private tooltipHtml(card: HandCard, index: number, game: Game): string {
@@ -594,59 +661,15 @@ export class Hud {
     `;
   }
 
-  private positionTooltip(target: HTMLElement): void {
-    const rect = target.getBoundingClientRect();
-    const tipRect = this.tooltipEl.getBoundingClientRect();
-    // 默认放卡上方；屏幕上沿放不下就翻到下方
-    let top = rect.top - tipRect.height - 10;
-    if (top < 8) top = rect.bottom + 10;
-    let left = rect.left + rect.width / 2 - tipRect.width / 2;
-    left = Math.max(8, Math.min(left, window.innerWidth - tipRect.width - 8));
-    this.tooltipEl.style.top = `${top}px`;
-    this.tooltipEl.style.left = `${left}px`;
-  }
-
   /**
-   * 悬停在锅巴身上时，展示他这局拿到的天赋（七美德）。
-   *
-   * 用户原话："鼠标悬浮在锅巴上也能看到他选择的天赋效果，分别是 7 宗罪的反义词"。
-   * 这条很重要：玩家选的是"罪"，他长的是"德" —— 把两副牌面对面摆出来，
-   * 一局的博弈关系一眼就读完了，比任何新手引导都省字。
+   * v2.8：卡牌说明改成**固定在左下角**（用户："tips 放在左下角，并且略微增大，更加明显"）。
+   * 以前跟着鼠标跑，最大的问题是鼠标停在手牌上时浮层正好盖住旁边的卡 ——
+   * 想看第二张卡得先把鼠标移开。固定位置以后，眼睛知道该往哪儿看，手也能一直停在牌上。
    */
-  public showHeroTips(names: readonly string[], x: number, y: number): void {
-    if (names.length === 0) {
-      this.tooltipEl.innerHTML = `
-        <div class="tip-head"><b>锅巴</b><span class="tip-star">暂无天赋</span></div>
-        <div class="tip-note">他还没升级。你放得越多，他长得越快。</div>
-      `;
-    } else {
-      const rows = names
-        .map((name) => {
-          const def = PASSIVE_POOL.find((item) => item.name === name);
-          return `<div class="hero-tip-row"><b>${name}</b><span>${def?.desc ?? ''}</span></div>`;
-        })
-        .join('');
-      this.tooltipEl.innerHTML = `
-        <div class="tip-head"><b>锅巴的天赋</b><span class="tip-star">七美德 · 反七宗罪</span></div>
-        <div class="hero-tips">${rows}</div>
-      `;
-    }
-    this.tooltipEl.hidden = false;
-    this.tooltipEl.classList.add('is-hero');
-    // 鼠标位置 → 浮层位置；贴边时翻向内侧，避免被裁掉
-    const tipRect = this.tooltipEl.getBoundingClientRect();
-    let top = y - tipRect.height - 16;
-    if (top < 8) top = y + 20;
-    let left = x + 18;
-    if (left + tipRect.width > window.innerWidth - 8) left = x - tipRect.width - 18;
-    this.tooltipEl.style.top = `${Math.max(8, top)}px`;
-    this.tooltipEl.style.left = `${Math.max(8, left)}px`;
-  }
-
-  public hideHeroTips(): void {
-    if (!this.tooltipEl.classList.contains('is-hero')) return;
-    this.tooltipEl.classList.remove('is-hero');
-    this.tooltipEl.hidden = true;
+  private positionTooltip(): void {
+    this.tooltipEl.style.top = '';
+    this.tooltipEl.style.left = '';
+    this.tooltipEl.classList.add('is-docked');
   }
 
   // ---------------------------------------------------------------- 覆盖层
@@ -658,17 +681,20 @@ export class Hud {
         <span class="ver-badge" data-ver>${APP.version}</span>
         <img class="title-hero" src="${import.meta.env.BASE_URL}art/guoba.png" alt="勇者锅巴" />
         <h1 class="game-title">${APP.title}</h1>
-        <p class="subtitle">反向肉鸽 · 你是魔王，他是勇者锅巴</p>
-        <ul class="rules">
-          <li>你没有身体，也打不了 —— 只能<b>把魔物放到画面里</b></li>
-          <li>每张卡有 <b>次数</b>：放一只扣一次，攒够了才能再放</li>
-          <li><b>5 分钟内把他打死</b>，否则时间到就算你输</li>
+        <ul class="rules rules-tight">
+          <li>你是魔王，没有身体 —— 只有一件事：<b>放怪，5 分钟内打死锅巴</b></li>
+          <li>放怪花星数 · 每 30 秒三选一「权能」· 1:15 和 2:45 各解锁一张高级牌</li>
         </ul>
+        <label class="tut-toggle">
+          <input type="checkbox" data-tut-check${this.tutOn ? ' checked' : ''} />
+          <span>新手教程（进局先讲一遍界面）</span>
+        </label>
         <button class="btn-primary" data-start>开始讨伐</button>
-        <p class="hint">点卡 → 点地面 · 空格暂停 · M 静音</p>
       </div>
     `;
     this.overlayEl.querySelector('[data-start]')?.addEventListener('click', () => this.handlers.onStart());
+    const check = this.overlayEl.querySelector<HTMLInputElement>('[data-tut-check]');
+    check?.addEventListener('change', () => this.setTutorial(check.checked));
   }
 
   /**
@@ -693,6 +719,118 @@ export class Hud {
 
   private hidePowerupWarning(): void {
     this.warnEl?.classList.remove('is-on');
+  }
+
+  // ---------------------------------------------------------------- 新手教程
+
+  /**
+   * 新手教程（v2.8，用户原话："当以开启新手教程进入游戏, 会进行显示功能区说明,
+   * 然后再正式开始，方便玩家理解，默认开启"）。
+   *
+   * 做法不是"讲一段话"，而是**指着那块 UI 讲**：每一步都挖一个高亮洞框住真实控件，
+   * 世界是暂停的 —— 玩家读完一步，视线已经知道该落在哪儿了。
+   * 教程结束回调里才真正开跑，所以"先说明、后开始"的顺序是硬的。
+   */
+  private readonly tutSteps: readonly { sel: string; title: string; text: string }[] = [
+    {
+      sel: '[data-hand]',
+      title: '① 手牌：这就是你的全部力量',
+      text: '点一张卡 → 再点地面，怪物就出现在那儿。你没有身体，只能靠它们。每张卡 5 层，放一只扣一层，攒够了再放。',
+    },
+    {
+      sel: '.star-budget',
+      title: '② 星数：你现在能养多少怪',
+      text: '放怪要花星数，这条是"已用 / 上限"。上限每 30 秒 +5；1:15 和 2:45 还会解锁石像鬼、巨大蜘蛛两张高级牌。',
+    },
+    {
+      sel: '.hero-panel',
+      title: '③ 锅巴的血条：你要打空的就是它',
+      text: '5 分钟内打到 0 就赢。悬停这条血，或点旁边的「查看锅巴」，能看他的等级、属性和他抽到的七美德。',
+    },
+    {
+      sel: '[data-timer]',
+      title: '④ 倒计时：时间到了算你输',
+      text: '他杀你的怪会变强，你每 30 秒能三选一「权能」变强。比的就是谁长得快。',
+    },
+  ];
+  private tutIdx = 0;
+  private tutOnDone: (() => void) | null = null;
+
+  public showTutorial(onDone: () => void): void {
+    this.tutIdx = 0;
+    this.tutOnDone = onDone;
+    this.tutEl.hidden = false;
+    this.renderTutorialStep();
+  }
+
+  public hideTutorial(): void {
+    this.tutEl.hidden = true;
+    this.tutOnDone = null;
+    this.hideInfo();
+  }
+
+  private finishTutorial(): void {
+    const done = this.tutOnDone;
+    this.tutEl.hidden = true;
+    this.tutOnDone = null;
+    done?.();
+  }
+
+  private renderTutorialStep(): void {
+    const step = this.tutSteps[this.tutIdx];
+    if (step === undefined) {
+      this.finishTutorial();
+      return;
+    }
+    this.tutTitleEl.textContent = step.title;
+    this.tutTextEl.textContent = step.text;
+    this.tutNextEl.textContent = this.tutIdx === this.tutSteps.length - 1 ? '开始' : '下一步';
+    this.tutStepEl.textContent = `${this.tutIdx + 1} / ${this.tutSteps.length}`;
+
+    const target = this.root.querySelector(step.sel);
+    const pad = 10;
+    if (target === null) {
+      this.tutHoleEl.hidden = true;
+      return;
+    }
+    this.tutHoleEl.hidden = false;
+    const r = target.getBoundingClientRect();
+    this.tutHoleEl.style.left = `${r.left - pad}px`;
+    this.tutHoleEl.style.top = `${r.top - pad}px`;
+    this.tutHoleEl.style.width = `${r.width + pad * 2}px`;
+    this.tutHoleEl.style.height = `${r.height + pad * 2}px`;
+
+    // 说明卡优先放目标下方；下方没地方就翻到上方，再不行就贴到底部中间
+    const cardH = this.tutCardEl.offsetHeight || 170;
+    const cardW = this.tutCardEl.offsetWidth || 340;
+    const below = r.bottom + pad + 14;
+    const above = r.top - pad - 14 - cardH;
+    let top = below;
+    if (below + cardH > window.innerHeight - 12) top = above > 12 ? above : window.innerHeight - cardH - 12;
+    let left = r.left + r.width / 2 - cardW / 2;
+    left = Math.max(12, Math.min(window.innerWidth - cardW - 12, left));
+    this.tutCardEl.style.left = `${left}px`;
+    this.tutCardEl.style.top = `${top}px`;
+  }
+
+  private stepTutorial(delta: number): void {
+    this.tutIdx += delta;
+    if (this.tutIdx < 0) this.tutIdx = 0;
+    this.renderTutorialStep();
+  }
+
+  /** 标题页的开关：默认开启，选择记在 localStorage（下次进来还是你的选择） */
+  public tutorialEnabled(): boolean {
+    return this.tutOn;
+  }
+
+  private setTutorial(on: boolean): void {
+    this.tutOn = on;
+    try {
+      window.localStorage.setItem('guoba.tutorial', on ? '1' : '0');
+    } catch {
+      // 隐私模式里 localStorage 会抛异常：设置照样生效，只是记不住
+    }
   }
 
   public showPowerup(options: readonly PowerupOption[]): void {

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 卡池定义。
  *
  * 设计约定（见策划案 §4）：
@@ -254,6 +254,20 @@ export const CARDS: readonly CardDef[] = [
 
 /** 开局手牌（卡池 id，按手牌顺序）。1★/2★/3★ 各一张，梯队从低到高。 */
 export const STARTER_HAND: readonly string[] = ['slime', 'bat', 'goblin'];
+
+/**
+ * 高级牌怎么解锁（v2.8，回答用户「怎么解锁高级牌？」）。
+ *
+ * 之前石像鬼和巨大蜘蛛只在"全部卡都满星"时才会由 `grantExtraCard` 补进来，
+ * 也就是说**正常玩一局根本见不到它们** —— 玩家当然不知道有这两张牌。
+ * 现在按时间线明牌解锁：75 秒给石像鬼（4★ 肉盾），165 秒给巨大蜘蛛（5★ 精英）。
+ * 奖励逻辑不变（先给牌、再给一次满层充能），但**必须报出来**：
+ * 不播报的解锁等于没解锁。
+ */
+export const CARD_UNLOCK: readonly { readonly id: string; readonly at: number; readonly why: string }[] = [
+  { id: 'gargoyle', at: 75, why: '高血量肉盾：能卡住他的弹道和走位' },
+  { id: 'spider', at: 165, why: '5★ 精英：远吐丝 + 近身咬 + 每 5s 生小蜘蛛' },
+];
 
 export function findCard(id: string): CardDef | undefined {
   return CARDS.find((card) => card.id === id);

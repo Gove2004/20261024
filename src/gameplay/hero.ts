@@ -81,8 +81,12 @@ const PASSIVES: readonly Passive[] = [
   {
     name: '节制',
     apply: (h) => {
-      h.lifesteal += 0.04;
-      h.killHeal += 0.03;
+      // v2.8 用户反馈「吸血太强了, 根本打不死锅巴」。
+      // 原值 4% 吸血 + 3% 最大生命/击杀，叠 3 次就是 9%/击杀 —— 一局 180 只怪
+      // 等于他白拿 1600% 最大生命，血条永远回满。现在砍到 2% / 0.8%，并加总上限：
+      // 美德可以叠，但"叠到无敌"这条路必须封死（上限 8% 吸血 / 2% 击杀回血）。
+      h.lifesteal = Math.min(0.08, h.lifesteal + 0.02);
+      h.killHeal = Math.min(0.02, h.killHeal + 0.008);
     },
   },
   {

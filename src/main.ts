@@ -177,6 +177,12 @@ let hitTick = 0;
       hud.sceneBanner(`第 ${wave} 波`, '权能降临 · 3 选 1', 1200);
       hud.showPowerup(options);
     },
+    onCardUnlock: (name, star, why) => {
+      // 解锁必须同时给三样：横幅（看见）、音效（听见）、提示（知道能干嘛）
+      hud.sceneBanner(`解锁 ${name}`, `${star}★ · ${why}`, 2200);
+      hud.toast(`${name} 已加入手牌`, 'good');
+      audio.onSummonLarge(star);
+    },
     onFinish: (won) => {
       // 先让 BGM 让位给结算动机：两段音乐叠在一起会互相糊掉
       audio.fadeOutMusic(1.2);
@@ -198,7 +204,18 @@ let hitTick = 0;
       startMusic();
       // 分段报幕：先"魔王殿"，再"第 1 波 + 怎么玩"。副标题在 1.6s 后换掉，
       // 是因为玩家第一个动作发生在那儿 —— 报幕结束正好接上操作提示。
-      hud.playIntro();
+      const begin = (): void => hud.playIntro();
+      // 新手教程（v2.8，默认开启）：先把世界冻住，指着真实控件讲一遍再开跑。
+      // 顺序是硬的 —— 用户明确说"先显示功能区说明，然后再正式开始"。
+      if (hud.tutorialEnabled()) {
+        game.togglePause();
+        hud.showTutorial(() => {
+          game.togglePause();
+          begin();
+        });
+      } else {
+        begin();
+      }
     },
     onRestart: () => {
       audio.unlock();
@@ -261,16 +278,9 @@ let hitTick = 0;
   });
 
   canvas.addEventListener('pointermove', (event) => {
-    // 鼠标悬在锅巴身上 → 弹出他这局拿到的美德（七宗罪的反义词）。
-    // 判定放在"是否选了卡"之前，因为这是纯信息展示，随时都该能看。
+    // v2.8：锅巴本体一直跑（还会翻滚），鼠标追不上 —— 用户明确说"悬停血条查看信息，
+    // 而不是锅巴本体"。所以本体上不再做悬停判定，改由 HUD 顶部的血条负责（见 hud.ts）。
     const hoverWorld = toWorld(event.clientX, event.clientY);
-    const heroDist = Math.hypot(hoverWorld.x - game.hero.x, hoverWorld.y - game.hero.y);
-    if (heroDist < 56) {
-      const rect = canvas.getBoundingClientRect();
-      hud.showHeroTips(game.hero.passives, event.clientX - rect.left, event.clientY - rect.top);
-    } else {
-      hud.hideHeroTips();
-    }
 
     if (game.state !== 'playing' || game.selected < 0) {
       scene.setPreview(null);
@@ -282,7 +292,6 @@ let hitTick = 0;
 
   canvas.addEventListener('pointerleave', () => {
     scene.setPreview(null);
-    hud.hideHeroTips();
   });
 
   window.addEventListener('keydown', (event) => {
