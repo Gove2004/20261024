@@ -9,7 +9,7 @@ import { clamp } from '../core/math';
  * 版本号写在常量里而不是各处分硬编码 —— 改版只改这一行，标题页和角落角标同时跟上，
  * 不会出现"标题写了 v2.7、角标还是 v2.6"这种一眼假的情况。
  */
-export const APP = { title: '锅巴必须死', version: 'v2.9' } as const;
+export const APP = { title: '锅巴必须死', version: 'v2.10' } as const;
 
 /** 设计分辨率（逻辑坐标系），实际屏幕等比缩放。 */
 export const VIEW = { w: 1280, h: 720 } as const;

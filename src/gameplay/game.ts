@@ -1,4 +1,4 @@
-﻿import {
+import {
   HALL,
   HALL_CENTER,
   HERO,
@@ -420,10 +420,18 @@ export class Game {
         this.rng.next() * Math.PI * 2,
       );
       if (child < 0) break;
-      // 小蜘蛛：血量只有 35%，但会立刻扑上去
+      // 小蜘蛛：血量只有 35%，但会立刻扑上去。
+      // v2.10 修严重 bug：之前子代复制了母体的特性/行为，于是**小蜘蛛还能再召唤**，
+      // 一波变两波、两波变四波。这里强制把它们降级成"普通小怪"：
+      // 没有特性（abi=0）、没有精英跳劈（beh=0）、半径减半（贴图随之缩小）。
       store.maxHp[child] = (store.maxHp[child] ?? 0) * 0.35;
       store.hp[child] = store.maxHp[child] ?? 0;
       store.speed[child] = (store.speed[child] ?? 90) * 1.4;
+      store.abi[child] = 0;
+      store.beh[child] = 0;
+      store.abT[child] = 0;
+      store.behT[child] = 0;
+      store.radius[child] = (store.radius[child] ?? 30) * 0.5;
       this.applyStacks(child);
       this.placedTotal += 1;
       this.events.onSpawn(child);

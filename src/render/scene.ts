@@ -1,4 +1,4 @@
-﻿import { Container, Graphics, Sprite, Texture, TilingSprite } from 'pixi.js';
+import { Container, Graphics, Sprite, Texture, TilingSprite } from 'pixi.js';
 import { CAM_ZOOM, HALL, HALL_CENTER, HALL_WALL, MAGIC_CIRCLE, PILLARS, PLACE, THRONE, VIEW, WORLD } from '../content/config';
 import { CARDS, type CardShape } from '../content/cards';
 import { COLOR } from '../content/palette';
@@ -611,11 +611,16 @@ export class Scene {
       const star = store.star[slot] ?? 1;
       const size = 1 + 0.055 * (star - 1);
       const base = this.monsterBase.get(slot) ?? 1;
+      // v2.10：按 store.radius 与贴图原半径的比值缩放。
+      // 巨大蜘蛛生出来的小蜘蛛把 radius 减半，画面上才会真的是"小"蜘蛛，
+      // 而不是跟蝙蝠一样大的普通怪（用户原话）。
+      const defRadius = CARDS[this.monsterDef.get(slot) ?? 0]?.radius ?? 0;
+      const shrink = defRadius > 0 ? Math.min(1, (store.radius[slot] ?? defRadius) / defRadius) : 1;
       gfx.position.set(x, y);
       // v2.10：+8 的排序偏置。之前用纯脚底 y，贴近勇者的怪经常被他的大立绘整只盖住，
       // 玩家看到的是"放下去的怪不见了"。偏置把同一水平线上的怪判到前面一层。
       gfx.zIndex = y + 8;
-      gfx.scale.set(base * size);
+      gfx.scale.set(base * size * shrink);
 
       const phase = store.phase[slot] ?? 0;
       const moving = Math.abs(store.vx[slot] ?? 0) + Math.abs(store.vy[slot] ?? 0) > 12;

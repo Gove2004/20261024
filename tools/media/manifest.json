@@ -1918,5 +1918,41 @@
       }
     },
     "createdAt": "2026-10-25T01:25:57.510Z"
+  },
+  {
+    "kind": "image",
+    "model": "gpt-image-2",
+    "prompt": "Cinematic game key art poster, dark fantasy demon king throne hall, deep violet and crimson palette, cracked marble floor, gothic pillars, hellish rim light. Center foreground: a small chubby cream-white round creature hero with tiny horns holding a wooden slingshot, charging forward defiantly, backlit by red glow. Flanking silhouettes of a green slime, bat swarm, goblin archer, stone gargoyle and a giant spider. Painterly digital illustration, dramatic lighting, high contrast, cinematic, 4:3. No text, no letters, no logo, no watermark.",
+    "size": "1024x1024",
+    "file": "art/raw/pitch/keyart.png",
+    "bytes": 1842434,
+    "sourceUrl": "https://imagefil.scdn.app/public/image/772651c7a2b2e118ca857f4768c7d70f0.png",
+    "usage": {
+      "prompt_tokens": 135,
+      "completion_tokens": 1056,
+      "total_tokens": 1191,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "reasoning_tokens": 0,
+        "text_tokens": 135
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "image_tokens": 1056
+      },
+      "input_tokens": 135,
+      "output_tokens": 1056,
+      "input_tokens_details": {
+        "text_tokens": 135,
+        "cached_tokens": 0
+      },
+      "output_tokens_details": {
+        "text_tokens": 0,
+        "reasoning_tokens": 0,
+        "image_tokens": 1056
+      }
+    },
+    "createdAt": "2026-10-25T06:42:44.404Z"
   }
 ]
