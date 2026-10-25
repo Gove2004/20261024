@@ -184,8 +184,7 @@ let hitTick = 0;
       audio.onSummonLarge(star);
     },
     onFinish: (won) => {
-      // 先让 BGM 让位给结算动机：两段音乐叠在一起会互相糊掉
-      audio.fadeOutMusic(1.2);
+      // 结算由音频引擎统一编排：BGM 平滑淡出，再接胜负动机。
       audio.onFinish(won);
       hud.showResult(won, game);
     },

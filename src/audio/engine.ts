@@ -44,6 +44,8 @@ const MUSIC_LEVEL = 0.13;
 
 /** 暂停：音乐压到几乎听不见，但不归零 —— 留一点"世界还活着"的动静。 */
 const MUSIC_PAUSED = 0.03;
+/** 权能选择时保留的氛围底，比普通暂停更轻，给读卡留出空间。 */
+const MUSIC_POWERUP = 0.045;
 
 /** 分幕时间点（秒）：0–90 平和 / 90–210 紧张 / 210+ 高潮。 */
 const TIER_TENSE_AT = 90;
@@ -173,11 +175,18 @@ export class AudioEngine {
   }
 
   public setPaused(paused: boolean): void {
+    this.setMusicPaused(paused, MUSIC_PAUSED);
+  }
+
+  /**
+   * 权能面板使用的音乐停拍：保留很低的氛围底，冻结音序器，选择结束后从新拍点接回。
+   * 与普通暂停共用同一条生命周期，避免面板打开期间出现长时间静音或半拍错接。
+   */
+  private setMusicPaused(paused: boolean, level: number): void {
     const music = this.music;
     const ctx = this.ctx;
     if (music === null || ctx === null) return;
-    music.gain.setTargetAtTime(paused ? MUSIC_PAUSED : MUSIC_LEVEL, ctx.currentTime, 0.12);
-    // 除了压音量，还要停掉"排期"：否则暂停期间时钟照走，恢复时会接在半拍中间
+    music.gain.setTargetAtTime(paused ? level : MUSIC_LEVEL, ctx.currentTime, 0.12);
     this.director?.setPaused(paused, ctx.currentTime);
   }
 
@@ -478,7 +487,7 @@ export class AudioEngine {
   public onFinish(won: boolean): void {
     const ctx = this.ctx;
     if (ctx === null) return;
-    // BGM 先让路：2.6 秒淡出，正好和下面的动机重叠而不打架
+    // 结算动机先落下，BGM 再平滑退场，避免双重淡出造成突然静音。
     this.fadeOutMusic(2.6);
     if (won) this.onVictory();
     else this.onDefeat();
@@ -547,6 +556,7 @@ export class AudioEngine {
     const bus = this.sfxBus;
     if (ctx === null || filter === null || kit === null || bus === null) return;
     const t = ctx.currentTime;
+    this.setMusicPaused(true, MUSIC_POWERUP);
     filter.frequency.setTargetAtTime(600, t, 0.15);
 
     const chord = [0, 3, 7, 12] as const;
@@ -584,7 +594,9 @@ export class AudioEngine {
     const ctx = this.ctx;
     const filter = this.filter;
     if (filter === null || ctx === null) return;
-    filter.frequency.setTargetAtTime(this.cutoff(), ctx.currentTime, 0.3);
+    const t = ctx.currentTime;
+    filter.frequency.setTargetAtTime(this.cutoff(), t, 0.3);
+    this.setMusicPaused(false, MUSIC_POWERUP);
   }
 
   /**

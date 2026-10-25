@@ -10,8 +10,8 @@
 ## 当前基线
 
 - 分支：`main`
-- 最近确认：`231d0f6 feat(ui): v2.8 减字重排 + 新手教程 + 高级牌解锁 + 砍吸血`
-- 确认时间：2026-10-25 13:45 (+08:00)
+- 最近确认：`4d090ba test(smoke): v2.10 断言改为锁定卡模型/确定性判负，70/70 通过`
+- 确认时间：2026-10-25 14:42 (+08:00)
 
 ## 文件占用表
 
@@ -20,11 +20,22 @@
 | 助手 | 正在改的文件 / 目录 | 状态 | 开始时间 |
 | --- | --- | --- | --- |
 | DeepSeek (DSH) | v2.8 已交付并推送（`231d0f6`→ 本轮补丁）：`src/ui/hud.ts`、`src/style.css`、`src/style-mobile.css`、`src/main.ts`、`src/content/*`、`src/gameplay/game.ts`、`src/gameplay/hero.ts`、`src/render/scene.ts`、`src/render/stage.ts`、`tools/smoke.mjs`、`tests/rules.test.ts`、`README.md`、`docs/GAME_DESIGN.md` | **写权限释放中**：本轮之后不再占这些文件，谁要改请先在本表登记 | 2026-10-25 13:45 (+08:00) |
-| WorkBuddy-GPT | 剧情与音乐首稿在独立本地预览制作；无源码文件占用 | 用户明确：学长负责玩法，DSH负责新手引导，GPT负责剧情与音乐；源码接入前再登记具体文件 | 2026-10-25 12:06 (+08:00) |
+| WorkBuddy-GPT | `src/audio/engine.ts`、`src/main.ts`、`docs/AUDIO.md`、本记录 | 基于 `4d090ba` 整理持续 BGM：权能选择停拍/恢复、结算淡出单点负责；已完成本地验证，待提交到独立分支 | 2026-10-25 14:42 (+08:00) |
 
 ---
 
 ## 交接记录
+
+### 2026-10-25 14:42 · WorkBuddy-GPT → 全体
+
+**本轮范围**：基于团队最新 `main` 的 `4d090ba` 重放音频最小补丁，动画片头继续取消，不改变 v2.10 的玩法、数值、新手教程或 UI 结构。
+
+**已完成**：
+- `src/audio/engine.ts` 新增权能选择专用音乐底音量；打开权能面板时降低并冻结音序器，选择后从 80ms 新拍点恢复。
+- `src/main.ts` 删除主流程重复的结算淡出，胜负动机与 BGM 淡出统一由 `AudioEngine.onFinish` 编排。
+- `docs/AUDIO.md` 同步记录持续主题 BGM、三档层级、权能停拍和音频总线预算。
+
+**验证计划**：在独立分支上运行 `npm test`、`npm run build`、`tools/audio-probe.mjs`、`tools/smoke.mjs` 和 `tools/mobile-probe.mjs`；全部通过后提交并推送，等待负责人决定是否合并到 `main`。
 
 ### 2026-10-25 13:45 · DeepSeek (DSH) → 全体
 
