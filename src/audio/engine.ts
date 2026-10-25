@@ -44,7 +44,7 @@ const MUSIC_LEVEL = 0.13;
 
 /** 暂停：音乐压到几乎听不见，但不归零 —— 留一点"世界还活着"的动静。 */
 const MUSIC_PAUSED = 0.03;
-/** 权能选择时保留的氛围底，比普通暂停更轻，给读卡留出空间。 */
+/** 权能选择时保留低音量循环，比战斗更轻，给读卡留出空间。 */
 const MUSIC_POWERUP = 0.045;
 
 /** 分幕时间点（秒）：0–90 平和 / 90–210 紧张 / 210+ 高潮。 */
@@ -117,7 +117,7 @@ export class AudioEngine {
     compressor.release.value = 0.18;
 
     const master = ctx.createGain();
-    master.gain.value = MASTER_LEVEL;
+    master.gain.value = this.muted ? 0 : MASTER_LEVEL;
 
     // 低通只挂音乐：强度越高开口越大，是"局势升温"最省事的听感信号
     const filter = ctx.createBiquadFilter();
@@ -178,10 +178,7 @@ export class AudioEngine {
     this.setMusicPaused(paused, MUSIC_PAUSED);
   }
 
-  /**
-   * 权能面板使用的音乐停拍：保留很低的氛围底，冻结音序器，选择结束后从新拍点接回。
-   * 与普通暂停共用同一条生命周期，避免面板打开期间出现长时间静音或半拍错接。
-   */
+  /** 普通暂停停止排期；权能面板只降低总线，保持原有乐句连续循环。 */
   private setMusicPaused(paused: boolean, level: number): void {
     const music = this.music;
     const ctx = this.ctx;
@@ -556,7 +553,7 @@ export class AudioEngine {
     const bus = this.sfxBus;
     if (ctx === null || filter === null || kit === null || bus === null) return;
     const t = ctx.currentTime;
-    this.setMusicPaused(true, MUSIC_POWERUP);
+    this.music?.gain.setTargetAtTime(MUSIC_POWERUP, t, 0.15);
     filter.frequency.setTargetAtTime(600, t, 0.15);
 
     const chord = [0, 3, 7, 12] as const;
@@ -596,7 +593,7 @@ export class AudioEngine {
     if (filter === null || ctx === null) return;
     const t = ctx.currentTime;
     filter.frequency.setTargetAtTime(this.cutoff(), t, 0.3);
-    this.setMusicPaused(false, MUSIC_POWERUP);
+    this.music?.gain.setTargetAtTime(MUSIC_LEVEL, t, 0.3);
   }
 
   /**

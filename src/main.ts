@@ -315,7 +315,11 @@ let hitTick = 0;
   });
 
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden && game.state === 'playing') game.togglePause();
+    if (document.hidden && game.state === 'playing') {
+      game.togglePause();
+      audio.setPaused(true);
+      hud.showPause();
+    }
   });
 
   // ---------------------------------------------------------------- 主循环
