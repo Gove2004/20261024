@@ -759,16 +759,41 @@ const abilities = await page.evaluate(() => {
     steps += 1;
     if (g.state !== 'playing') break;
   }
+  // v2.10 回归：小蜘蛛是"普通小怪"，不能再召唤。
+  // 之前子代复制了母体的特性（abi=4），一波变两波、两波变四波，场上会指数炸开。
+  g.store.refreshActive();
+  let summoningMinions = 0;
+  let minionScale = 0;
+  for (let i = 0; i < g.store.activeCount; i += 1) {
+    const slot = g.store.active[i];
+    if (slot === undefined) continue;
+    const defIdx = g.store.defIdx?.[slot] ?? -1;
+    // 蜘蛛卡在 CARDS 里的下标 = 4（史莱姆/蝙蝠/哥布林/石像鬼/蜘蛛）
+    const isSpider = defIdx === 4;
+    if (!isSpider) continue;
+    const r = g.store.radius[slot] ?? 0;
+    // 母体（radius 30）本来就该会召唤；这里只看"小蜘蛛"（半径减半后 <22）
+    const isMinion = r > 0 && r < 22;
+    if (isMinion && g.store.abi[slot] === 4) summoningMinions += 1;
+    if (isMinion) minionScale += 1;
+  }
   return {
     placed,
     summon: g.statSummon,
     spiderShot: g.statRanged,
     alive: g.store.activeCount,
+    summoningMinions,
+    minionScale,
     steps,
   };
 });
 // 巨大蜘蛛是唯一的"有特性"的怪：每 5 秒生 2 只小蜘蛛
 check('巨大蜘蛛会召唤小蜘蛛', abilities.summon > 0, `召唤 ${abilities.summon} 次，场上 ${abilities.alive} 只`);
+check(
+  '小蜘蛛是普通小怪：不会再召唤，且体型缩到一半',
+  abilities.summoningMinions === 0 && abilities.minionScale > 0,
+  `还会召唤的小蜘蛛 ${abilities.summoningMinions} 只 / 缩小体型的 ${abilities.minionScale} 只`,
+);
 check('哥布林/蜘蛛会远程开火', abilities.spiderShot > 0, `远程弹 ${abilities.spiderShot} 次`);
 
 // ---- 行为原型：五张卡不能都只会"直线追" ----
