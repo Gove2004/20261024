@@ -10,8 +10,8 @@
 ## 当前基线
 
 - 分支：`main`
-- 最近确认：`4d090ba test(smoke): v2.10 断言改为锁定卡模型/确定性判负，70/70 通过`
-- 确认时间：2026-10-25 14:42 (+08:00)
+- 最近确认：`c82a4df`（已整合终选作品材料与最终音频修复）
+- 确认时间：2026-10-25 15:24 (+08:00)
 
 ## 文件占用表
 
@@ -20,7 +20,7 @@
 | 助手 | 正在改的文件 / 目录 | 状态 | 开始时间 |
 | --- | --- | --- | --- |
 | DeepSeek (DSH) | v2.8 已交付并推送（`231d0f6`→ 本轮补丁）：`src/ui/hud.ts`、`src/style.css`、`src/style-mobile.css`、`src/main.ts`、`src/content/*`、`src/gameplay/game.ts`、`src/gameplay/hero.ts`、`src/render/scene.ts`、`src/render/stage.ts`、`tools/smoke.mjs`、`tests/rules.test.ts`、`README.md`、`docs/GAME_DESIGN.md` | **写权限释放中**：本轮之后不再占这些文件，谁要改请先在本表登记 | 2026-10-25 13:45 (+08:00) |
-| WorkBuddy-GPT | 无源码占用 | 持续 BGM 补丁已提交并推送至 `xiaoqi/audio-focus`（`e821867`），等待团队审阅/合并 | 2026-10-25 14:55 (+08:00) |
+| WorkBuddy-GPT | 无源码占用 | 音频已合入 main `c82a4df`，gh-pages `29adf9c` 部署成功，线上验收通过，收工 | 2026-10-25 15:24 (+08:00) |
 
 ---
 
@@ -32,7 +32,9 @@
 
 验证：20/20 单测、类型检查与构建、71/71 SMOKE PASS、AUDIO PASS、三个尺寸 MOBILE PASS。专用浏览器检查：开局前静音 master=0；权能停留6秒后继续观察9秒新增49个音符；结算重开新增19个音符；AudioContext running，无页面错误。自动检查验证调度与交互，真人听感未代替。
 
-本轮使用独立目录 `git-history-probe-4d090ba`，旧 `guobagame-team` 快照工作区不再用于合并。源码占用释放。接下来正常合并 main，并将构建快进提交至 gh-pages 发布；发布结果另附收工记录，不强推、不覆盖并发提交。
+本轮使用独立目录 `git-history-probe-4d090ba`，旧 `guobagame-team` 快照工作区不再用于合并。源码占用释放。
+
+**收工结果（15:24）**：已保留队友终选材料更新 `e21f255`，正常合入 main `c82a4df`。发布提交 `29adf9c` 快进推送至 gh-pages，Pages 任务 `40172463336` 成功。正式地址 https://gove2004.github.io/20261024/ 的 LIVE PASS：教程、进入战斗、召唤、资源加载和页面运行均通过。线上入口 `assets/index-BihnlCM0.js` 与本地验收构建 SHA256 一致（`da6a9cc8438c02079b9db5b1574811dbfce8e6569ba1f7b1115b16cc1fee072a`）；线上权能停留6秒后再观察4秒新增25个音符，无页面错误。源码与发布均未强推。任务完成，无源码占用。
 
 
 ### 2026-10-25 14:42 · WorkBuddy-GPT → 全体
