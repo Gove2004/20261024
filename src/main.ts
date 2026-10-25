@@ -1,4 +1,4 @@
-import './style.css';
+﻿import './style.css';
 // 移动端覆盖层必须在 style.css 之后导入：它整段都是媒体查询，
 // 靠"后出现"压过基础规则（同优先级下后者胜）。
 // 走 JS 导入而不是 index.html 里的 <link>：Vite 构建时会把 html 里指向
@@ -30,7 +30,7 @@ async function bootstrap(): Promise<void> {
   const art = await loadArt();
   scene.setArt(art);
   const gaps = missingArt(art);
-  if (gaps.length > 0) console.warn(`缺贴图（用占位造型）：${gaps.join(', ')}`);
+  if (gaps.length > 0) console.warn(`缺贴图，已改用占位造型：${gaps.join(', ')}`);
 
   // 进游戏后立刻渲染第一帧，避免标题页是一片纯色
   let game!: Game;
@@ -107,10 +107,10 @@ let hitTick = 0;
       // 而玩家看勇者进度时的视线在左上角（用户反馈「看不出来他在用什么技能」）
       hud.skillCast(text);
     },
-    onHeroLevel: (level, passive) => {
+    onHeroLevel: (level, passive, passiveLevel) => {
       scene.fx.ring(game.hero.x, game.hero.y, 90, 0xffb347, 5);
       scene.fx.burst(game.hero.x, game.hero.y - 20, 0xffb347, 18, 50);
-      hud.levelUp(level, passive);
+      hud.levelUp(level, passive, passiveLevel);
       audio.onHeroLevel();
     },
     onShot: (x, y, dirX, dirY) => {
@@ -125,15 +125,15 @@ let hitTick = 0;
       audio.onQi();
     },
     onRangedShot: (_slot, fromX, fromY, toX, toY) => {
-      // 只画"飞在半路的一段"：全长实线会被看成一根绑在勇者身上的白绳，
-      // 短促的斜光带才像弹道。
+      // v2.10：整条弹道都要画出来（用户："哥布林弓箭手箭矢特效不完整，只显示后半段"）。
+      // 之前只从中点画到终点，玩家看到的是"箭已经飞了一半"，像凭空冒出来的。
       const dx = toX - fromX;
       const dy = toY - fromY;
       const len = Math.hypot(dx, dy) || 1;
       const ux = dx / len;
       const uy = dy / len;
-      const start = len * 0.5;
-      scene.fx.slash(fromX + ux * start, fromY + uy * start, ux, uy, Math.min(58, len * 0.4), 2);
+      scene.fx.slash(fromX, fromY, ux, uy, len, 2);
+      scene.fx.burst(toX, toY, 0xfff0b0, 6, 10);
     },
     onBlast: (x, y, radius) => {
       scene.fx.ring(x, y, radius, 0xff7a3c, 6);
@@ -172,10 +172,10 @@ let hitTick = 0;
       // 波次钟声先响，再开面板：声音比画面早 100ms 落，玩家会"先抬头"再读到三选一
       audio.onWaveStart(wave);
       audio.onPowerupOpen();
-      // 波次报幕放在面板弹出之前：玩家先读到"第 N 波"，再看到三选一，
-      // 顺序反了就成了"面板突然糊你一脸"。
-      hud.sceneBanner(`第 ${wave} 波`, '权能降临 · 3 选 1', 1200);
-      hud.showPowerup(options);
+      // 报幕放在三选一之前：玩家先读到"七宗罪权能"，再看到三张卡，
+      // 顺序反了就成了"遮罩突然糊你一脸"。
+      hud.sceneBanner('七宗罪权能', '三选一 · 世界已暂停', 1200);
+      hud.showPowerup(options, game.powerupExtras());
     },
     onCardUnlock: (name, star, why) => {
       // 解锁必须同时给三样：横幅（看见）、音效（听见）、提示（知道能干嘛）

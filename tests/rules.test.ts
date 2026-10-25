@@ -112,10 +112,17 @@ describe('卡池', () => {
     expect(cardCdSeconds(3)).toBeCloseTo(CARD_CD.base + CARD_CD.linear * 3 + CARD_CD.quad * 9, 6);
   });
 
-  it('高级牌按时间线解锁：递增、可解析、落在一局之内', () => {
+  it('高级牌按时间线解锁：0:30 蝙蝠 / 1:00 哥布林 / 2:00 石像鬼 / 3:00 大蜘蛛', () => {
     // v2.8 用户问"怎么解锁高级牌" —— 之前那两张只会在"全部满星"时兜底发放，
-    // 正常一局根本见不到。这条断言锁住"按时间明牌给"这件事。
-    expect(CARD_UNLOCK.length).toBeGreaterThan(0);
+    // 正常一局根本见不到。v2.9 用户把时间线定死：开局只有史莱姆，
+    // 每多撑一会儿就多一种选择。这条断言锁住"按时间明牌给"和具体分钟数。
+    expect(STARTER_HAND).toEqual(['slime']);
+    expect(CARD_UNLOCK.map((step) => [step.id, step.at])).toEqual([
+      ['bat', 30],
+      ['goblin', 60],
+      ['gargoyle', 120],
+      ['spider', 180],
+    ]);
     let last = 0;
     for (const step of CARD_UNLOCK) {
       // 必须是真卡，否则解锁时会静默跳过

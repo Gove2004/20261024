@@ -1,4 +1,4 @@
-import { AI } from '../content/heroAi';
+﻿import { AI } from '../content/heroAi';
 import { PASSIVE_POOL, SKILL_BY_ID, SKILL_TUNING, type SkillId } from '../content/heroSkills';
 
 /** 技能 id 的固定顺序（热路径遍历冷却用，避免每帧 Object.keys） */
@@ -44,7 +44,7 @@ export interface HeroHooks {
   onHealSelf(x: number, y: number, amount: number): void;
   /** 翻滚位移 */
   onRoll(fromX: number, fromY: number, toX: number, toY: number): void;
-  onLevelUp(level: number, passive: string): void;
+  onLevelUp(level: number, passive: string, passiveLevel?: number): void;
   onHurt(amount: number): void;
 }
 
@@ -168,6 +168,8 @@ export class Hero {
   public pendingSkill: SkillId | null = null;
   /** 已获得的天赋名（七美德），供悬停面板读取 */
   public readonly passives: string[] = [];
+  /** 每条美德拿了几次。重复获得 = 叠层（v2.10：可以重复，重复即提升美德等级） */
+  public readonly passiveLv = new Map<string, number>();
   /** 每个主动技能的剩余冷却 */
   public readonly cds: Record<SkillId, number> = {
     shot: 0,
@@ -283,6 +285,7 @@ export class Hero {
     this.recover = 0;
     this.pendingSkill = null;
     this.passives.length = 0;
+    this.passiveLv.clear();
     this.cds.shot = 0;
     this.cds.spread = 0;
     this.cds.qi = 0;
@@ -374,14 +377,23 @@ export class Hero {
       this.atk = heroAtk(this.level) * this.atkMul;
       this.speed = heroSpeed(this.level);
       this.armor += HERO.armorPerLevel;
-      const passive = this.rng.pick(PASSIVES);
+      // v2.10：只从**七美德**里随机（用户："锅巴不是随机获得七美德之一"）。
+      // 允许重复，重复获得 = 该美德升一级、效果再叠一层 ——
+      // 这样他越强越像"偏心培养出来的精英"，而不是七条各拿一遍的样子货。
+      const virtueNames = PASSIVE_POOL.map((item) => item.name);
+      const virtues = PASSIVES.filter((item) => virtueNames.includes(item.name));
+      const passive = this.rng.pick(virtues);
       if (passive) {
+        const lv = (this.passiveLv.get(passive.name) ?? 0) + 1;
+        this.passiveLv.set(passive.name, lv);
         passive.apply(this);
-        // 记下名字：鼠标悬在他身上时要列出"这局拿了哪几条美德"（v2.7）。
-        // 同名不重复记 —— 玩家关心"我有哪些"，不关心"我拿了几次"。
         if (!this.passives.includes(passive.name)) this.passives.push(passive.name);
       }
-      hooks.onLevelUp(this.level, passive ? passive.name : '');
+      hooks.onLevelUp(
+        this.level,
+        passive ? passive.name : '',
+        passive ? (this.passiveLv.get(passive.name) ?? 1) : 0,
+      );
       need = xpNeed(this.level);
     }
   }

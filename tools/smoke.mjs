@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 冒烟测试：用本地 Edge 打开构建产物，验证 M1 手感闭环。
  *
  *   1. 页面无 console error / 未捕获异常
@@ -141,6 +141,35 @@ check(
   '标题页有版本号角标',
   branding.badgeVisible && /^v\d+\.\d+$/.test(branding.badge),
   `角标=${branding.badge || '(空)'}`,
+);
+
+// v2.9：标题页去掉面板，改成"魔王大厅背景图 + 遮罩 + 标题 + 开始按钮"
+const titleScene = await page.evaluate(() => {
+  const overlay = document.querySelector('[data-overlay]');
+  const bg = document.querySelector('.title-bg');
+  const start = document.querySelector('[data-start]');
+  const sr = start?.getBoundingClientRect();
+  const title = document.querySelector('.game-title')?.getBoundingClientRect();
+  const style = bg === null ? null : getComputedStyle(bg);
+  return {
+    hasPanel: document.querySelector('.title-panel') !== null || overlay?.querySelector('.panel') !== null,
+    bgImage: style?.backgroundImage ?? '',
+    bgW: Math.round(bg?.getBoundingClientRect().width ?? 0),
+    startVisible: sr !== undefined && sr.width > 80 && sr.height > 20,
+    startTop: Math.round(sr?.top ?? -1),
+    titleBottom: Math.round(title?.bottom ?? -1),
+    vh: window.innerHeight,
+  };
+});
+check(
+  '标题页是大厅背景图 + 遮罩，没有面板',
+  titleScene.hasPanel === false && titleScene.bgImage.includes('throne') && titleScene.bgW > 300,
+  `面板=${titleScene.hasPanel} 背景=${titleScene.bgImage.slice(0, 46)} 宽=${titleScene.bgW}`,
+);
+check(
+  '标题页有开始按钮，且不压标题',
+  titleScene.startVisible && titleScene.startTop >= titleScene.titleBottom - 4,
+  `按钮 top=${titleScene.startTop} 标题 bottom=${titleScene.titleBottom}`,
 );
 await page.screenshot({ path: join(SHOTS, '01-title.png') });
 
@@ -313,18 +342,31 @@ check(
   `拿到 ${pool.length} 条：${pool.join('/')}`,
 );
 
-// ---- v2.8 版式：顶部只有时间、底部只有星数、版本角标在右下角 ----
+// ---- v2.9 版式：时间在正上方、血条在中上、底部只有星数、版本角标在右下角 ----
 const layout = await page.evaluate(() => {
   const rect = (sel) => {
     const el = document.querySelector(sel);
     if (!el) return null;
     const r = el.getBoundingClientRect();
-    return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, w: r.width, h: r.height };
+    return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, w: r.width, h: r.height, cx: r.left + r.width / 2 };
   };
+  // 造一条天赋 chip，验证"经验条下方显示锅巴选择的天赋"
+  window.__hud.pushPerk('谦逊');
+  window.__hud.pushPerk('贞洁');
   const ver = rect('[data-ver-tag]');
   return {
     hasPhase: document.querySelector('[data-phase]') !== null,
     timer: document.querySelector('[data-timer]')?.textContent?.trim() ?? '',
+    timerRect: rect('.timer'),
+    panelRect: rect('.hero-panel'),
+    hpRect: rect('.hero-hp'),
+    xpRect: rect('.hero-xp'),
+    perksRect: rect('.hero-perks'),
+    perkCount: document.querySelectorAll('.top-perk').length,
+    lv: document.querySelector('[data-hero-lv]')?.textContent?.trim() ?? '',
+    lvRect: rect('[data-hero-lv]'),
+    nameRect: rect('.hero-name'),
+    toggleRect: rect('[data-hero-toggle]'),
     hasPowerPanel: document.querySelector('.power-panel') !== null,
     hasHintBar: document.querySelector('.hint-bar') !== null,
     hasStarBudget: document.querySelector('.star-budget') !== null,
@@ -335,9 +377,29 @@ const layout = await page.evaluate(() => {
   };
 });
 check(
-  '顶部只显示时间（没有"第一幕/第二幕"）',
-  layout.hasPhase === false && /^\d:\d{2}$/.test(layout.timer),
-  `计时=${layout.timer} 还有幕名=${layout.hasPhase}`,
+  '顶部只显示时间，且时间在正上方居中',
+  layout.hasPhase === false &&
+    /^\d:\d{2}$/.test(layout.timer) &&
+    Math.abs((layout.timerRect?.cx ?? 0) - layout.vw / 2) < 60 &&
+    (layout.timerRect?.top ?? 999) < layout.vh * 0.12,
+  `计时=${layout.timer} 中心=${Math.round(layout.timerRect?.cx ?? -1)} / 视口中线 ${layout.vw / 2}`,
+);
+check(
+  '血条在时间下方，名字右侧是等级，经验条在血条下，天赋在经验条下',
+  layout.panelRect !== null &&
+    layout.hpRect !== null &&
+    layout.panelRect.top > (layout.timerRect?.bottom ?? 0) - 2 &&
+    /^Lv\.\d+$/.test(layout.lv) &&
+    (layout.lvRect?.left ?? 0) > (layout.nameRect?.right ?? 0) - 2 &&
+    (layout.xpRect?.top ?? 0) >= (layout.hpRect?.bottom ?? 0) - 2 &&
+    (layout.perksRect?.top ?? 0) >= (layout.xpRect?.bottom ?? 0) - 2 &&
+    layout.perkCount === 2,
+  `等级=${layout.lv} 血条 bottom=${Math.round(layout.hpRect?.bottom ?? -1)} 经验 top=${Math.round(layout.xpRect?.top ?? -1)} 天赋 top=${Math.round(layout.perksRect?.top ?? -1)} 个数=${layout.perkCount}`,
+);
+check(
+  '「查看详情」按钮在左上角',
+  layout.toggleRect !== null && layout.toggleRect.left < layout.vw * 0.22 && layout.toggleRect.top < layout.vh * 0.22,
+  `位置 ${Math.round(layout.toggleRect?.left ?? -1)},${Math.round(layout.toggleRect?.top ?? -1)}`,
 );
 check(
   '手牌上方只剩星数（没有数据条和小字提示）',
@@ -402,28 +464,36 @@ check(
   `用光后 selected=${stickySelect.selAfterEmpty} 剩 ${stickySelect.left} 层`,
 );
 
-// ---- v2.8 高级牌按时解锁（回答"怎么解锁高级牌"）----
+// ---- v2.10 解锁时间线：五张卡一开始都在手牌里，没到点的只是"锁定 + 倒计时" ----
 const unlock = await page.evaluate(() => {
   const g = window.__game;
   g.start();
-  const before = g.hand.map((c) => c.id);
+  const total = g.hand.length;
+  const usable = () => g.hand.filter((c) => c.unlockAt <= 0).map((c) => c.id);
+  const before = usable();
+  const snap = (t) => {
+    g.state = 'playing';
+    g.elapsed = t;
+    g.step(1 / 60);
+    return usable();
+  };
   // step() 每帧用 elapsed 反算 timeLeft，所以推进时间必须改 elapsed（改 timeLeft 无效）
-  g.state = 'playing';
-  g.elapsed = 76;
-  g.step(1 / 60);
-  const afterGargoyle = g.hand.map((c) => c.id);
-  g.state = 'playing';
-  g.elapsed = 166;
-  g.step(1 / 60);
-  const afterSpider = g.hand.map((c) => c.id);
-  return { before, afterGargoyle, afterSpider };
+  const at31 = snap(31);
+  const at61 = snap(61);
+  const at121 = snap(121);
+  const at181 = snap(181);
+  return { total, before, at31, at61, at121, at181 };
 });
 check(
-  '1:15 解锁石像鬼，2:45 解锁巨大蜘蛛',
-  unlock.before.length === 3 &&
-    unlock.afterGargoyle.includes('gargoyle') &&
-    unlock.afterSpider.includes('spider'),
-  `初始 ${unlock.before.join('/')} → ${unlock.afterGargoyle.length} 张 → ${unlock.afterSpider.length} 张`,
+  '五张卡一直可见，0:30 蝙蝠 / 1:00 哥布林 / 2:00 石像鬼 / 3:00 大蜘蛛依次解禁',
+  unlock.total === 5 &&
+    unlock.before.length === 1 &&
+    unlock.before[0] === 'slime' &&
+    unlock.at31.includes('bat') &&
+    unlock.at61.includes('goblin') &&
+    unlock.at121.includes('gargoyle') &&
+    unlock.at181.includes('spider'),
+  `手牌 ${unlock.total} 张 / 初始可用 ${unlock.before.join('/')} → ${unlock.at31.length} → ${unlock.at61.length} → ${unlock.at121.length} → ${unlock.at181.length} 张`,
 );
 
 // ---- 卡牌等级：同一张卡放得越多越强（对冲"后期一刀一个"） ----
@@ -454,16 +524,17 @@ const tip = await page.evaluate(() => {
   if (!el) return { found: false, text: '' };
   const style = getComputedStyle(el);
   const r = el.getBoundingClientRect();
+  const card = document.querySelector('.hand .card');
+  const cr = card === null ? null : card.getBoundingClientRect();
   const hand = document.querySelector('.hand');
   const hr = hand === null ? null : hand.getBoundingClientRect();
-  const overlap =
-    hr !== null && r.left < hr.right && r.right > hr.left && r.top < hr.bottom && r.bottom > hr.top;
   return {
     found: style.display !== 'none' && !el.hidden,
     text: el.textContent ?? '',
     rect: { left: Math.round(r.left), top: Math.round(r.top), right: Math.round(r.right), bottom: Math.round(r.bottom) },
     docked: el.classList.contains('is-docked'),
-    overlapHand: overlap,
+    card: cr === null ? null : { left: Math.round(cr.left), top: Math.round(cr.top), right: Math.round(cr.right), cx: Math.round(cr.left + cr.width / 2) },
+    overlapHand: hr !== null && r.left < hr.right && r.right > hr.left && r.top < hr.bottom && r.bottom > hr.top,
     vw: window.innerWidth,
     vh: window.innerHeight,
   };
@@ -473,16 +544,16 @@ check(
   tip.found && tip.text.includes('生命') && tip.text.includes('攻击'),
   `提示="${tip.text.replace(/\s+/g, ' ').slice(0, 34)}…"`,
 );
-// v2.8：说明卡固定左下角（不再跟鼠标跑），且不能压住手牌 ——
-// 满 8 张时手牌会从屏幕左端一路铺到右端，贴最底边的浮层正好盖住最左边那两张
+// v2.9：说明浮在**这张卡的正上方**（用户原话："魔物卡牌详情悬浮在卡牌上而不是左侧"）
 check(
-  '悬浮说明固定在左下角，且不压手牌',
+  '悬浮说明贴在卡牌上方，而不是屏幕左下角',
   tip.found &&
-    tip.docked === true &&
-    tip.rect.left < tip.vw * 0.1 &&
-    tip.rect.bottom > tip.vh * 0.5 &&
-    tip.overlapHand === false,
-  `位置 ${tip.rect.left},${tip.rect.top}–${tip.rect.right},${tip.rect.bottom} / 压手牌=${tip.overlapHand}`,
+    tip.docked === false &&
+    tip.card !== null &&
+    tip.rect.bottom <= tip.card.top + 2 &&
+    tip.rect.left < tip.card.right &&
+    tip.rect.right > tip.card.left,
+  `说明 ${tip.rect.left},${tip.rect.top}–${tip.rect.right},${tip.rect.bottom} / 卡 top=${tip.card?.top} 卡 x=${tip.card?.left}–${tip.card?.right}`,
 );
 await page.screenshot({ path: join(SHOTS, '05-card-tip.png') });
 
@@ -974,6 +1045,13 @@ check(
 // ---- 权能面板（含 1.1s 前摇，防误触） ----
 await page.evaluate(() => {
   const g = window.__game;
+  // 权能页这时要展示"星级上限 +5""解锁魔物 · 蝙蝠群"两条紫色额外效果，
+  // 而它们只在走到 30 秒节点时才有。**只改时间、不推 step**：
+  // 推 step 会顺手触发自然权能，和下面的 deferPowerup 撞成两次弹窗。
+  g.powerupTimer = 1e6;
+  g.elapsed = 30.2;
+  g.timeLeft = 300 - 30.2;
+  g.step(1 / 60);
   g.deferPowerup(0.05);
 });
 // 第一段：预告期。世界还在跑，面板不该出现，预告条该亮着
@@ -988,16 +1066,51 @@ check(
   powerupWarn.state === 'playing' && powerupWarn.warnOn && powerupWarn.cards === 0,
   `state=${powerupWarn.state} 预告条=${powerupWarn.warnOn} 面板=${powerupWarn.cards}`,
 );
-// 第二段：前摇走完，面板才开
+// 第二段：前摇走完，三张卡才开
 await page.waitForTimeout(800);
-const powerupOpen = await page.evaluate(() => ({
-  state: window.__game.state,
-  cards: document.querySelectorAll('[data-opt]').length,
-  disabled: document.querySelectorAll('[data-opt]:disabled').length,
-  cls: document.querySelector('.overlay')?.className ?? '',
-  warn: document.querySelector('.powerup-warn')?.className ?? '',
-}));
+const powerupOpen = await page.evaluate(() => {
+  const cards = [...document.querySelectorAll('[data-opt]')];
+  const first = cards[0];
+  const r = first?.getBoundingClientRect();
+  const extra = document.querySelector('.pu-extra');
+  const overlay = document.querySelector('.overlay.is-open');
+  return {
+    state: window.__game.state,
+    cards: cards.length,
+    disabled: document.querySelectorAll('[data-opt]:disabled').length,
+    cls: document.querySelector('.overlay')?.className ?? '',
+    warn: document.querySelector('.powerup-warn')?.className ?? '',
+    // 3:4 竖卡
+    ratio: r === undefined ? 0 : r.width / r.height,
+    hasPanel: overlay?.querySelector('.panel') !== null,
+    head: document.querySelector('.pu-head')?.textContent?.trim() ?? '',
+    sub: document.querySelector('.pu-sub')?.textContent?.trim() ?? '',
+    extraText: extra?.textContent?.trim() ?? '',
+    extraColor: extra === null || extra === undefined ? '' : getComputedStyle(extra).color,
+    overlayBg: overlay === null ? '' : getComputedStyle(overlay).backgroundColor,
+  };
+});
 check('30 秒权能 3 选 1', powerupOpen.state === 'powerup' && powerupOpen.cards === 3, `state=${powerupOpen.state} 选项=${powerupOpen.cards} overlay=${powerupOpen.cls} warn=${powerupOpen.warn}`);
+check(
+  '权能页只有遮罩，没有面板',
+  powerupOpen.hasPanel === false && powerupOpen.overlayBg !== 'rgba(0, 0, 0, 0)',
+  `面板=${powerupOpen.hasPanel} 遮罩=${powerupOpen.overlayBg}`,
+);
+check(
+  '权能标题与小字正确',
+  powerupOpen.head === '七宗罪权能' && powerupOpen.sub.includes('每隔 30 秒'),
+  `标题=${powerupOpen.head} / 小字=${powerupOpen.sub}`,
+);
+check(
+  '三张权能卡是 3:4 比例',
+  Math.abs(powerupOpen.ratio - 0.75) < 0.04,
+  `宽高比=${powerupOpen.ratio.toFixed(3)}`,
+);
+check(
+  '额外效果用紫色文字列在描述里',
+  powerupOpen.extraText.length > 0 && powerupOpen.extraColor.includes('201'),
+  `文字=${powerupOpen.extraText} 颜色=${powerupOpen.extraColor}`,
+);
 check(
   '面板刚出现时按钮是锁的（防连点穿透）',
   powerupOpen.disabled > 0,
@@ -1023,7 +1136,7 @@ await page.evaluate(() => {
   g.powerupTimer = 1e6;
   g.elapsed = 299.4;
 });
-await page.waitForTimeout(900);
+await page.waitForTimeout(1600);
 const ended = await page.evaluate(() => ({
   state: window.__game.state,
   title: document.querySelector('.panel-title')?.textContent ?? '',

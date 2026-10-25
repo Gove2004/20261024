@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 卡池定义。
  *
  * 设计约定（见策划案 §4）：
@@ -180,7 +180,7 @@ export const CARDS: readonly CardDef[] = [
     atk: 4,
     armor: 0,
     atkInterval: 1 / 1.6,
-    speed: 186,
+    speed: 150,
     range: 42,
     radius: 10,
     color: 0xc79bff,
@@ -216,9 +216,9 @@ export const CARDS: readonly CardDef[] = [
     shape: 'gargoyle',
     startStar: 4,
     maxStar: 10,
-    hp: 300,
+    hp: 190,
     atk: 14,
-    armor: 16,
+    armor: 10,
     atkInterval: 1 / 0.7,
     speed: 66,
     range: 56,
@@ -248,25 +248,31 @@ export const CARDS: readonly CardDef[] = [
     behavior: 'elite',
     art: 'spider-giant',
     tags: ['精英', '远程吐丝', '近身咬', '召唤小蜘蛛'],
-    note: '精英：远距离吐丝（带减速）、贴脸改咬、每 5 秒生 2 只小蜘蛛',
+    note: '精英：远距离吐丝并减速，贴脸改咬，每 5 秒生 2 只小蜘蛛',
   },
 ];
 
-/** 开局手牌（卡池 id，按手牌顺序）。1★/2★/3★ 各一张，梯队从低到高。 */
-export const STARTER_HAND: readonly string[] = ['slime', 'bat', 'goblin'];
+/**
+ * 开局手牌：v2.9 起**只有史莱姆一张**。
+ *
+ * 用户原话：「初始只有史莱姆，0.5 分钟解锁蝙蝠，1 分钟解锁哥布林，2 分钟解锁石像鬼，
+ * 3 分钟解锁大蜘蛛」。这样一局的前 3 分钟一直在"多一种选择"，
+ * 每一次解锁都是一次可感知的增强，而不是开局就把五张牌摊开让人挑。
+ */
+export const STARTER_HAND: readonly string[] = ['slime'];
 
 /**
- * 高级牌怎么解锁（v2.8，回答用户「怎么解锁高级牌？」）。
+ * 高级牌按时间解锁（v2.9 定稿：30 / 60 / 120 / 180 秒）。
  *
- * 之前石像鬼和巨大蜘蛛只在"全部卡都满星"时才会由 `grantExtraCard` 补进来，
- * 也就是说**正常玩一局根本见不到它们** —— 玩家当然不知道有这两张牌。
- * 现在按时间线明牌解锁：75 秒给石像鬼（4★ 肉盾），165 秒给巨大蜘蛛（5★ 精英）。
- * 奖励逻辑不变（先给牌、再给一次满层充能），但**必须报出来**：
+ * 早期版本这两张只在"全部卡都满星"时由 `grantExtraCard` 兜底补进来，
+ * 正常一局根本见不到它们。现在按时间线明牌给，而且必须报出来：
  * 不播报的解锁等于没解锁。
  */
 export const CARD_UNLOCK: readonly { readonly id: string; readonly at: number; readonly why: string }[] = [
-  { id: 'gargoyle', at: 75, why: '高血量肉盾：能卡住他的弹道和走位' },
-  { id: 'spider', at: 165, why: '5★ 精英：远吐丝 + 近身咬 + 每 5s 生小蜘蛛' },
+  { id: 'bat', at: 30, why: '三只一起上，分散他的火力' },
+  { id: 'goblin', at: 60, why: '远程射手，能隔着怪群消耗他' },
+  { id: 'gargoyle', at: 120, why: '高血量肉盾，能卡住他的弹道和走位' },
+  { id: 'spider', at: 180, why: '精英：远吐丝、近身咬、定期生小蜘蛛' },
 ];
 
 export function findCard(id: string): CardDef | undefined {

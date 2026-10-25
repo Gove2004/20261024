@@ -1,4 +1,4 @@
-import {
+﻿import {
   HALL,
   HALL_CENTER,
   HERO,
@@ -37,6 +37,8 @@ export interface HandCard {
   maxCharges: number;
   /** 这张卡的等级：放得越多越强（见 CARD_LEVEL） */
   level: number;
+  /** 0 = 现在就能用；>0 = 开局就在手牌里但被锁，到这个秒数解禁（v2.10） */
+  unlockAt: number;
   xp: number;
 }
 
@@ -102,7 +104,7 @@ export interface GameEvents {
   onRoll(fromX: number, fromY: number, toX: number, toY: number): void;
   /** 技能名飘字：剑气 / 落雷 / 翻滚 / 干粮 */
   onSkillLabel(text: string, kind: 'qi' | 'bomb' | 'roll' | 'heal'): void;
-  onHeroLevel(level: number, passive: string): void;
+  onHeroLevel(level: number, passive: string, passiveLevel?: number): void;
   /** 锅巴开弓射击（视觉：弹丸从弹弓飞出去） */
   onShot(x: number, y: number, dirX: number, dirY: number): void;
   onQi(x: number, y: number, dirX: number, dirY: number): void;
@@ -212,16 +214,24 @@ export class Game {
     this.statBomb = 0;
     this.statSelfHeal = 0;
     this.statRoll = 0;
-    this.hand = STARTER_HAND.map((id) => ({
-      id,
-      defIdx: CARDS.findIndex((card) => card.id === id),
-      star: findCard(id)?.startStar ?? 1,
-      cd: 0,
-      charges: CARD_STACK.charges,
-      maxCharges: CARD_STACK.charges,
-      level: 1,
-      xp: 0,
-    }));
+    // v2.10：**五张卡一开始全在手牌里**，没到时间的显示为禁用 + 解锁倒计时。
+    // 用户原话：「锅巴一开始就能看到所有魔物卡，只是被禁用的卡无法选择，并且能看到解锁倒计时」。
+    // 好处很直接：玩家第一眼就知道"这局长什么样"，而不是打两分钟才发现还有别的卡。
+    this.hand = CARDS.map((card, defIdx) => {
+      const lock = CARD_UNLOCK.find((item) => item.id === card.id);
+      const starter = STARTER_HAND.includes(card.id);
+      return {
+        id: card.id,
+        defIdx,
+        star: card.startStar,
+        cd: 0,
+        charges: CARD_STACK.charges,
+        maxCharges: CARD_STACK.charges,
+        level: 1,
+        xp: 0,
+        unlockAt: starter || lock === undefined ? 0 : lock.at,
+      };
+    });
     this.selected = -1;
     this.peakStars = 0;
     this.kills = 0;
@@ -259,6 +269,7 @@ export class Game {
       maxCharges: CARD_STACK.charges,
       level: 1,
       xp: 0,
+      unlockAt: 0,
     }));
     this.handBonus = 6;
     this.starBonus = 60;
@@ -349,27 +360,19 @@ export class Game {
       this.openPowerup();
     }
 
-    // 高级牌按时间线解锁（v2.8）：不播报的解锁等于没解锁，所以这里既发牌也发事件
+    // 高级牌按时间线解锁（v2.10：全部卡一开始就在手牌里，只是"禁用 + 倒计时"）
+    // 用户原话：「锅巴一开始就能看到所有魔物卡，只是被禁用的卡无法选择，并且能看到解锁倒计时」。
+    // 所以这里不再"往手牌里塞卡"，而是把到点的卡**解禁**并给满层充能。
     const elapsed = RUN.duration - this.timeLeft;
-    while (this.unlockIdx < CARD_UNLOCK.length) {
-      const step = CARD_UNLOCK[this.unlockIdx];
-      if (step === undefined || elapsed < step.at) break;
-      this.unlockIdx += 1;
-      const def = findCard(step.id);
+    for (const card of this.hand) {
+      if (card.unlockAt <= 0 || elapsed < card.unlockAt) continue;
+      card.unlockAt = 0;
+      card.charges = card.maxCharges;
+      const def = CARDS[card.defIdx];
       if (def === undefined) continue;
-      if (this.hand.some((card) => card.id === def.id)) continue;
-      this.hand.push({
-        id: def.id,
-        defIdx: CARDS.findIndex((card) => card.id === def.id),
-        star: def.startStar,
-        cd: 0,
-        charges: CARD_STACK.charges,
-        maxCharges: CARD_STACK.charges,
-        level: 1,
-        xp: 0,
-      });
+      const step = CARD_UNLOCK.find((item) => item.id === def.id);
       this.handBonus = Math.min(HAND_MAX_EXTRA, this.handBonus + 1);
-      this.events.onCardUnlock(def.name, def.startStar, step.why);
+      this.events.onCardUnlock(def.name, def.startStar, step?.why ?? '');
     }
 
     // 权能前摇：世界照常跑，倒计时结束才真正暂停开面板
@@ -399,7 +402,9 @@ export class Game {
    */
   private spawnMinions(slot: number): void {
     const store = this.store;
-    const defIdx = CARDS.findIndex((card) => card.id === 'slime');
+    // v2.10 修 bug：这里原来硬编码成 'slime'，于是"巨大蜘蛛生小蜘蛛"实际生的是史莱姆。
+    // 小蜘蛛就是蜘蛛本人缩小版：血量 35%、速度 ×1.4，所以不用再建一张卡。
+    const defIdx = CARDS.findIndex((card) => card.id === 'spider');
     const def = CARDS[defIdx];
     if (!def) return;
     const x = store.x[slot] ?? 0;
@@ -415,10 +420,10 @@ export class Game {
         this.rng.next() * Math.PI * 2,
       );
       if (child < 0) break;
-      // 小蜘蛛：血量只有一半，但会立刻扑上去
-      store.maxHp[child] = (store.maxHp[child] ?? 0) * 0.5;
+      // 小蜘蛛：血量只有 35%，但会立刻扑上去
+      store.maxHp[child] = (store.maxHp[child] ?? 0) * 0.35;
       store.hp[child] = store.maxHp[child] ?? 0;
-      store.speed[child] = (store.speed[child] ?? 90) * 1.35;
+      store.speed[child] = (store.speed[child] ?? 90) * 1.4;
       this.applyStacks(child);
       this.placedTotal += 1;
       this.events.onSpawn(child);
@@ -506,6 +511,13 @@ export class Game {
 
   public selectCard(index: number): void {
     if (index < 0 || index >= this.hand.length) return;
+    const card = this.hand[index];
+    // v2.10：还没解锁的卡在手牌里可见但不可选；点了给一句倒计时，而不是默默没反应
+    if (card !== undefined && card.unlockAt > 0) {
+      const left = Math.ceil(card.unlockAt - (RUN.duration - this.timeLeft));
+      this.events.toast(left > 0 ? `还有 ${left} 秒解锁` : '即将解锁', 'info');
+      return;
+    }
     this.selected = this.selected === index ? -1 : index;
   }
 
@@ -520,6 +532,7 @@ export class Game {
     if (this.state !== 'playing') return '现在不能召唤';
     const card = this.hand[this.selected];
     if (!card) return '先选一张卡';
+    if (card.unlockAt > 0) return `${Math.ceil(card.unlockAt)} 秒后解锁`;
     if (card.charges <= 0) return `充能中 ${card.cd.toFixed(1)}s`;
 
     const def = CARDS[card.defIdx];
@@ -627,6 +640,31 @@ export class Game {
 
   // ---------------------------------------------------------------- 权能
 
+  /**
+   * 这一轮权能的"额外效果"（v2.9）：星级上限提升、以及正好落在本节点的解锁。
+   *
+   * 用户原话：「对于每次星级上限提升和部分节点的新魔物解锁，以额外效果（紫色文字）
+   * 追加到描述中」。这些事**不论选哪张卡都会发生**，所以必须写出来，
+   * 否则玩家会以为"我选的这张卡才带来了 +5 星"。
+   */
+  public powerupExtras(): readonly string[] {
+    const extras: string[] = [];
+    const elapsed = RUN.duration - this.timeLeft;
+    const capNow = starCapAt(elapsed, this.starBonus);
+    const capBefore = starCapAt(Math.max(0, elapsed - POWERUP.interval), this.starBonus);
+    const gain = capNow - capBefore;
+    if (gain > 0) extras.push(`星级上限 +${gain}`);
+    for (const step of CARD_UNLOCK) {
+      // 只报"这一个节点"的解锁：错开一两秒也算，避免浮点误差漏掉
+      if (Math.abs(step.at - elapsed) > 2) continue;
+      const def = findCard(step.id);
+      if (def === undefined) continue;
+      if (this.hand.some((card) => card.id === def.id)) continue;
+      extras.push(`解锁魔物 · ${def.name}`);
+    }
+    return extras;
+  }
+
   private openPowerup(): void {
     // 七宗罪里抽 3 个，互不重复（v2.7）。以前是"升星固定 + 2 随机"，
     // 现在升星就是「傲慢」，和其他六条一样参与抽签 —— 池子永远只有 7 条。
@@ -733,6 +771,7 @@ export class Game {
       maxCharges: CARD_STACK.charges,
       level: 1,
       xp: 0,
+      unlockAt: 0,
     });
   }
 
@@ -798,8 +837,8 @@ export class Game {
       this.events.onRoll(fromX, fromY, toX, toY);
       this.events.onSkillLabel('翻滚', 'roll');
     },
-    onLevelUp: (level, passive) => {
-      this.events.onHeroLevel(level, passive);
+    onLevelUp: (level, passive, passiveLevel) => {
+      this.events.onHeroLevel(level, passive, passiveLevel ?? 0);
       this.events.toast(`锅巴 Lv${level} · ${passive}`, 'bad');
     },
     onHurt: (amount) => this.events.onHeroHurt(amount),

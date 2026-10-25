@@ -1,4 +1,4 @@
-/* ── 全局调色板（与 docs/GAME_DESIGN.md §8.1 保持一致）────────────
+﻿/* ── 全局调色板（与 docs/GAME_DESIGN.md §8.1 保持一致）────────────
    深渊底色 #0B0A14 / #151226   大厅石 #2E2740 / #43395C
    熔岩     #FF6B4A / #FFB347   血色   #FF3B5C
    锅巴皮甲 #8A6A4A / #D8C8B0   钢刃   #9AA3AD                */
@@ -75,12 +75,16 @@ body {
 /* 标题页/结算时只藏游戏内 HUD，覆盖层仍然可见 */
 .hud.hidden .hud-top,
 .hud.hidden .hero-panel,
+.hud.hidden .hero-info,
+.hud.hidden .hero-info-toggle,
 .hud.hidden .hud-bottom,
 .hud.hidden .btn-pause,
 .hud.hidden .toasts {
   display: none;
 }
 
+/* v2.9 顶部只有一列：时间在正上方，锅巴血条在时间下面。
+   子元素全部 align-items:center，所以 .timer 的视觉中心恒等于视口中线。 */
 .hud-top {
   display: flex;
   flex-direction: column;
@@ -88,14 +92,8 @@ body {
   gap: 2px;
 }
 
-.phase {
-  font-size: 12px;
-  letter-spacing: 0.3em;
-  color: #8a83a8;
-}
-
 .timer {
-  font-size: 46px;
+  font-size: 40px;
   font-weight: 900;
   line-height: 1;
   letter-spacing: 0.04em;
@@ -125,36 +123,24 @@ body {
   }
 }
 
-.timer-sub {
-  font-size: 11px;
-  letter-spacing: 0.16em;
-  /* 这行字正好压在"战场正上方"这条通道上：剑气、技能名、飘字都会从这儿穿过去。
-     与其挪位置（挪哪都在弹道上），不如给它一个实底药丸 —— 文字永远读得清。 */
-  display: block;
-  width: fit-content;
-  margin: 6px auto 0;
-  padding: 2px 10px;
-  border-radius: 999px;
-  background: rgba(8, 7, 16, 0.78);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: #8b84a8;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95);
-}
-
 /* ── 勇者面板 ───────────────────────────────────────────── */
 /* 镜头永远以锅巴为中心 → 屏幕正中就是锅巴，任何贴在他身上的 HUD 都会挡住他。
-   所以血条放顶部（计时器正下方），中间那块永远留给战场。 */
+   所以血条放顶部（计时器正下方），中间那块永远留给战场。
+   v2.9：这条面板从"一行"改成"三行"（名字+等级 / 血条 / 经验+天赋），
+   460px 是"数字加两行天赋也读得清"的宽度，再窄 Lv 与血量会互相挤。 */
 .hero-panel {
-  margin-top: 4px;
-  width: min(420px, 54vw);
+  margin-top: 6px;
+  width: min(460px, 56vw);
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
 }
 
+/* 名字 + 等级：v2.9 把等级从详情面板搬回名字右侧 —— 等级是"他现在多强"的唯一读数，
+   藏在折叠面板里等于没有。等级做成小药丸，不然和名字糊成一句话。 */
 .hero-row {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
   font-size: 13px;
 }
@@ -166,30 +152,21 @@ body {
 }
 
 .hero-lv {
+  padding: 0 7px;
+  border-radius: 999px;
+  background: rgba(255, 179, 71, 0.14);
+  border: 1px solid rgba(255, 179, 71, 0.32);
   font-size: 11px;
-  color: var(--lava-1);
-  letter-spacing: 0.08em;
-}
-
-.hero-intent {
-  margin-left: auto;
-  font-size: 11px;
-  letter-spacing: 0.16em;
-  color: #8a83a8;
-}
-
-.hero-intent[data-intent='charge'] {
-  color: var(--lava-1);
-}
-
-.hero-intent[data-intent='retreat'] {
-  color: var(--good);
+  line-height: 1.5;
+  letter-spacing: 0.06em;
+  color: #ffd9a0;
+  font-variant-numeric: tabular-nums;
 }
 
 .hero-hp {
   position: relative;
-  height: 14px;
-  border-radius: 7px;
+  height: 16px;
+  border-radius: 8px;
   background: rgba(7, 6, 12, 0.85);
   border: 1px solid rgba(255, 255, 255, 0.12);
   overflow: hidden;
@@ -199,7 +176,7 @@ body {
   position: absolute;
   inset: 1px auto 1px 1px;
   width: 100%;
-  border-radius: 6px;
+  border-radius: 7px;
   background: linear-gradient(180deg, #ff6b7f, #c81f3c);
   transition: width 0.16s linear, background 0.3s ease;
 }
@@ -221,13 +198,14 @@ body {
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
 }
 
-/* ── 经验条 + 基础属性 + 权能面板 ───────────────────────── */
+/* ── 经验条 + 天赋条 ────────────────────────────────────── */
 
-/* 经验条贴在血条下面：玩家要能预判"他还有多久升级" —— 升级 = 回血 + 新天赋 */
+/* 经验条贴在血条下面：玩家要能预判"他还有多久升级" —— 升级 = 回血 + 新天赋。
+   v2.9 从左上详情面板搬回常驻区：它和血条是同一件事（"他现在还剩多少 / 还差多少"）。 */
 .hero-xp {
   position: relative;
   height: 8px;
-  margin-top: 3px;
+  margin-top: 2px;
   border-radius: 4px;
   background: rgba(7, 6, 12, 0.85);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -245,140 +223,33 @@ body {
   transition: width 0.2s linear;
 }
 
-.hero-xp-text {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  color: rgba(255, 255, 255, 0.9);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95);
-}
-
-.hero-stats {
-  margin-top: 4px;
-  font-size: 10px;
-  letter-spacing: 0.02em;
-  color: rgba(206, 199, 234, 0.72);
-  font-variant-numeric: tabular-nums;
-}
-
-/* 「他正在用什么技能」：技能名 + 一条读条，固定在勇者面板里。
-   玩家反馈"看不出来他在用什么技能"—— 飘字在战场中央，视线却在左上角。 */
-.hero-cast {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  margin-top: 5px;
-  padding: 3px 8px;
-  border-radius: 999px;
-  background: rgba(155, 107, 255, 0.18);
-  border: 1px solid rgba(155, 107, 255, 0.45);
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  color: #e4d7ff;
-  overflow: hidden;
-}
-
-.hero-cast.is-anim {
-  animation: cast-pop 0.25s ease-out;
-}
-
-@keyframes cast-pop {
-  from {
-    transform: scale(0.9);
-    opacity: 0.4;
-  }
-}
-
-.hero-cast-bar {
-  position: relative;
-  flex: 1;
-  height: 3px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.14);
-  overflow: hidden;
-}
-
-.hero-cast-bar i {
-  position: absolute;
-  inset: 0;
-  transform-origin: left center;
-  background: linear-gradient(90deg, #9b6bff, #ffb347);
-}
-
-.hero-cast.is-anim .hero-cast-bar i {
-  animation: cast-fill 1.2s linear forwards;
-}
-
-@keyframes cast-fill {
-  from {
-    transform: scaleX(1);
-  }
-  to {
-    transform: scaleX(0);
-  }
-}
-
-/* 他当前的天赋：3 个 chip，最新一个是亮的 —— 回答"他升级获得了什么" */
+/* 他当前的天赋（七美德）：名字 chip 一行一个，最新一个是亮的 ——
+   回答"他升级获得了什么"。整句机制太长，留在 .hero-info 里按需展开。 */
 .hero-perks {
   display: flex;
   flex-wrap: wrap;
-  gap: 3px;
-  margin-top: 4px;
+  gap: 4px;
+  margin-top: 2px;
 }
 
-.hero-perk {
-  padding: 0 5px;
+.top-perk {
+  padding: 0 6px;
   border-radius: 5px;
   background: rgba(255, 179, 71, 0.12);
   border: 1px solid rgba(255, 179, 71, 0.28);
   color: #cbbfa8;
-  font-size: 9.5px;
+  font-size: 10px;
+  line-height: 1.5;
   letter-spacing: 0.02em;
   white-space: nowrap;
 }
 
-.hero-perk.is-new {
+/* 最新抽到的那条要能被一眼认出来（列表是从旧到新 push 的） */
+.top-perk:last-child {
   background: rgba(255, 179, 71, 0.3);
   border-color: rgba(255, 179, 71, 0.75);
   color: #ffe4bd;
   box-shadow: 0 0 10px rgba(255, 179, 71, 0.35);
-}
-
-/* 左下角权能面板：把"上限 / 减 CD / 召唤数 / 击杀"摊开给玩家看 */
-.power-panel {
-  display: grid;
-  grid-template-columns: repeat(4, auto);
-  gap: 2px 14px;
-  padding: 6px 12px;
-  border-radius: 10px;
-  background: rgba(10, 8, 18, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.power-row {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  line-height: 1.3;
-}
-
-.power-row i {
-  font-style: normal;
-  font-size: 9px;
-  letter-spacing: 0.04em;
-  color: #8a83a8;
-}
-
-.power-row b {
-  font-size: 13px;
-  color: #e6dfff;
-  font-variant-numeric: tabular-nums;
 }
 
 /* ── 底部：星数 + 手牌 ──────────────────────────────────── */
@@ -436,15 +307,6 @@ body {
 
 .hand::-webkit-scrollbar {
   display: none;
-}
-
-/* 常驻操作提示：一局 5 分钟里，"能双击引爆"必须随时可见，不能只写在标题页 */
-.hint-bar {
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  color: rgba(222, 215, 242, 0.62);
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
-  white-space: nowrap;
 }
 
 /* 卡面贴图：占上半张卡，名字压在下沿 —— 玩家靠图认怪，不靠字认怪 */
@@ -565,19 +427,27 @@ body {
 
 /* ── 卡牌悬浮说明 ───────────────────────────────────────── */
 /* 玩家根本不知道这些卡是干嘛的 —— 卡面只有图 + 名字 + 星级，
-   所以提示里必须把「怎么打 / 多强 / 什么时候拿」三件事说全。 */
+   所以提示里必须把「怎么打 / 多强 / 什么时候拿」三件事说全。
+   v2.9：位置交给 JS（贴在**这张卡**的正上方、水平居中于卡片、边缘自己 clamp），
+   这里只定长相与层级。所以 top/left 只留 0 兜底，绝不再写死停靠点 ——
+   写死 left/bottom 会被内联样式盖住，等于埋一颗"改不动"的地雷。 */
 .card-tip {
   position: fixed;
+  top: 0;
+  left: 0;
   z-index: 90;
-  width: min(300px, 76vw);
-  padding: 12px 14px 10px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 179, 71, 0.45);
+  width: min(340px, 94vw);
+  max-width: 94vw;
+  padding: 12px 15px 11px;
+  border-radius: 13px;
+  border: 1px solid rgba(255, 179, 71, 0.55);
   background: linear-gradient(180deg, rgba(38, 30, 58, 0.985), rgba(12, 10, 22, 0.99));
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(0, 0, 0, 0.5) inset;
+  box-shadow:
+    0 18px 50px rgba(0, 0, 0, 0.8),
+    0 0 0 1px rgba(255, 179, 71, 0.14) inset;
   color: #ded7f2;
-  font-size: 12px;
-  line-height: 1.55;
+  font-size: 13.5px;
+  line-height: 1.58;
   pointer-events: none;
   animation: tip-in 0.12s ease-out;
 }
@@ -916,37 +786,20 @@ body {
   z-index: 1;
 }
 
-/* 标题页立绘：没有主角的标题页会被当成"未完成的网页"（评审连着说了两次背景单调） */
-.title-hero {
-  display: block;
-  width: 132px;
-  height: 132px;
-  margin: -6px auto 2px;
-  object-fit: contain;
-  filter: drop-shadow(0 10px 26px rgba(255, 138, 74, 0.35));
-  animation: hero-float 3.6s ease-in-out infinite;
-}
-
-@keyframes hero-float {
-  0%,
-  100% {
-    transform: translateY(0) rotate(-1.5deg);
-  }
-  50% {
-    transform: translateY(-7px) rotate(1.5deg);
-  }
-}
-
+/* 标题：标题页唯一的重点。
+   v2.9 去掉了面板，标题直接压在大厅图上 —— 所以字号从 62 上限抬到 96，
+   并且加一层金色光泽（线性渐变 + background-clip），在暗底图上才立得住。 */
 .game-title {
   margin: 0;
-  font-size: clamp(34px, 6vw, 62px);
+  font-size: clamp(44px, 7.2vw, 96px);
   font-weight: 900;
   letter-spacing: 0.06em;
-  background: linear-gradient(180deg, #ffe9c9 6%, var(--hero-0) 42%, var(--lava-0) 100%);
+  line-height: 1.06;
+  background: linear-gradient(180deg, #fff6dd 4%, #ffe9c9 26%, var(--hero-0) 58%, var(--lava-0) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  filter: drop-shadow(0 6px 22px rgba(255, 107, 74, 0.3));
+  filter: drop-shadow(0 6px 22px rgba(255, 107, 74, 0.32));
   /* 标题呼吸：没有动效的标题页看起来像一张静态截图。
      幅度刻意很小（1.5% + 一点光晕），在标题上做大动画会显得廉价。 */
   animation: title-breathe 4.2s ease-in-out infinite;
@@ -979,51 +832,6 @@ body {
   }
 }
 
-.subtitle {
-  margin: 10px 0 20px;
-  font-size: 14px;
-  letter-spacing: 0.24em;
-  color: #9c94bd;
-}
-
-/* 规则里点出"锅巴"是勇者：标题里只有个名字，评审会分不清谁是魔王 */
-.rule-name {
-  color: var(--hero-0);
-  font-weight: 700;
-}
-
-.rules {
-  margin: 0 auto 24px;
-  padding: 0;
-  list-style: none;
-  max-width: 30em;
-  text-align: left;
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
-  font-size: 13.5px;
-  line-height: 1.7;
-  color: #b0a8cc;
-}
-
-.rules li {
-  padding-left: 18px;
-  position: relative;
-}
-
-.rules li::before {
-  content: '◆';
-  position: absolute;
-  left: 0;
-  color: var(--lava-0);
-  font-size: 9px;
-  top: 4px;
-}
-
-.rules b {
-  color: #f0e9ff;
-}
-
 .btn-primary {
   appearance: none;
   border: 1px solid rgba(255, 179, 71, 0.55);
@@ -1054,14 +862,6 @@ body {
   transform: translateY(0);
 }
 
-.hint {
-  margin: 18px 0 0;
-  font-size: 13px;
-  letter-spacing: 0.08em;
-  /* 这条是核心操作说明，不是页脚：之前 11.5px + #5d5875 在暗背景上几乎看不见 */
-  color: #9c94bd;
-}
-
 .panel-title {
   margin: 0;
   font-size: 26px;
@@ -1083,44 +883,6 @@ body {
   font-size: 13px;
   letter-spacing: 0.1em;
   color: #9c94bd;
-}
-
-/* 权能三选一 */
-.powerup-row {
-  display: flex;
-  gap: 14px;
-  justify-content: center;
-  flex-wrap: wrap;
-}
-
-/* 防误触：面板刚出现时按钮是 disabled 的，450ms 后才亮起来。
-   角标/透明度要跟着变，否则玩家会以为"点了没反应"。 */
-.powerup-card:disabled {
-  opacity: 0.55;
-  cursor: progress;
-  transform: none;
-}
-
-.powerup-hold {
-  margin-top: 14px;
-  height: 3px;
-  border-radius: 2px;
-  background: rgba(155, 107, 255, 0.18);
-  overflow: hidden;
-}
-
-.powerup-hold-fill {
-  display: block;
-  height: 100%;
-  width: 100%;
-  background: linear-gradient(90deg, rgba(255, 179, 71, 0.15), var(--lava-1));
-  transform-origin: left center;
-  animation: powerup-arm 0.45s linear forwards;
-}
-
-@keyframes powerup-arm {
-  from { transform: scaleX(0); }
-  to { transform: scaleX(1); }
 }
 
 /* 权能前摇预告条：屏幕上方，短促、不遮挡战场 */
@@ -1177,42 +939,6 @@ body {
 .powerup-warn-sub {
   font-size: 12px;
   opacity: 0.72;
-}
-
-.powerup-card {
-  flex: 1 1 170px;
-  min-height: 118px;
-  padding: 16px 14px;
-  border-radius: 12px;
-  border: 1px solid rgba(155, 107, 255, 0.4);
-  background: linear-gradient(180deg, rgba(155, 107, 255, 0.16), rgba(11, 10, 20, 0.9));
-  color: #ded7f2;
-  font-family: inherit;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 8px;
-  transition: transform 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease;
-}
-
-.powerup-card:hover {
-  transform: translateY(-4px);
-  border-color: var(--lava-1);
-  box-shadow: 0 14px 34px rgba(255, 179, 71, 0.22);
-}
-
-.powerup-title {
-  font-size: 16px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  color: #ffe4bd;
-}
-
-.powerup-desc {
-  font-size: 12.5px;
-  line-height: 1.6;
-  color: #b0a8cc;
 }
 
 /* 结算数据 */
@@ -1299,32 +1025,9 @@ body {
     0 16px 34px rgba(255, 179, 71, 0.28);
 }
 
-/* 顶部计时器：整屏最需要"远看也清楚"的一个数字 */
+/* 顶部计时器：整屏最需要"远看也清楚"的一个数字（最终尺寸在文件末尾 v2.9 段） */
 .timer {
-  font-size: 30px;
   letter-spacing: 0.06em;
-}
-
-.timer-sub {
-  font-size: 12px;
-}
-
-.hero-panel {
-  transform: scale(1.06);
-  transform-origin: top left;
-}
-
-.powerup-card {
-  min-width: 176px;
-  padding: 18px 16px;
-}
-
-.powerup-title {
-  font-size: 17px;
-}
-
-.powerup-desc {
-  font-size: 13px;
 }
 
 .stats > div {
@@ -1547,40 +1250,17 @@ body {
   gap: 14px;
 }
 
-/* ---- 顶部：计时器与勇者面板 ---- */
-/* 36px 是"隔一米也能读出秒数"的下限，30px 在 720p 上只算勉强 */
-.timer {
-  font-size: 36px;
-}
+/* ---- 顶部：计时器（v2.9 已经是顶部唯一一个数字，字号见基础规则 40px）---- */
+/* v2.7 的 scale(1.14) + translateX(-6.14%) 是为"上下叠三层"补位移用的，
+   v2.9 顶部改回竖排、血条不再和计时器并排，缩放只会把血条顶出顶部安全区，
+   所以整段（含只为它存在的 margin-bottom）已删除。 */
 
-.timer-sub {
-  font-size: 12.5px;
-}
-
-.hero-panel {
-  /* transform-origin 保持 top left：以中心/底部为原点放大会把血条顶出
-     顶部安全区（HUD padding 只有 14px），上半截直接被裁掉。
-     但原点在左边 → 放大后整体右移 (1.14-1)/2 = 7% 宽，和正上方的
-     计时器对不齐；translateX(-6.14%) 会先被 scale 放大 1.14 倍，
-     落地正好是 -7%，把这块偏移抵消掉，右边缘仍在屏内。 */
-  transform: scale(1.14) translateX(-6.14%);
-  transform-origin: top left;
-  /* transform 不占布局：向下多伸出的 14% 高会盖住紧跟着的 .timer-sub 药丸，
-     用 margin 在布局里预留这块空隙，药丸本身的位置一个字都不用改 */
-  margin-bottom: 12px;
-}
-
-/* ---- 权能三选一（"全能选择界面"的主体）---- */
+/* ---- 面板：v2.9 只剩结算页在用（权能页已经没有面板了）----
+   宽度/padding 统一在 2.8.6 那一段（min(760px, 92vw)）；
+   这里只管圆角与"从战场里浮起来"的阴影 —— 覆盖层背景是半透明的，
+   没有这层阴影，面板会和背后的飘字糊成一片。 */
 .panel {
-  /* 3 × 240 的卡 + 2 × 20 的 gap + 左右各 40 padding = 840，
-     680 装不下一行；900 能在 1280 上一行放下且左右还有余量。
-     92vw 兜住更窄的窗口，再窄的交由 style-mobile.css 压回来。 */
-  width: min(900px, 92vw);
-  max-width: 92vw;
-  padding: 36px 40px 34px;
   border-radius: 18px;
-  /* 压暗加深 + 内描边：覆盖层自己的背景是半透明的，面板必须靠阴影
-     从战场里"浮起来"，否则和背景飘字糊成一片 */
   box-shadow:
     0 36px 100px rgba(0, 0, 0, 0.8),
     0 0 0 1px rgba(255, 179, 71, 0.12) inset;
@@ -1592,38 +1272,6 @@ body {
 
 .panel-sub {
   font-size: 14px;
-}
-
-.powerup-row {
-  gap: 20px;
-}
-
-.powerup-card {
-  min-width: 240px;
-  /* 高度给死，避免三个选项因为说明长短不同而"高矮不齐"，
-     那会让最矮的那个看起来像 disabled */
-  min-height: 140px;
-  padding: 24px 22px;
-  border-radius: 14px;
-  gap: 10px;
-}
-
-.powerup-card:hover {
-  box-shadow: 0 18px 44px rgba(255, 179, 71, 0.3);
-}
-
-.powerup-title {
-  font-size: 21px;
-}
-
-.powerup-desc {
-  font-size: 14.5px;
-  line-height: 1.62;
-}
-
-.powerup-hold {
-  margin-top: 16px;
-  height: 4px;
 }
 
 /* ---- 结算：数字是主角 ---- */
@@ -1673,21 +1321,6 @@ body {
   height: 7px;
 }
 
-.hint-bar {
-  font-size: 12px;
-}
-
-/* 注意：工程里没有 .power-bar，左下角那块权能数字叫 .power-panel
-   （hud.ts 里 power-row 四个读数）*/
-.power-panel {
-  padding: 7px 13px;
-  gap: 2px 15px;
-}
-
-.power-row b {
-  font-size: 14px;
-}
-
 /* 手牌长高 20px 之后，.hud-bottom 整体上移，升级横幅（原来 bottom:168px）
    正好压在提示条上 —— 冒烟当场抓到"升级横幅压提示=true"。
    这里把它抬到手牌 + 提示条之上，留 8px 呼吸。 */
@@ -1697,39 +1330,6 @@ body {
      中段是唯一一块空白（报幕横幅在 16%，这里退到 38%）。 */
   top: 42%;
   bottom: auto;
-}
-
-/* 悬停锅巴看天赋（七美德）：比卡牌说明更宽，因为每条都是一句完整机制 */
-.card-tip.is-hero {
-  max-width: 380px;
-  min-width: 300px;
-}
-
-.hero-tips {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  margin-top: 6px;
-}
-
-.hero-tip-row {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding-left: 9px;
-  border-left: 2px solid rgba(255, 179, 71, 0.5);
-}
-
-.hero-tip-row b {
-  font-size: 13.5px;
-  color: #ffe4bd;
-  letter-spacing: 0.1em;
-}
-
-.hero-tip-row span {
-  font-size: 12px;
-  line-height: 1.55;
-  color: #b0a8cc;
 }
 
 /* ---- 版本角标（v2.7）：名字定案 + 版本号 ----
@@ -1806,38 +1406,26 @@ body {
    "后出现的在下面"这条规律不再可靠，所以这里显式写死 80。
    ============================================================ */
 
-/* ---- 2.8.1 顶部一行：时间 / 血条 / 查看锅巴 ------------------------------
-   1280×720 实测预算：timer ≈ 88 + gap 20 + hero-panel 420（缩放后视觉 437）
-   + gap 20 + 按钮 ≈ 74 = 622px，可用宽度 1240px → 不换行、也够不到右侧
-   绝对定位的静音(right:62) / 暂停(right:18) 两个 38px 方块。
-   gap 给 20 而不是 10：hero-panel 带 scale(1.04)，transform 不占布局，
-   会从左右各"吃"掉 8.4px，落地视觉间距 = 20 - 8.4 ≈ 11.6px ≥ 10px。 */
-.hud-top {
-  flex-direction: row;
-  align-items: center;
-  justify-content: center;
-  gap: 20px;
-  flex-wrap: nowrap;
-}
+/* ---- 2.8.1 顶部：时间 + 血条（v2.9 已改回竖排，见文件末尾 v2.9 段）----------------
+   v2.8 这里是"时间 / 血条 / 查看锅巴"横排一行；v2.9 把「查看详情」抽成左上角
+   独立按钮、把经验条与天赋搬回常驻区，顶部重新变成**竖排**：时间在正上方，
+   血条在时间下面。横排那套规则（含 scale(1.04) 补偿）已整段删除。 */
 
-/* v2.7 的 scale(1.14) + translateX(-6.14%) 是为"上下叠三层"补位移用的：
-   现在血条只占一行，1.14 会让它比计时器还高，把顶部顶出 14px 的安全区。
-   以中心为原点缩放不产生位移，所以不需要再补 translateX。 */
-.hero-panel {
-  margin: 0;
-  transform: scale(1.04);
-  transform-origin: center;
-}
-
-/* 「查看锅巴」是次级操作，做成描边小药丸紧贴血条右侧：
-   HUD 整体 pointer-events:none，按钮必须自己打开，否则点不到。 */
+/* 「查看详情」是次级操作，做成描边小药丸固定在左上角：
+   HUD 整体 pointer-events:none，按钮必须自己打开指针事件，否则点不到。
+   z 50 夹在 .hero-info(30) 与 .scene-banner(60) 之间 —— 面板展开时按钮仍然在面板之上，
+   这样"点开再点收"不会因为被面板压住而点不到。 */
 .hero-info-toggle {
-  flex: 0 0 auto;
+  position: absolute;
+  left: 20px;
+  top: 14px;
+  z-index: 50;
   pointer-events: auto;
-  padding: 5px 12px;
+  padding: 6px 13px;
   border-radius: 999px;
   border: 1px solid rgba(255, 179, 71, 0.38);
   background: rgba(11, 10, 20, 0.72);
+  backdrop-filter: blur(6px);
   color: #ffd9a0;
   font-family: inherit;
   font-size: 12px;
@@ -1856,16 +1444,18 @@ body {
 }
 
 /* ---- 2.8.2 左上角锅巴详情面板 ------------------------------------------
-   位置压在顶部 HUD 之下（hud 上边距 14 + 一行 ≈ 43 → 74 起才不压计时器）。
-   宽 288 是"两列属性刚好一行放一个短数字"的宽度，再宽就侵入战场。
-   高 ≤60vh + 内部滚动：真到七美德全解锁时内容会很长，但面板绝不能长成
-   一条竖到屏幕底的黑条（那会盖住左半战场）。 */
+   v2.9：位置让到「查看详情」按钮下方（按钮 top14 + 高 28 → 56 起才不压它）。
+   宽 300 是"两列属性刚好一行放一个数字"的宽度，再宽就侵入战场。
+   高 ≤60vh + 内部滚动：七美德全解锁时内容会很长，但面板绝不能长成
+   一条竖到屏幕底的黑条（那会盖住左半战场）。
+   指针事件开：这条面板现在**可以被滚动**（属性 6 条 + 技能 2 条 + 美德 N 条
+   经常超屏），不吃指针就等于把后几条永久藏起来。 */
 .hero-info {
   position: absolute;
   left: 16px;
-  top: 74px;
+  top: 58px;
   z-index: 30;
-  width: 288px;
+  width: 300px;
   max-height: 60vh;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -1877,8 +1467,7 @@ body {
   color: #ded7f2;
   font-size: 12.5px;
   scrollbar-width: thin;
-  /* 面板只读：不吃指针，否则鼠标滑到左上角就点不到脚下的地面了 */
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 /* [hidden] 的 UA 规则是 display:none，但任何一条 display 声明都会覆盖它；
@@ -1894,61 +1483,6 @@ body {
 .hero-info::-webkit-scrollbar-thumb {
   border-radius: 3px;
   background: rgba(255, 179, 71, 0.3);
-}
-
-.hi-row {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-  /* 18 是给 .hi-xp 里那条"飘在进度条上方"的百分比文字留的落点 */
-  margin-bottom: 18px;
-  padding-bottom: 7px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
-  font-size: 11.5px;
-  letter-spacing: 0.1em;
-  color: #8a83a8;
-}
-
-.hi-row b {
-  font-size: 14px;
-  font-weight: 900;
-  letter-spacing: 0.04em;
-  color: #ffd9a0;
-}
-
-/* 经验条只有 6px：百分比数字塞不进去，改成"贴在条子右上方"，
-   颜色用次要色，读得到但不抢等级的注意力。
-   注意这里**不能**加 overflow:hidden —— 那条百分比文字是绝对定位到条子上方的，
-   一旦裁剪就会被 6px 的条子整个裁掉（实测就是这么"消失"的）；
-   进度条自己的圆角由 .hi-xp-fill 的 border-radius 保证，不需要靠裁剪。 */
-.hi-xp {
-  position: relative;
-  height: 6px;
-  margin-bottom: 12px;
-  border-radius: 3px;
-  background: rgba(7, 6, 12, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.hi-xp-fill {
-  position: absolute;
-  inset: 1px auto 1px 1px;
-  width: 0;
-  border-radius: 3px;
-  background: linear-gradient(90deg, #7be05f, #ffb347);
-  transition: width 0.2s linear;
-}
-
-.hi-xp span {
-  position: absolute;
-  right: 0;
-  bottom: calc(100% + 3px);
-  font-size: 10.5px;
-  letter-spacing: 0.04em;
-  color: #c9c1e0;
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
 }
 
 /* 属性两列网格：一列一项，名字小灰字、数值亮色；
@@ -2161,38 +1695,11 @@ body {
   animation: none;
 }
 
-/* ---- 2.8.4 卡牌说明：固定左下角 + 放大 1.12 倍 -------------------------
-    位置定在"手牌上方那一条"的左端，而不是屏幕最底边：满 8 张手牌时手牌会
-    从 x≈119 铺到 x≈1161，贴着最底边的说明卡会压住最左边的 1~2 张牌 ——
-    正好是玩家正在挑的那两张。抬高 184px（手牌高度 + 底距）以后，说明卡
-    仍然在左下区域，但不碰手牌。
-    hud.ts 的 positionTooltip() 会清掉内联 top/left 并挂 .is-docked，
-    所以这里不需要 !important，两个选择器一起写只是兜底。 */
-.card-tip,
-.card-tip.is-docked {
-  position: fixed;
-  left: 18px;
-  /* 206 = 手牌高 142 + 底距 24 + 40 的呼吸位。
-     18 是"贴底边"的写法，但浮层自带 20px 外的投影，DOM 不重叠视觉上仍然蹭到手牌，
-     所以这里按"看得见"而不是"量得到"来留空。 */
-  bottom: 206px;
-  top: auto;
-  right: auto;
-  /* 420 是"读完不费劲"的上限；窄屏退回 36px 双边留白，别贴到边框上 */
-  width: min(420px, calc(100vw - 36px));
-  max-width: calc(100vw - 36px);
-  padding: 13px 16px 12px;
-  border-radius: 13px;
-  border: 1px solid rgba(255, 179, 71, 0.62);
-  box-shadow:
-    0 20px 56px rgba(0, 0, 0, 0.82),
-    0 0 0 1px rgba(255, 179, 71, 0.16) inset,
-    0 0 22px rgba(255, 179, 71, 0.14);
-  font-size: 13.5px;
-  line-height: 1.58;
-}
-
-/* 内部跟着放大 1.12 倍：只放大外框不放大字，读起来反而更空 */
+/* ---- 2.8.4 卡牌说明：文字排版（位置在 v2.9 段交给 JS）-------------------
+   v2.8 曾把说明卡固定钉在左下角（left:18 / bottom:206 / .is-docked）；
+   v2.9 用户要求"悬浮在卡牌上"，位置改由 hud.ts 按卡片 rect 逐次算好写进内联样式。
+   所以这里只剩字号层级，**一行定位都不留** —— 留下任何 left/top/bottom 都是在
+   和 JS 抢同一个属性（内联优先，看起来"改了没反应"，是上一版埋过的坑）。 */
 .tip-head b {
   font-size: 17px;
 }
@@ -2232,60 +1739,20 @@ body {
   pointer-events: none;
 }
 
-/* ---- 2.8.6 权能三选一：再大一档 ---------------------------------------
-   1280×720 的面板预算（必须一行，不许折行）：
-     面板 1020 - 左右 padding 34×2 = 内容 952
-     3 张卡 × 300 + 2 × gap 22 = 944 ≤ 952 ✔（还剩 4px 余量）
-   所以 padding 从 v2.7 的 40 收到 34：保持 40 的话内容只有 940，
-   比 944 少 4px，flex-wrap 会把三张卡折成 2+1 —— 那正好是用户抱怨的
-   "选项比标题还矮"的反面。
-   ≤1200 时 94vw 已经开始吃掉面板宽度（94vw - 68 会小于 944），
-   那时把卡的最小宽降到 260（3×260 + 44 = 824）继续一行。 */
+/* ---- 2.8.6 权能三选一（v2.9 起已无面板，整段迁到文件末尾 v2.9 段）------
+   v2.8 当年为了塞下 3 张 300px 的卡，把 .panel 撑到 1020、把 .powerup-card
+   撑到 300×170，还配了一条 450ms 的 hold 计时条。这些 DOM 在 v2.9 全删了：
+   权能页现在只有遮罩 + 三张 3:4 卡，所以那批规则整段消失。
+   唯一还在用 .panel 的是结算页（5 个数字 + 一个按钮），宽度收回 760。 */
 .panel {
-  width: min(1020px, 94vw);
-  max-width: 94vw;
-  padding: 36px 34px 34px;
+  width: min(760px, 92vw);
+  padding: 34px 34px 30px;
 }
 
-.powerup-row {
-  gap: 22px;
-  /* 显式 nowrap：宁可让卡被压到 min-width，也不允许折行把三选一变成 2+1 */
-  flex-wrap: nowrap;
-}
-
-.powerup-card {
-  flex: 1 1 300px;
-  min-width: 300px;
-  min-height: 170px;
-  padding: 28px 26px;
-}
-
-/* 说明越来越长（每条都写了机制），15.5/1.65 是"一屏读完三张"的下限 */
-.powerup-title {
-  font-size: 24px;
-}
-
-.powerup-desc {
-  font-size: 15.5px;
-  line-height: 1.65;
-}
-
-@media (max-width: 1200px) {
-  .powerup-card {
-    min-width: 260px;
-  }
-}
-
-/* ---- 2.8.7 标题页：紧凑规则 + 教程开关 -------------------------------- */
-.rules-tight {
-  gap: 6px;
-  margin-bottom: 14px;
-  font-size: 14px;
-  line-height: 1.55;
-}
-
+/* ---- 2.8.7 标题页：教程开关 -------------------------------------------
+   （v2.9 标题页已去掉面板与规则列表，只剩 .tut-toggle 这一个可点开关） */
 /* 一行可点的开关：checkbox 用项目金色做 accent-color，省掉自绘一个假开关。
-   面板是居中排版，所以左右用 auto 收成 fit-content，视觉才在正中。 */
+   排版是居中竖排，所以左右用 auto 收成 fit-content，视觉才在正中。 */
 .tut-toggle {
   display: flex;
   align-items: center;
@@ -2315,4 +1782,332 @@ body {
 /* ---- 2.8.8 层级收口 --------------------------------------------------- */
 .overlay {
   z-index: 80;
+}
+
+/* ============================================================
+   v2.9 大厅标题页 + 权能 3:4 卡 + HUD 重排
+   ------------------------------------------------------------
+   这一版 DOM 一次改了五处，所以样式也按"新组件"成组重写：
+   1) 标题页没有面板了：整屏大厅图（王座）+ 地面层 + 遮罩 + 标题 + 开始按钮。
+      面板一去掉，标题就是唯一能承载"庄重"的东西 —— 字号直接给到 96。
+   2) 权能三选一没有面板了：遮罩上直接浮三张 3:4 竖卡，卡里是"名称 / 描述 /
+      紫色额外效果"。玩家这一屏只做一件事：读三张卡，点一张。
+   3) 左上角多了独立的「查看详情」按钮（绝对定位），详情面板让到它下面。
+   4) 顶部回到竖排：时间 → 血条 → 经验 → 天赋，全部居中在中轴线。
+   5) 卡牌说明改由 JS 定位到卡牌正上方，CSS 一行定位都不留。
+
+   层级（.hud 不建层叠上下文，所以是全局比较）：
+     手牌 / 星数 0 < .hero-info 30 < .hero-info-toggle 50
+     < .scene-banner 60 < .tutorial 70 < .overlay 80 < .card-tip 90
+   ============================================================ */
+
+/* ---- 2.9.1 权能三选一：遮罩 + 三张 3:4 竖卡 --------------------------- */
+/* 没有面板：用户要的是"整个战场暗下去，只剩三个选项"。
+   遮罩用**实色** rgba(6,5,12,.82) 而不是纯渐变 —— 纯渐变在软件渲染下
+   和战场糊成一片，看不出"世界已暂停"，冒烟也没法判断遮罩在不在。 */
+.overlay.powerup {
+  background: rgba(6, 5, 12, 0.82);
+  backdrop-filter: blur(3px);
+}
+
+.pu-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
+  max-width: 1180px;
+  padding: 0 16px;
+  text-align: center;
+}
+
+/* 标题 40~44px + 金色光晕：压在暗遮罩上，不做光晕只是一行粗字。
+   3.3vw 让 1280 上落在 42px、1440 上到 44 封顶。 */
+.pu-head {
+  margin: 0;
+  font-size: clamp(34px, 3.3vw, 44px);
+  font-weight: 900;
+  line-height: 1.1;
+  letter-spacing: 0.16em;
+  text-indent: 0.16em;
+  background: linear-gradient(180deg, #fff5dc 6%, #ffd79a 48%, #ff9a5c 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 18px rgba(255, 179, 71, 0.45));
+}
+
+.pu-sub {
+  margin: 8px 0 0;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  color: rgba(222, 215, 242, 0.62);
+}
+
+/* 一行三张、绝不折行：折成 2+1 会让人以为"少给了一个选项" */
+.pu-row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  justify-content: center;
+  align-items: stretch;
+  gap: 22px;
+  width: 100%;
+  margin-top: 22px;
+}
+
+/* 3:4 竖卡（aspect-ratio 写死，别用 padding 撑：padding 撑的比例在
+   内容变长时会被撑破，aspect-ratio 不会）。
+   宽 clamp 210~300：210 是"描述里一行还能放 11~12 个汉字"的下限。 */
+.pu-card {
+  position: relative;
+  flex: 0 0 auto;
+  width: clamp(210px, 25vw, 300px);
+  aspect-ratio: 3 / 4;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  padding: 22px 20px 18px;
+  border-radius: 16px;
+  border: 1px solid rgba(155, 107, 255, 0.45);
+  /* 半透明底 + 内描边 + 大投影 = 玻璃卡：底下战场透得出来，卡自己立得住 */
+  background: linear-gradient(180deg, rgba(52, 40, 82, 0.82), rgba(11, 10, 20, 0.9));
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.66),
+    0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+  backdrop-filter: blur(2px);
+  color: #ded7f2;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+/* hover：轻微上浮 + 金边。只抬 6px —— 三张卡并排，抬多了整排重心会乱跳 */
+.pu-card:not(:disabled):hover {
+  transform: translateY(-6px);
+  border-color: var(--lava-1);
+  box-shadow:
+    0 30px 70px rgba(0, 0, 0, 0.7),
+    0 0 32px rgba(255, 179, 71, 0.28);
+}
+
+.pu-card:not(:disabled):active {
+  transform: translateY(-2px);
+}
+
+/* 出现后 450ms 内是 disabled（防连点穿透）。这里**绝不能灰掉**：
+   玩家这 450ms 也在看卡，灰掉会让人误判"这张选不了"。
+   只把透明度压到 .92，并取消 hover 位移。 */
+.pu-card:disabled {
+  opacity: 0.92;
+  cursor: default;
+  transform: none;
+}
+
+/* 名称在上：22px 粗体 + 一条金色细分隔线，把"名字"和"效果"分成两块 */
+.pu-name {
+  flex: 0 0 auto;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 179, 71, 0.18);
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.25;
+  letter-spacing: 0.12em;
+  color: #ffe4bd;
+  text-shadow: 0 2px 10px rgba(255, 140, 40, 0.3);
+}
+
+/* 描述：多行正文。white-space / overflow / text-overflow 全部显式写死 ——
+   按钮类元素一旦被套上 nowrap + ellipsis，"描述是多行文本"这条需求就废了
+   （这也正是上一版一行截断的根因）。word-break 保证长英文/数字也换行。 */
+.pu-desc {
+  flex: 1 1 auto;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  word-break: break-word;
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: #b6aed2;
+}
+
+/* 额外效果贴底（margin-top:auto）：它讲的是"这一轮全局发生了什么"
+   （星级上限 / 新魔物解锁），三张卡都会得到，所以每张卡底部都列一遍。
+   三张卡等高时，auto 让这几行落在同一条基线上，扫一眼就能比。 */
+.pu-extras {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid rgba(201, 162, 255, 0.26);
+}
+
+/* 没有额外效果（没到 +星 / 没到解锁节点）时，别留一条空的紫线 */
+.pu-extras:empty {
+  display: none;
+}
+
+/* 紫色额外效果：一行一条，13.5px。装饰菱形放在 ::before 里，
+   content 后面带一个空格，保证装饰和文字之间永远有间隙（不靠 padding 挤字）。 */
+.pu-extra {
+  display: block;
+  font-size: 13.5px;
+  line-height: 1.45;
+  letter-spacing: 0.02em;
+  color: #c9a2ff;
+}
+
+.pu-extra::before {
+  content: '◆ ';
+  font-size: 9px;
+  vertical-align: 0.12em;
+  opacity: 0.72;
+}
+
+/* ---- 2.9.2 标题页：大厅图 + 遮罩 + 标题 + 开始按钮（没有面板）---------- */
+/* 面板没了，覆盖层自带的渐变与模糊也一起去掉：大厅图是这一页的主角，
+   上面再糊一层 blur 等于把美术料白做了。 */
+.overlay.title {
+  background: var(--abyss-0);
+  backdrop-filter: none;
+}
+
+/* 铺满视口 + 裁掉溢出：两张背景层都按 cover 放大，必然超出视口 */
+.title-stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+/* 主视觉：王座。center 35% 而不是 center —— 王座的重心在画面上三分之一，
+   正中的话标题正好压住它，人像和标题会互相吃对比度。 */
+.title-bg {
+  position: absolute;
+  inset: 0;
+  background-position: center 35%;
+  background-size: cover;
+  background-repeat: no-repeat;
+  filter: saturate(1.05);
+}
+
+/* 地面层：压在下沿做"厚度 / 透视"。上沿用渐变淡出接住远处的地砖，
+   否则两张图之间会出现一条硬边（看起来像贴图没加载完）。 */
+.title-bg-floor {
+  top: auto;
+  bottom: 0;
+  height: 42%;
+  background-position: center bottom;
+  filter: saturate(1.02) brightness(0.8);
+  -webkit-mask-image: linear-gradient(to top, #000 46%, rgba(0, 0, 0, 0) 100%);
+  mask-image: linear-gradient(to top, #000 46%, rgba(0, 0, 0, 0) 100%);
+}
+
+/* 遮罩：椭圆径向"中间稍亮、四周压暗" + 上下各一道线性。
+   标题压在中间那块亮区上才有对比度，边缘压暗把视线收拢回标题。 */
+.title-mask {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 50% 42%, rgba(0, 0, 0, 0.15), rgba(6, 5, 12, 0.86) 78%),
+    linear-gradient(
+      180deg,
+      rgba(6, 5, 12, 0.5) 0%,
+      rgba(6, 5, 12, 0) 32%,
+      rgba(6, 5, 12, 0.42) 100%
+    );
+  pointer-events: none;
+}
+
+/* 标题块：整屏居中竖排。padding-bottom 6vh 让整块往上抬 3vh ——
+   视觉重心比几何中心略高一点才"稳"，也刚好让出王座主体的位置。 */
+.title-inner {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0 24px 6vh;
+  text-align: center;
+}
+
+/* 开始按钮：比通用 .btn-primary 再大一档 —— 这是整页唯一的操作入口。
+   高度写死 64 而不是靠 padding 撑：贴图底（button-primary.png）是拉伸的，
+   高度固定才能保证几个屏幕上长得一样。 */
+.title-start {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 260px;
+  height: 64px;
+  margin-top: 34px;
+  padding: 0 40px;
+  font-size: 22px;
+  letter-spacing: 0.3em;
+  text-indent: 0.3em;
+}
+
+/* 教程开关：放在开始按钮下面，小字。它是附加选项，不该和开始按钮抢权重。 */
+.tut-toggle.title-tut {
+  margin: 18px 0 0;
+  font-size: 12.5px;
+  color: rgba(222, 215, 242, 0.66);
+}
+
+/* ---- 2.9.3 结算页：评级牌不许压标题 ------------------------------------
+   评级牌挂在 top:-38、高 84 → 下沿落在 46px；它还有 rotate(-4deg)，
+   旋转后的外接框比 84 高 ≈6px，所以标题必须从 52px 起才真的不相交。
+   这条用 `.panel.result-panel`（0,2,0）而不是再写一条 `.result-panel`（0,1,0）：
+   同优先级时拼的是源码顺序，而 .panel 的 padding 简写在文件更后面，
+   会把 v2.6/v2.7 写的 padding-top 一起冲掉 —— 这也是截图里
+   "C 字章压掉半个标题"的根因。提高一级优先级就不用再关心顺序了。 */
+.panel.result-panel {
+  padding-top: 52px;
+}
+
+/* ---------- v2.10（用户当日追加） ---------- */
+
+/* 吐司消息：用户明确"我不是说吐司消息改到左下角吗" —— 底部左侧，避开手牌与说明浮层 */
+.toasts {
+  left: 18px;
+  right: auto;
+  top: auto;
+  bottom: 26px;
+  transform: none;
+  align-items: flex-start;
+}
+
+/* 未解锁的卡：整张压暗 + 倒计时，看得见但点不动 */
+.card.is-locked {
+  filter: grayscale(0.85) brightness(0.62);
+  cursor: not-allowed;
+}
+
+.card.is-locked .card-cd {
+  color: #ffd9a0;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.card.is-locked .card-stack {
+  color: #b9a37a;
+}
+
+/* 结算：用户要求去掉面板底图，只留数据本身 */
+.panel.result-panel {
+  background: none;
+  border: none;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+/* 叠了层的美德 chip 用金色描边，表示"这条他有 2 级" */
+.top-perk.is-lv {
+  border-color: rgba(255, 179, 71, 0.62);
+  color: #ffe0b0;
 }

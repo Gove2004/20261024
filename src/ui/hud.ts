@@ -41,15 +41,18 @@ export class Hud {
   private readonly timerEl: HTMLDivElement;
   private readonly hpFill: HTMLDivElement;
   private readonly hpText: HTMLSpanElement;
-  /** 详情面板（默认折叠）：等级 / 经验 / 属性 / 技能 / 美德都在里面 */
+  /** 详情面板（默认折叠）：属性 / 技能 / 美德。等级、经验、天赋在顶部常驻 */
   private readonly infoEl: HTMLDivElement;
   private readonly infoToggleEl: HTMLButtonElement;
-  private readonly lvEl: HTMLElement;
-  private readonly intentEl: HTMLSpanElement;
+  private readonly heroLvEl: HTMLSpanElement;
   private readonly starText: HTMLSpanElement;
   private readonly starDots: HTMLDivElement;
+  /** 顶部血条下方的经验条（v2.9 从详情面板搬回常驻区） */
   private readonly xpFill: HTMLDivElement;
-  private readonly xpText: HTMLSpanElement;
+  /** 经验条下方的天赋条：他这局抽到的七美德 */
+  private readonly topPerksEl: HTMLDivElement;
+  private lastLvText = '';
+  private lastXpWidth = '';
   private readonly heroStats: HTMLDivElement;
   private readonly skillsEl: HTMLDivElement;
   private readonly perksEl: HTMLDivElement;
@@ -75,6 +78,8 @@ export class Hud {
   private tutOn = true;
   private lastSkill = '';
   private readonly perks: string[] = [];
+  /** 每条美德叠到几级（重复获得即升级，v2.10） */
+  private readonly levels = new Map<string, number>();
   private readonly tooltipEl: HTMLDivElement;
   private tipTarget: HTMLElement | null = null;
   /** 提示需要的数据来自 game，但提示是"用户交互时"才构建的，所以留个引用 */
@@ -115,21 +120,21 @@ export class Hud {
     this.root = document.createElement('div');
     this.root.className = 'hud';
     this.root.innerHTML = `
+      <button class="hero-info-toggle" data-hero-toggle>查看详情</button>
       <div class="hud-top">
         <div class="timer" data-timer>5:00</div>
         <div class="hero-panel" data-hero-hover>
           <div class="hero-row">
             <span class="hero-name">锅巴</span>
-            <span class="hero-intent" data-intent>追击</span>
+            <span class="hero-lv" data-hero-lv>Lv.1</span>
           </div>
-          <div class="hero-hp"><div class="hero-hp-fill" data-hp></div><span class="hero-hp-text" data-hp-text>18000 / 18000</span></div>
+          <div class="hero-hp"><div class="hero-hp-fill" data-hp></div><span class="hero-hp-text" data-hp-text>23800 / 23800</span></div>
+          <div class="hero-xp"><div class="hero-xp-fill" data-xp></div></div>
+          <div class="hero-perks" data-top-perks></div>
         </div>
-        <button class="hero-info-toggle" data-hero-toggle>查看锅巴</button>
       </div>
-      <!-- 锅巴详情：默认折叠。悬停顶部血条，或点「查看锅巴」都能展开 -->
+      <!-- 详情面板：属性与技能。等级、血、经验、天赋都在顶部常驻，这里只补"查得到"的那部分 -->
       <div class="hero-info" data-hero-info hidden>
-        <div class="hi-row"><span>等级</span><b data-hi-lv>Lv.1</b></div>
-        <div class="hi-xp"><div class="hi-xp-fill" data-hi-xp></div><span data-hi-xp-text>0%</span></div>
         <div class="hi-stats" data-hero-stats></div>
         <div class="hi-skills" data-hi-skills></div>
         <div class="hi-perks" data-hero-perks></div>
@@ -174,14 +179,13 @@ export class Hud {
     this.timerEl = this.must('[data-timer]');
     this.hpFill = this.must('[data-hp]');
     this.hpText = this.must('[data-hp-text]');
-    this.intentEl = this.must('[data-intent]');
+    this.heroLvEl = this.must('[data-hero-lv]');
     this.starText = this.must('[data-star]');
     this.starDots = this.must('[data-dots]');
     this.infoEl = this.must('[data-hero-info]');
     this.infoToggleEl = this.must('[data-hero-toggle]');
-    this.lvEl = this.must('[data-hi-lv]');
-    this.xpFill = this.must('[data-hi-xp]');
-    this.xpText = this.must('[data-hi-xp-text]');
+    this.xpFill = this.must('[data-xp]');
+    this.topPerksEl = this.must('[data-top-perks]');
     this.heroStats = this.must('[data-hero-stats]');
     this.skillsEl = this.must('[data-hi-skills]');
     this.perksEl = this.must('[data-hero-perks]');
@@ -308,11 +312,18 @@ export class Hud {
       }
     }
 
-    const intentText = hero.intent === 'retreat' ? '撤退' : hero.intent === 'charge' ? '蓄力' : '追击';
-    if (intentText !== this.lastIntent) {
-      this.lastIntent = intentText;
-      this.intentEl.textContent = intentText;
-      this.intentEl.dataset['intent'] = hero.intent;
+    // 顶部常驻区：等级在名字右侧、经验条在血条下方、天赋在经验条下方（v2.9）
+    const lvText = `Lv.${hero.level}`;
+    if (lvText !== this.lastLvText) {
+      this.lastLvText = lvText;
+      this.heroLvEl.textContent = lvText;
+    }
+    const need = Math.max(1, xpNeed(hero.level));
+    const xpPct = need > 0 ? Math.min(100, (hero.xp / need) * 100) : 0;
+    const xpWidth = `${xpPct.toFixed(1)}%`;
+    if (xpWidth !== this.lastXpWidth) {
+      this.lastXpWidth = xpWidth;
+      this.xpFill.style.width = xpWidth;
     }
 
     const starText = `${game.occupiedStars} / ${game.starCap}`;
@@ -403,6 +414,25 @@ export class Hud {
       node.name.textContent = def?.name ?? card.id;
       node.star.textContent = `★${card.star}`;
       node.root.classList.toggle('selected', game.selected === i);
+      // v2.10：还没解锁的卡也摊在手牌里，但整张变暗 + 显示解锁倒计时，点了只会弹提示
+      const locked = card.unlockAt > 0;
+      node.root.classList.toggle('is-locked', locked);
+      if (locked) {
+        node.root.classList.remove('ready');
+        const left = Math.max(0, Math.ceil(card.unlockAt - (RUN.duration - game.timeLeft)));
+        const lockText = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+        if (node.lastCdText !== lockText) {
+          node.lastCdText = lockText;
+          node.cd.textContent = lockText;
+        }
+        if (node.lastStack !== 'lock') {
+          node.lastStack = 'lock';
+          node.stack.textContent = '锁定';
+          node.lvEl.textContent = '';
+          this.refreshTooltip(node, card, i, game);
+        }
+        continue;
+      }
       // "能不能放"只看充能；cd 只用来画回充进度条（见 cards.ts CARD_STACK）
       node.root.classList.toggle('ready', card.charges > 0);
       const total = cardCdSeconds(card.star);
@@ -503,15 +533,19 @@ export class Hud {
   }
 
   /** 勇者已获得的美德（全部记录，详情面板里逐条列出）。 */
-  public pushPerk(name: string): void {
+  public pushPerk(name: string, level = 1): void {
     if (!name) return;
     if (!this.perks.includes(name)) this.perks.push(name);
+    this.levels.set(name, level);
+    this.renderTopPerks();
     this.renderInfo();
   }
 
   public clearPerks(): void {
     this.perks.length = 0;
+    this.levels.clear();
     this.lastSkill = '';
+    this.renderTopPerks();
     this.renderInfo();
   }
 
@@ -539,22 +573,16 @@ export class Hud {
   }
 
   /**
-   * 详情面板内容：等级 / 经验 / 属性 / 最近技能 / 已得美德。
+   * 详情面板内容：属性 / 最近技能与意图 / 已得美德全称。
    *
-   * 用户原话："锅巴经验条不需要显示等级，不需要显示技能长条和基础属性" +
-   * "锅巴具体情况显示在左上角，一个 查看锅巴 按钮可以折叠"。
-   * 所以这些数字没有被删掉，而是**从常驻 HUD 移到按需展开的面板**：
-   * 想查的人能查到，不想看的人屏幕上不会有这些东西。
+   * 用户原话 v2.9："血条显示在中上，名字右侧显示锅巴等级，经验条下方显示锅巴选择的天赋"。
+   * 等级、经验、天赋都搬回了常驻 HUD —— 这些是**每一秒都会影响决策**的量；
+   * 而"他现在多少攻速、刚才用了什么技能"只在想深挖时才看，所以留在这里按需展开。
    */
   private renderInfo(): void {
     const game = this.gameRef;
     if (!game || !this.infoOpen) return;
     const hero = game.hero;
-    this.lvEl.textContent = `Lv.${hero.level}`;
-    const need = Math.max(1, xpNeed(hero.level));
-    const xpPct = Math.max(0, Math.min(100, (hero.xp / need) * 100));
-    this.xpFill.style.width = `${xpPct.toFixed(1)}%`;
-    this.xpText.textContent = `${Math.floor(xpPct)}%（${Math.floor(hero.xp)}/${need}）`;
     this.heroStats.innerHTML = [
       ['生命', `${Math.ceil(hero.hp)} / ${Math.round(hero.maxHp)}`],
       ['攻击', `${Math.round(hero.atk)}`],
@@ -574,7 +602,26 @@ export class Hud {
         : this.perks
             .map((perk) => {
               const def = PASSIVE_POOL.find((item) => item.name === perk);
-              return `<div class="hi-perk"><b>${perk}</b><span>${def?.desc ?? ''}</span></div>`;
+              const lv = this.levels.get(perk) ?? 1;
+              return `<div class="hi-perk"><b>${perk}${lv > 1 ? ` Lv.${lv}` : ''}</b><span>${def?.desc ?? ''}</span></div>`;
+            })
+            .join('');
+  }
+
+  /**
+   * 顶部天赋条：只写美德名字，一句机制留给详情面板。
+   * 天赋会越叠越多，全写成句子会把血条挤成三行 —— 名字 + 悬停看全文才是对的密度。
+   */
+  private renderTopPerks(): void {
+    this.topPerksEl.innerHTML =
+      this.perks.length === 0
+        ? ''
+        : this.perks
+            .map((perk) => {
+              const def = PASSIVE_POOL.find((item) => item.name === perk);
+              const lv = this.levels.get(perk) ?? 1;
+              const title = def ? `${def.desc}${lv > 1 ? ` ×${lv}` : ''}` : '';
+              return `<span class="top-perk${lv > 1 ? ' is-lv' : ''}" title="${title}">${perk}${lv > 1 ? ` ×${lv}` : ''}</span>`;
             })
             .join('');
   }
@@ -583,9 +630,13 @@ export class Hud {
    * 升级播报（M3）。toast 会被战斗信息淹掉，
    * 而"他刚刚又变强了"是玩家最需要立刻感知的事，所以单独给一块中屏横幅。
    */
-  public levelUp(level: number, passive: string): void {
+  public levelUp(level: number, passive: string, passiveLevel = 0): void {
     this.levelupLevelEl.textContent = `锅巴 Lv.${level}`;
-    this.levelupPassiveEl.textContent = passive ? `获得被动：${passive}` : '他变强了';
+    this.levelupPassiveEl.textContent = passive
+      ? passiveLevel > 1
+        ? `获得美德：${passive} Lv.${passiveLevel}`
+        : `获得美德：${passive}`
+      : '他变强了';
     this.pushPerk(passive);
     this.levelupEl.hidden = false;
     this.levelupEl.classList.remove('is-in');
@@ -613,7 +664,7 @@ export class Hud {
     this.tipTarget = target;
     this.tooltipEl.innerHTML = this.tooltipHtml(card, index, game);
     this.tooltipEl.hidden = false;
-    this.positionTooltip();
+    this.positionTooltip(target);
   }
 
   private hideTooltip(): void {
@@ -624,7 +675,7 @@ export class Hud {
   private refreshTooltip(node: CardNode, card: HandCard, index: number, game: Game): void {
     if (this.tipTarget !== node.root) return;
     this.tooltipEl.innerHTML = this.tooltipHtml(card, index, game);
-    this.positionTooltip();
+    this.positionTooltip(node.root);
   }
 
   private tooltipHtml(card: HandCard, index: number, game: Game): string {
@@ -662,34 +713,51 @@ export class Hud {
   }
 
   /**
-   * v2.8：卡牌说明改成**固定在左下角**（用户："tips 放在左下角，并且略微增大，更加明显"）。
-   * 以前跟着鼠标跑，最大的问题是鼠标停在手牌上时浮层正好盖住旁边的卡 ——
-   * 想看第二张卡得先把鼠标移开。固定位置以后，眼睛知道该往哪儿看，手也能一直停在牌上。
+   * v2.9：说明浮在**这张卡的正上方**（用户："魔物卡牌详情悬浮在卡牌上而不是左侧"）。
+   *
+   * v2.8 曾把它钉在左下角，理由是"鼠标停在手牌上也能看清旁边的卡"；
+   * 但那让视线每次都要横跨半个屏幕去核对数字。现在贴着卡走，眼睛不用离开手牌区，
+   * 上沿超屏时会翻到卡片下沿，左右超屏时向里收 —— 位置永远可读。
    */
-  private positionTooltip(): void {
+  private positionTooltip(target: HTMLElement): void {
+    this.tooltipEl.classList.remove('is-docked');
     this.tooltipEl.style.top = '';
     this.tooltipEl.style.left = '';
-    this.tooltipEl.classList.add('is-docked');
+    const rect = target.getBoundingClientRect();
+    const tip = this.tooltipEl.getBoundingClientRect();
+    // v2.9 用户原话："魔物卡牌详情悬浮在卡牌上而不是左侧"。
+    // 贴着这张卡的正上方，卡片换了浮层就跟着走 —— 眼睛不用在"卡"和"屏幕左下角"之间来回跳。
+    let top = rect.top - tip.height - 12;
+    // 上面放不下（窗口很矮）就压到卡片下沿，至少别飞出屏幕
+    if (top < 8) top = Math.min(window.innerHeight - tip.height - 8, rect.bottom + 12);
+    let left = rect.left + rect.width / 2 - tip.width / 2;
+    left = Math.max(8, Math.min(left, window.innerWidth - tip.width - 8));
+    this.tooltipEl.style.top = `${Math.max(8, top)}px`;
+    this.tooltipEl.style.left = `${left}px`;
   }
 
   // ---------------------------------------------------------------- 覆盖层
 
   public showTitle(): void {
-    this.overlayEl.className = 'overlay is-open';
+    const base = import.meta.env.BASE_URL;
+    this.overlayEl.className = 'overlay is-open title';
+    // v2.9 用户原话："去掉主界面面板，改为魔王大厅背景图 + 遮罩 + 标题 + 开始按钮"。
+    // 背景直接用仓库里已有的王座与地面贴图：一块面板会把"魔王殿"这件最重要的事盖掉，
+    // 而这张大厅图正是玩家第一眼该看到的东西。
     this.overlayEl.innerHTML = `
-      <div class="panel title-panel">
+      <div class="title-stage">
+        <div class="title-bg" style="background-image:url('${base}art/throne.png')"></div>
+        <div class="title-bg title-bg-floor" style="background-image:url('${base}art/env-floor.png')"></div>
+        <div class="title-mask"></div>
         <span class="ver-badge" data-ver>${APP.version}</span>
-        <img class="title-hero" src="${import.meta.env.BASE_URL}art/guoba.png" alt="勇者锅巴" />
-        <h1 class="game-title">${APP.title}</h1>
-        <ul class="rules rules-tight">
-          <li>你是魔王，没有身体 —— 只有一件事：<b>放怪，5 分钟内打死锅巴</b></li>
-          <li>放怪花星数 · 每 30 秒三选一「权能」· 1:15 和 2:45 各解锁一张高级牌</li>
-        </ul>
-        <label class="tut-toggle">
-          <input type="checkbox" data-tut-check${this.tutOn ? ' checked' : ''} />
-          <span>新手教程（进局先讲一遍界面）</span>
-        </label>
-        <button class="btn-primary" data-start>开始讨伐</button>
+        <div class="title-inner">
+          <h1 class="game-title">${APP.title}</h1>
+          <button class="btn-primary title-start" data-start>开始讨伐</button>
+          <label class="tut-toggle title-tut">
+            <input type="checkbox" data-tut-check${this.tutOn ? ' checked' : ''} />
+            <span>新手教程</span>
+          </label>
+        </div>
       </div>
     `;
     this.overlayEl.querySelector('[data-start]')?.addEventListener('click', () => this.handlers.onStart());
@@ -735,22 +803,22 @@ export class Hud {
     {
       sel: '[data-hand]',
       title: '① 手牌：这就是你的全部力量',
-      text: '点一张卡 → 再点地面，怪物就出现在那儿。你没有身体，只能靠它们。每张卡 5 层，放一只扣一层，攒够了再放。',
+      text: '点一张卡，再点地面，怪物就出现在那儿。你没有身体，只能靠它们。开局只有史莱姆，之后每多撑一会儿就多一种选择。',
     },
     {
       sel: '.star-budget',
       title: '② 星数：你现在能养多少怪',
-      text: '放怪要花星数，这条是"已用 / 上限"。上限每 30 秒 +5；1:15 和 2:45 还会解锁石像鬼、巨大蜘蛛两张高级牌。',
+      text: '放怪要花星数，这条是已用与上限。上限每 30 秒 +5。0:30 解锁蝙蝠，1:00 哥布林，2:00 石像鬼，3:00 大蜘蛛。',
     },
     {
       sel: '.hero-panel',
       title: '③ 锅巴的血条：你要打空的就是它',
-      text: '5 分钟内打到 0 就赢。悬停这条血，或点旁边的「查看锅巴」，能看他的等级、属性和他抽到的七美德。',
+      text: '5 分钟内打到 0 就赢。名字右边是他的等级，血条下面是经验条，经验条下面是他这局抽到的七美德。点左上角「查看详情」看他具体多强。',
     },
     {
       sel: '[data-timer]',
       title: '④ 倒计时：时间到了算你输',
-      text: '他杀你的怪会变强，你每 30 秒能三选一「权能」变强。比的就是谁长得快。',
+      text: '他杀你的怪会变强，你每 30 秒能三选一「七宗罪权能」变强。比的就是谁长得快。',
     },
   ];
   private tutIdx = 0;
@@ -841,24 +909,38 @@ export class Hud {
     }
   }
 
-  public showPowerup(options: readonly PowerupOption[]): void {
+  /**
+   * 权能三选一（v2.9 视觉重做）。
+   *
+   * 用户原话：「权能选择无需面板，只需要遮罩」+「标题为 七宗罪权能」+
+   * 「小字 每隔 30 秒，从以下三种权能中选择一种」+「三张全能卡 3:4 比例，
+   * 内部为名称和效果描述」+「对于每次星级上限提升和部分节点的新魔物解锁，
+   * 以额外效果（紫色文字）追加到描述中，一个效果一行，描述是多行文本」。
+   *
+   * 去掉面板之后，三张卡直接浮在遮罩上：屏幕只剩"选哪张"这一件事，
+   * 不再有一个大框把战场和卡片一起装进去。
+   */
+  public showPowerup(options: readonly PowerupOption[], extras: readonly string[] = []): void {
     this.hidePowerupWarning();
     this.overlayEl.className = 'overlay is-open powerup';
+    // 额外效果是**这一轮全局发生的事**，三张卡都会得到，所以每张卡底部都列一遍：
+    // 玩家无论点哪张，这两行都会生效 —— 不写就等于偷偷改了规则。
+    const extraLines = extras.map((line) => `<span class="pu-extra">${line}</span>`).join('');
     const cards = options
       .map(
         (opt) => `
-        <button class="powerup-card" data-opt="${opt.id}" disabled>
-          <span class="powerup-title">${opt.title}</span>
-          <span class="powerup-desc">${opt.desc}</span>
+        <button class="pu-card" data-opt="${opt.id}" disabled>
+          <span class="pu-name">${opt.title}</span>
+          <span class="pu-desc">${opt.desc}</span>
+          <span class="pu-extras">${extraLines}</span>
         </button>`,
       )
       .join('');
     this.overlayEl.innerHTML = `
-      <div class="panel powerup-panel">
-        <h2 class="panel-title">七宗罪</h2>
-        <p class="panel-sub">三选一 · 世界已为你暂停</p>
-        <div class="powerup-row">${cards}</div>
-        <div class="powerup-hold"><span class="powerup-hold-fill"></span></div>
+      <div class="pu-wrap">
+        <h2 class="pu-head">七宗罪权能</h2>
+        <p class="pu-sub">每隔 30 秒，从以下三种权能中选择一种</p>
+        <div class="pu-row">${cards}</div>
       </div>
     `;
     const buttons = [...this.overlayEl.querySelectorAll<HTMLButtonElement>('[data-opt]')];
@@ -868,8 +950,8 @@ export class Hud {
         if (id && !btn.disabled) this.handlers.onPowerup(id);
       });
     }
-    // 防误触第二道闸：面板出现后 0.45 秒内按钮不可点（连点/双击不会穿透）。
-    // 这和上面的前摇是两件事：前摇防"突然弹出"，这里防"手已经按下"。
+    // 防误触第二道闸：卡片出现后 0.45 秒内不可点（连点/双击不会穿透）。
+    // 这和前摇是两件事：前摇防"突然弹出"，这里防"手已经按下"。
     this.overlayEl.classList.add('is-armed-later');
     window.setTimeout(() => {
       for (const btn of buttons) btn.disabled = false;
@@ -928,7 +1010,7 @@ export class Hud {
     const title = won ? '他倒下了' : '他还是走到了王座前';
     const desc = won
       ? `用时 ${mm}:${ss.toString().padStart(2, '0')} · 剩余 ${Math.ceil(game.timeLeft)} 秒`
-      : `倒计时归零，锅巴还站着（剩 ${Math.round(hpLeft * 100)}% 血）—— 这次是你输了`;
+      : `倒计时归零，锅巴还剩 ${Math.round(hpLeft * 100)}% 血 —— 这次是你输了`;
     // 评级只看"赢没赢"和"赢得多快"：赢了按用时给 S/A/B，输了固定 C。
     // 不做复杂公式 —— 玩家不需要看懂评分，只需要一个"下一局想拿 S"的念头。
     const grade = !won ? 'C' : elapsed < 120 ? 'S' : elapsed < 200 ? 'A' : 'B';
